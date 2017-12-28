@@ -8,7 +8,7 @@ QT += core gui sql
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-TARGET = fcvtc
+TARGET = llrplaps
 TEMPLATE = app
 
 LTKLIBDIR = ../LTK/LTKCPP/Library

@@ -98,14 +98,15 @@ void CReader::onStarted(void) {
         emit newLogMessage("Simulation mode to simulate reader signals without being connected to reader");
         emit connected();
         tag.readerId = readerId;
-        int averageIntervalMSec = 1000; // average interval between tags seen
+        int averageIntervalMSec = 0; // average interval between tags seen
         int count = 0;
 
         switch (antennaPosition) {
         case track:
+            averageIntervalMSec = 10000;
             break;
         case desk:
-            averageIntervalMSec = 20000;
+            averageIntervalMSec = 10000;
             break;
         }
 
@@ -114,23 +115,18 @@ void CReader::onStarted(void) {
                 count++;
                 tag.antennaId = (rand() % 4) + 1;   // random antennaId between 1 and 4
                 tag.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
-                int id = (rand() % 32) + 1;      // random number between 1 and 32
+                int id = (rand() % 16) + 1;      // random number between 1 and 16
                 tag.tagId = s.sprintf("2016000000%02x", id).toLatin1();
                 int intervalMSec = rand() % averageIntervalMSec + 1;     // next interval between 1 and 2000 msec
-                usleep(intervalMSec * 1000);
+                usleep(intervalMSec * 100);
                 emit newTag(tag);
-                if (id == 2) {
-                    usleep(1000);
-                    tag.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
-                    emit newTag(tag);
-                }
 
                 if (thread && thread->isInterruptionRequested()) {
                     thread->quit();
                     return;
                 }
             }
-            sleep(10);
+            sleep(3);
 
         }
     }

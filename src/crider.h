@@ -31,6 +31,7 @@ public:
     unsigned long long previousTimeStampUSec;   // timestamp from reader, updated with each lap
     float lapSec;
     float lapM;
+    float lapSpeed;
     int lapCount;
     float totalSec;    // used to calculate average time
     float totalM;
@@ -39,6 +40,7 @@ public:
     CStats thisMonth;
     CStats lastMonth;
     CStats allTime;
+    QString comment;
 };
 
 

@@ -23,13 +23,15 @@ int CDbase::open(QString filename, QString username, QString password) {
         return 1;
     }
 
+    bool showNames = true;//false;
+
     // Make sure tables exist and create as necessary
     // The first table is a list of tagId values and corresponding names
 
     QStringList tableList = dBase.tables();
     QString tableNames = "names";
     if (!tableList.contains(tableNames)) {
-        query.prepare("create table " + tableNames + " (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20))");
+        query.prepare("create table " + tableNames + " (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             throw("Error creating table " + tableNames + ": " + errorTextVal);
@@ -38,29 +40,31 @@ int CDbase::open(QString filename, QString username, QString password) {
     }
     tableList = dBase.tables();
 
-    bool showNames = true;//false;
     if (showNames) {
-        qDebug() << "List of tagId and names in names table...";
+        qDebug() << "List of tagId and names in names table " + filename + "...";
         query.prepare("select * from names");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << errorTextVal;
-            return 4;
+            return 2;
         }
         int id = query.record().indexOf("id");
         int idTagId = query.record().indexOf("tagId");
         int idFirst = query.record().indexOf("firstName");
         int idLast = query.record().indexOf("lastName");
+        int idMembership = query.record().indexOf("membershipNumber");
         while (query.next()) {
-            qDebug("id=%d tagId=%s name=%s %s", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data());
+            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toInt());
         }
     }
 
 
+
     // The second table is a list of completed laps: tagId values, timeDateInt stamp values and laptime usec values and lapdistance values
 
+    QString tableLaps = "laps";
+
 //    bool deleteLapsTable = false;
-//    QString tableLaps = "laps";
 //    if (deleteLapsTable) {
 //        query.prepare("drop table laps");
 //        if (!query.exec()) {
@@ -71,16 +75,15 @@ int CDbase::open(QString filename, QString username, QString password) {
 //        qDebug() << "Laps table deleted";
 //    }
 
-//    if (!tableList.contains(tableLaps)) {
-//        query.prepare("create table " + tableLaps + " (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime INTEGER(10), lapmsec INTEGER(10), lapm FLOAT(10))");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            qDebug() << "Error creating table " << tableLaps << ": " << errorTextVal;
-//            return 3;
-//        }
-//        qDebug() << "Created new laps table";
-//    }
-
+    if (!tableList.contains(tableLaps)) {
+        query.prepare("create table " + tableLaps + " (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime INTEGER(10), lapmsec INTEGER(10), lapm FLOAT(10))");
+        if (!query.exec()) {
+            errorTextVal = query.lastError().text();
+            qDebug() << "Error creating table " << tableLaps << ": " << errorTextVal;
+            return 4;
+        }
+        qDebug() << "Created new laps table";
+    }
 
     bool showLaps = false;
     if (showLaps) {
@@ -90,7 +93,7 @@ int CDbase::open(QString filename, QString username, QString password) {
         if (!queryLaps.exec()) {
             errorTextVal = queryLaps.lastError().text();
             qDebug() << errorTextVal;
-            return 4;
+            return 5;
         }
         int id = queryLaps.record().indexOf("id");
         int idTagId = queryLaps.record().indexOf("tagId");
@@ -127,17 +130,18 @@ bool CDbase::isOpen(void) {
 
 
 
-// addTagId
-// Add entry to names database.  Both tagId must be unique as must the first-last name.
+// addName
+// Add entry to names database.  TagId and first-last name must be unique.
 //
-int CDbase::addTagId(const QByteArray &tagId, const QString &firstName, const QString &lastName) {
+int CDbase::add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
     if (!dBase.isOpen()) return 1;
 
     QSqlQuery query;
-    query.prepare("INSERT INTO names (tagId, firstName, lastName) VALUES (:tagId, :firstName, :lastName)");
+    query.prepare("INSERT INTO names (tagId, firstName, lastName, membershipNumber) VALUES (:tagId, :firstName, :lastName, :membershipNumber)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
     query.bindValue(":lastName", lastName);
+    query.bindValue(":membershipNumber", membershipNumber);
     if (!query.exec()) {
         errorTextVal = "Could not add to database";
         return 2;
@@ -149,7 +153,7 @@ int CDbase::addTagId(const QByteArray &tagId, const QString &firstName, const QS
 
 // updateTagId
 //
-int CDbase::updateTagId(const QByteArray &tagId, const QString &firstName, const QString &lastName) {
+int CDbase::update(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
     if (!dBase.isOpen()) return 1;
 
     QSqlQuery query;
@@ -157,16 +161,24 @@ int CDbase::updateTagId(const QByteArray &tagId, const QString &firstName, const
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
     if (!query.exec()) {
-        errorTextVal = "Could not update database";
+        errorTextVal = "Could not update first name in database";
         return 2;
     }
     query.prepare("UPDATE names SET lastName = :lastName WHERE tagId = :tagId");
     query.bindValue(":tagId", tagId);
     query.bindValue(":lastName", lastName);
     if (!query.exec()) {
-        errorTextVal = "Could not update database";
+        errorTextVal = "Could not update last name database";
         return 3;
     }
+    query.prepare("UPDATE names SET membershipNumber = :membershipNumber WHERE tagId = :tagId");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":membershipNumber", membershipNumber);
+    if (!query.exec()) {
+        errorTextVal = "Could not update membership number database";
+        return 4;
+    }
+
     return 0;
 }
 
@@ -226,8 +238,37 @@ int CDbase::findTagIdFromName(const QString &firstName, const QString &lastName,
 
 
 
+// getIdFromTagId()
+// Return 0 on error
+//
+int CDbase::getIdFromTagId(const QByteArray &tagId) {
+    if (!dBase.isOpen()) return 0;
+    if (tagId.isEmpty()) return 0;
+
+    QSqlQuery query;
+    query.prepare("SELECT id FROM names WHERE tagId = (:tagId)");
+    query.bindValue(":tagId", tagId);
+
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        qDebug() << errorTextVal;
+        return 0;
+    }
+
+    int id = 0;
+    if (query.next()) {
+        id = query.value(0).toInt();
+        errorTextVal.clear();
+        return id;
+    }
+    errorTextVal = "TagId not found";
+    return 0;
+}
+
+
+
 // getIdFromName()
-// Return 0 on error.
+// Return 0 on error
 //
 int CDbase::getIdFromName(const QString &firstName, const QString &lastName) {
     if (!dBase.isOpen()) return 0;
@@ -265,7 +306,34 @@ int CDbase::getIdFromName(const QString &firstName, const QString &lastName) {
 }
 
 
-int CDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString *lastName) {
+// getIdFromMembershipNumber()
+// Return 0 on error
+//
+int CDbase::getIdFromMembershipNumber(const int membershipNumber) {
+    if (!dBase.isOpen()) return 0;
+
+    QSqlQuery query;
+    query.prepare("SELECT id FROM names WHERE membershipNumber = (:membershipNumber)");
+    query.bindValue(":membershipNumber", membershipNumber);
+
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        qDebug() << errorTextVal;
+        return 0;
+    }
+    int id = 0;
+    if (query.next()) {
+        id = query.value(0).toInt();
+        errorTextVal.clear();
+        return id;
+    }
+    errorTextVal = "Name not found";
+    return 0;
+}
+
+
+
+int CDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString *lastName, int *membershipNumber) {
     if (!dBase.isOpen())
         return 1;
 
@@ -281,7 +349,8 @@ int CDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString 
     int tagIdIndex = query.record().indexOf("tagId");
     int firstNameIndex = query.record().indexOf("firstName");
     int lastNameIndex = query.record().indexOf("lastName");
-    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0)) {
+    int membershipNumberIndex = query.record().indexOf("membershipNumber");
+    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0)) {
         errorTextVal = "Could not find index";
         qDebug() << errorTextVal;
         return 3;
@@ -291,6 +360,7 @@ int CDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString 
         *tagId = query.value(tagIdIndex).toString().toLatin1();
         *firstName = query.value(firstNameIndex).toString();
         *lastName = query.value(lastNameIndex).toString();
+        *membershipNumber = query.value(membershipNumberIndex).toInt();
         errorTextVal.clear();
         return 0;
     }
@@ -357,39 +427,39 @@ int CDbase::namesRowCount(void) {
 // getTagIdAndName()
 // Return 0 on success
 //
-int CDbase::getTagIdAndName(int id, QByteArray *tagId, QString *firstName, QString *lastName) {
-    if (!dBase.isOpen())
-        return 1;
+//int CDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString *lastName, int *membershipNumber) {
+//    if (!dBase.isOpen())
+//        return 1;
 
-    QSqlQuery query;
-    query.prepare("SELECT * FROM names WHERE id = (:id)");
-    query.bindValue(":id", id);
-    if (!query.exec()) {
-        errorTextVal = query.lastError().text();
-        qDebug() << errorTextVal;
-        return 1;
-    }
+//    QSqlQuery query;
+//    query.prepare("SELECT * FROM names WHERE id = (:id)");
+//    query.bindValue(":id", id);
+//    if (!query.exec()) {
+//        errorTextVal = query.lastError().text();
+//        qDebug() << errorTextVal;
+//        return 1;
+//    }
 
-    int tagIdIndex = query.record().indexOf("tagId");
-    int firstNameIndex = query.record().indexOf("firstName");
-    int lastNameIndex = query.record().indexOf("lastName");
-    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0)) {
-        errorTextVal = "Could not find index";
-        qDebug() << errorTextVal;
-        return 2;
-    }
+//    int tagIdIndex = query.record().indexOf("tagId");
+//    int firstNameIndex = query.record().indexOf("firstName");
+//    int lastNameIndex = query.record().indexOf("lastName");
+//    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0)) {
+//        errorTextVal = "Could not find index";
+//        qDebug() << errorTextVal;
+//        return 2;
+//    }
 
-    if (query.next()) {
-        *tagId = query.value(tagIdIndex).toString().toLatin1();
-        *firstName = query.value(firstNameIndex).toString();
-        *lastName = query.value(lastNameIndex).toString();
-        errorTextVal.clear();
-        return 0;
-    }
-    errorTextVal = "getTagIdAndName error";
-    qDebug() << errorTextVal;
-    return 3;
-}
+//    if (query.next()) {
+//        *tagId = query.value(tagIdIndex).toString().toLatin1();
+//        *firstName = query.value(firstNameIndex).toString();
+//        *lastName = query.value(lastNameIndex).toString();
+//        errorTextVal.clear();
+//        return 0;
+//    }
+//    errorTextVal = "getTagIdAndName error";
+//    qDebug() << errorTextVal;
+//    return 3;
+//}
 
 
 
@@ -401,7 +471,6 @@ int CDbase::addLap(const QByteArray &tagId, int year, int month, int day, int ho
         return 1;
 
     unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
-    //qDebug() << "addLap" << dateTime << year << month << day << hour << minute << second << lapmsec << lapm;
     QSqlQuery query;
     query.prepare("INSERT INTO laps (tagId, dateTime, lapmsec, lapm) VALUES (:tagId, :dateTime, :lapmsec, :lapm)");
     query.bindValue(":tagId", tagId);

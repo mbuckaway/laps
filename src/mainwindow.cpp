@@ -1,5 +1,10 @@
+// **************************************************************************************************
+//
 // mainwindow.cpp
 //
+// llrplaps
+//
+// ***************************************************************************************************
 
 #include <QTimer>
 #include <QMessageBox>
@@ -30,9 +35,9 @@
 
 #define AT_NAME             0
 #define AT_LAPCOUNT         1
-#define AT_LAPSPEED         2
-#define AT_BESTLAPSPEED     3
-#define AT_DISTANCE         4
+#define AT_DISTANCE         2
+#define AT_LAPSPEED         3
+#define AT_BESTLAPSPEED     4
 #define AT_AVERAGESPEED     5
 #define AT_DISTANCETHISMONTH 6
 #define AT_AVERAGESPEEDTHISMONTH 7
@@ -61,10 +66,11 @@
 #define CW_LAPCOUNT         60
 #define CW_SPEED            90
 #define CW_DISTANCE         80
+#define CW_MEMBERSHIPNUMBER 80
 
 
 
-// Records to note:
+// Personal records to note (?):
 // - personal best lap
 // - personal best 10 laps
 // - personal best 1k
@@ -90,16 +96,10 @@
 
 
 
-
-
-CNamesModel::CNamesModel(QObject *parent) : QAbstractTableModel(parent) {
-    loadNames();
-}
-
-
-
-void CNamesModel::loadNames(void) {
-    qDebug() << "loadNames";
+// *****************************************************************************
+// CNamesTableModel
+//
+CNamesTableModel::CNamesTableModel(QObject *parent) : QAbstractTableModel(parent) {
     tagIdList.clear();
     firstNameList.clear();
     lastNameList.clear();
@@ -112,10 +112,12 @@ void CNamesModel::loadNames(void) {
     int idTagId = query.record().indexOf("tagId");
     int idFirst = query.record().indexOf("firstName");
     int idLast = query.record().indexOf("lastName");
+    int idMembership = query.record().indexOf("membershipNumber");
     while (query.next()) {
         tagIdList.append(query.value(idTagId).toString());
         firstNameList.append(query.value(idFirst).toString());
         lastNameList.append(query.value(idLast).toString());
+        membershipList.append(query.value(idMembership).toInt());
     }
     QModelIndex topLeft = index(0, 0);
     QModelIndex bottomRight = index(tagIdList.size() - 1, 2);
@@ -124,38 +126,57 @@ void CNamesModel::loadNames(void) {
 
 
 
-void CNamesModel::addName(QByteArray tagId, QByteArray firstName, QByteArray lastName) {
-    qDebug() << "addName" << tagId << firstName << lastName;
-    insertRows(rowCount(QModelIndex()), 1);
-    setData(createIndex(rowCount() - 1, 0), tagId, Qt::EditRole);
-    setData(createIndex(rowCount() - 1, 1), firstName, Qt::EditRole);
-    setData(createIndex(rowCount() - 1, 2), lastName, Qt::EditRole);
-//    QModelIndex topLeft = index(0, 0);
-//    QModelIndex bottomRight = index(tagIdList.size() - 1, 2);
-//    emit dataChanged(topLeft, bottomRight);
-}
-
-
-
-bool CNamesModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
-    beginInsertRows(QModelIndex(), position, position + rows - 1);
-    for (int row = 0; row < rows; ++row) {
-        tagIdList.insert(position, QString());
-        firstNameList.insert(position, QString());
-        lastNameList.insert(position, QString());
-    }
-    endInsertRows();
+bool CNamesTableModel::addName(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
+    int row = rowCount();
+    insertRows(row, 1);
+    setData(index(row, 0), tagId, Qt::EditRole);
+    setData(index(row, 1), firstName, Qt::EditRole);
+    setData(index(row, 2), lastName, Qt::EditRole);
+    setData(index(row, 3), membershipNumber, Qt::EditRole);
+    QModelIndex topLeft = index(row, 0);
+    QModelIndex bottomRight = index(row, 2);
+    emit dataChanged(topLeft, bottomRight);
     return true;
 }
 
 
 
-bool CNamesModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
+bool CNamesTableModel::removeName(const QByteArray &tagId) {
+    int row = tagIdList.indexOf(tagId);
+    if (!removeRows(row, 1))
+        return false;
+    QModelIndex topLeft = index(row, 0);
+    QModelIndex bottomRight = index(rowCount() - 1, 2);
+    emit dataChanged(topLeft, bottomRight);
+    return true;
+}
+
+
+
+bool CNamesTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
+    beginInsertRows(QModelIndex(), position, position + rows - 1);
+    for (int row = 0; row < rows; ++row) {
+        tagIdList.insert(position, QString());
+        firstNameList.insert(position, QString());
+        lastNameList.insert(position, QString());
+        membershipList.insert(position, 0);
+    }
+    endInsertRows();
+    QModelIndex topLeft = index(position, 0);
+    QModelIndex bottomRight = index(position, 2);
+    emit dataChanged(topLeft, bottomRight);
+    return true;
+}
+
+
+
+bool CNamesTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
     beginRemoveRows(QModelIndex(), position, position + rows - 1);
     for (int row = 0; row < rows; ++row) {
         tagIdList.removeAt(position);
         firstNameList.removeAt(position);
         lastNameList.removeAt(position);
+        membershipList.removeAt(position);
     }
     endRemoveRows();
     return true;
@@ -163,43 +184,42 @@ bool CNamesModel::removeRows(int position, int rows, const QModelIndex &/*parent
 
 
 
-int CNamesModel::rowCount(const QModelIndex &/*parent*/) const {
+int CNamesTableModel::rowCount(const QModelIndex &/*parent*/) const {
     return tagIdList.size();
 
 }
 
 
 
-int CNamesModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 3;
+int CNamesTableModel::columnCount(const QModelIndex &/*parent*/) const {
+    return 4;
 }
 
 
 
-QVariant CNamesModel::data(const QModelIndex &index, int role) const {
+QVariant CNamesTableModel::data(const QModelIndex &index, int role) const {
     int row = index.row();
     int col = index.column();
 
     switch (role) {
     case Qt::DisplayRole:
-        if (col == 0) return tagIdList[row];
-        if (col == 1) return firstNameList[row];
-        if (col == 2) return lastNameList[row];
+        switch (col) {
+        case 0:
+            return tagIdList[row];
+        case 1:
+            return firstNameList[row];
+        case 2:
+            return lastNameList[row];
+        case 3:
+            return membershipList[row];
+        }
         break;
     case Qt::FontRole:
         break;
     case Qt::BackgroundRole:
-//        if (row == 1 && col == 2) {
-//            QBrush redBackground(Qt::red);
-//            return redBackground;
-//        }
         break;
     case Qt::TextAlignmentRole:
         return Qt::AlignLeft + Qt::AlignVCenter;
-        break;
-//    case Qt::CheckStateRole:
-//        return Qt::Checked;
-//        break;
     }
 
     return QVariant();
@@ -207,7 +227,7 @@ QVariant CNamesModel::data(const QModelIndex &index, int role) const {
 
 
 
-QVariant CNamesModel::headerData(int section, Qt::Orientation orientation, int role) const {
+QVariant CNamesTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
     switch (role) {
     case Qt::DisplayRole:
         if (orientation == Qt::Horizontal) {
@@ -217,8 +237,9 @@ QVariant CNamesModel::headerData(int section, Qt::Orientation orientation, int r
             case 1:
                 return QString("First Name");
             case 2:
-                return QString ("Last Name");
-
+                return QString("Last Name");
+            case 3:
+                return QString("Membership Number");
             }
         }
     }
@@ -227,17 +248,22 @@ QVariant CNamesModel::headerData(int section, Qt::Orientation orientation, int r
 
 
 
-bool CNamesModel::setData(const QModelIndex &index, const QVariant &value, int role) {
+bool CNamesTableModel::setData(const QModelIndex &index, const QVariant &value, int role) {
+    int row = index.row();
+    int col = index.column();
     if (role == Qt::EditRole) {
-        switch (index.column()) {
+        switch (col) {
         case 0:
-            tagIdList[index.row()] = value.toString();
+            tagIdList[row] = value.toString();
             return true;
         case 1:
-            firstNameList[index.row()] = value.toString();
+            firstNameList[row] = value.toString();
             return true;
         case 2:
-            lastNameList[index.row()] = value.toString();
+            lastNameList[row] = value.toString();
+            return true;
+        case 3:
+            membershipList[row] = value.toInt();
             return true;
         }
     }
@@ -246,10 +272,528 @@ bool CNamesModel::setData(const QModelIndex &index, const QVariant &value, int r
 
 
 
-Qt::ItemFlags CNamesModel::flags(const QModelIndex &index) const {
+Qt::ItemFlags CNamesTableModel::flags(const QModelIndex &index) const {
     return QAbstractTableModel::flags(index);
-    //return Qt::ItemIsEditable | QAbstractTableModel::flags(index);
-    //return Qt::ItemIsSelectable | QAbstractTableModel::flags(index);
+}
+
+
+
+// ********************************************************************************************
+// CLapsTableModel
+//
+CLapsTableModel::CLapsTableModel(QObject *parent) : QAbstractTableModel(parent) {
+    mainWindow = (MainWindow *)parent;
+}
+
+
+
+int CLapsTableModel::rowCount(const QModelIndex &/*parent*/) const {
+    return nameList.size();
+
+}
+
+
+
+int CLapsTableModel::columnCount(const QModelIndex &/*parent*/) const {
+    return 7;
+}
+
+
+
+bool CLapsTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
+    if (rows != 1) {
+        mainWindow->guiCritical("Trying to insert more than one row in CLapsTable");
+        return false;
+    }
+
+    beginInsertRows(QModelIndex(), position, position + rows - 1);
+    for (int row = 0; row < rows; ++row) {
+        nameList.insert(position, QString());
+        lapList.insert(position, 0);
+        timeList.insert(position, QString());
+        timeStampList.insert(position, 0);
+        lapSecList.insert(position, 0.);
+        lapSpeedList.insert(position, 0.);
+        commentList.insert(position, QString());
+    }
+    endInsertRows();
+    return true;
+}
+
+
+
+bool CLapsTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
+    beginRemoveRows(QModelIndex(), position, position + rows - 1);
+    for (int i=0; i<rows; i++) {
+        nameList.removeAt(position);
+        lapList.removeAt(position);
+        timeList.removeAt(position);
+        timeStampList.removeAt(position);
+        lapSecList.removeAt(position);
+        lapSpeedList.removeAt(position);
+        commentList.removeAt(position);
+    }
+    endRemoveRows();
+    return true;
+}
+
+
+
+QVariant CLapsTableModel::data(const QModelIndex &index, int role) const {
+    QString s;
+    int row = index.row();
+    int col = index.column();
+    if (row >= nameList.size()) {
+        mainWindow->guiCritical(s.sprintf("Specified row (%d) too large for lapsTable data", row));
+        return QVariant();
+    }
+
+    switch (role) {
+    case Qt::DisplayRole:
+        switch (col) {
+        case LT_NAME:
+            return nameList[row];
+        case LT_LAPCOUNT:
+            return lapList[row];
+        case LT_DATETIME:
+            return timeList[row];
+        case LT_TIMESTAMP:
+            return timeStampList[row];
+        case LT_LAPTIME:
+            if (lapSecList[row] == 0.) return QString();
+            else return lapSecList[row];
+        case LT_LAPSPEED:
+            if (lapSpeedList[row] == 0.) return QString();
+            else return lapSpeedList[row];
+        case LT_COMMENT:
+            return commentList[row];
+        }
+        break;
+    case Qt::FontRole:
+        break;
+    case Qt::BackgroundRole:
+        break;
+    case Qt::TextAlignmentRole:
+        switch (col) {
+        case LT_NAME:
+        case LT_COMMENT:
+            return Qt::AlignLeft + Qt::AlignVCenter;
+        default:
+            return Qt::AlignHCenter + Qt::AlignVCenter;
+        }
+    }
+
+    return QVariant();
+}
+
+
+
+QVariant CLapsTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+    switch (role) {
+    case Qt::DisplayRole:
+        if (orientation == Qt::Horizontal) {
+            switch (section) {
+            case LT_NAME:
+                return QString("Name");
+            case LT_LAPCOUNT:
+                return QString("Lap");
+            case LT_DATETIME:
+                return QString("Time");
+            case LT_TIMESTAMP:
+                return QString("TimeStamp");
+            case LT_LAPTIME:
+                return QString("Lap Sec");
+            case LT_LAPSPEED:
+                return QString("Lap km/h");
+            case LT_COMMENT:
+                return QString("Comment");
+            }
+        }
+        break;
+    }
+
+    return QVariant();
+}
+
+
+
+Qt::ItemFlags CLapsTableModel::flags(const QModelIndex &index) const {
+    return QAbstractTableModel::flags(index);
+}
+
+
+
+bool CLapsTableModel::addEntry(CRider rider) {
+    QString time = QTime::currentTime().toString();
+    float speed = 0.;
+    if (rider.lapSec > 0.) speed = rider.lapM / rider.lapSec / 1000. * 3600.;
+
+    bool scrollToBottomRequired = false;
+    if (mainWindow->ui->lapsTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->lapsTableView->verticalScrollBar()->maximum())
+        scrollToBottomRequired = true;
+
+    int row = nameList.size();
+    insertRows(row, 1);
+    nameList[row] = rider.name;
+    lapList[row] = rider.lapCount;
+    timeList[row] = time;
+    timeStampList[row] = rider.previousTimeStampUSec;
+    lapSecList[row] = rider.lapSec;
+    lapSpeedList[row] = speed;
+    commentList[row] = rider.comment;
+
+    if (scrollToBottomRequired)
+        mainWindow->ui->lapsTableView->scrollToBottom();
+
+    return true;
+}
+
+
+
+
+void CLapsTableModel::purgeTable(void) {
+    unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+
+    // Loop through all active riders and see which are geting old
+
+    for (int i=timeStampList.size()-1; i>=0; i--) {
+        long long inactiveSec = (currentTimeUSec - timeStampList[i]) / 1000000;
+        if (inactiveSec >= (2 * mainWindow->tablePurgeIntervalSec)) {
+            removeRows(i, 1);
+        }
+    }
+}
+
+
+
+// ***********************************************************************************************
+// CActiveRidersTable
+//
+CActiveRidersTableModel::CActiveRidersTableModel(QObject *parent) : QAbstractTableModel(parent) {
+    mainWindow = (MainWindow *)parent;
+}
+
+
+
+int CActiveRidersTableModel::rowCount(const QModelIndex &/*parent*/) const {
+    return activeRidersList.size();
+
+}
+
+
+
+int CActiveRidersTableModel::columnCount(const QModelIndex &/*parent*/) const {
+    return 12;
+}
+
+
+
+bool CActiveRidersTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
+    if (rows != 1) {
+        mainWindow->guiCritical("Trying to insert more than one row in CActiveRidersTable");
+        return false;
+    }
+    beginInsertRows(QModelIndex(), position, position + rows - 1);
+    activeRidersList.append(CRider());
+    endInsertRows();
+    return true;
+}
+
+
+
+bool CActiveRidersTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
+    beginRemoveRows(QModelIndex(), position, position + rows - 1);
+    for (int i=0; i<rows; i++) {
+        activeRidersList.removeAt(position);
+    }
+    endRemoveRows();
+    return true;
+}
+
+
+
+QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const {
+    QString s;
+    int row = index.row();
+    int col = index.column();
+    if (row >= activeRidersList.size()) {
+        mainWindow->guiCritical(s.sprintf("Specified row (%d) too large for activeRidersList", row));
+        return QString();
+    }
+    const CRider *rider = &(activeRidersList.at(row));
+    switch (role) {
+    case Qt::DisplayRole:
+        switch (col) {
+        case AT_NAME:
+            return rider->name;
+        case AT_LAPCOUNT:
+            return rider->lapCount;
+        case AT_DISTANCE:
+            return rider->totalM / 1000.;
+        case AT_LAPSPEED:
+            if (rider->lapSec > 0.)
+                return rider->lapM / rider->lapSec * 3600. / 1000.;
+            else
+                return QString();
+        case AT_BESTLAPSPEED:
+            if (rider->bestLapSec > 0.)
+                return rider->bestLapM / rider->bestLapSec * 3600. / 1000.;
+            else
+                return QString();
+        case AT_AVERAGESPEED:
+            if (rider->totalSec > 0.)
+                return rider->totalM / rider->totalSec * 3600. / 1000.;
+            else
+                return QString();
+        case AT_DISTANCETHISMONTH:
+            return rider->thisMonth.totalM / 1000.;
+        case AT_AVERAGESPEEDTHISMONTH:
+            if (rider->thisMonth.totalSec > 0.)
+                return rider->thisMonth.totalM / rider->thisMonth.totalSec * 3600. / 1000.;
+            else
+                return QString();
+        case AT_DISTANCELASTMONTH:
+            return rider->lastMonth.totalM / 1000.;
+        case AT_AVERAGESPEEDLASTMONTH:
+            if (rider->lastMonth.totalSec > 0.)
+                return rider->lastMonth.totalM / rider->lastMonth.totalSec * 3600. / 1000.;
+            else
+                return QString();
+        case AT_DISTANCEALLTIME:
+            return rider->allTime.totalM / 1000.;
+        case AT_COMMENT:
+            return rider->comment;
+        }
+        break;
+    case Qt::FontRole:
+        break;
+    case Qt::BackgroundRole:
+        break;
+    case Qt::TextAlignmentRole:
+        switch (col) {
+        case AT_NAME:
+        case AT_COMMENT:
+            return Qt::AlignLeft + Qt::AlignVCenter;
+        default:
+            return Qt::AlignHCenter + Qt::AlignVCenter;
+        }
+    }
+
+    return QVariant();
+}
+
+
+
+QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+    switch (role) {
+    case Qt::DisplayRole:
+        if (orientation == Qt::Horizontal) {
+            switch (section) {
+            case AT_NAME:
+                return QString("Name");
+            case AT_LAPCOUNT:
+                return QString("Laps");
+            case AT_DISTANCE:
+                return QString("km");
+            case AT_LAPSPEED:
+                return QString("L km/h");
+            case AT_BESTLAPSPEED:
+                return QString("Best L km/h");
+            case AT_AVERAGESPEED:
+                return QString("Ave km/h");
+            case AT_DISTANCETHISMONTH:
+                return QString("This M km");
+            case AT_AVERAGESPEEDTHISMONTH:
+                return QString("This M km/h");
+            case AT_DISTANCELASTMONTH:
+                return QString("Last M km");
+            case AT_AVERAGESPEEDLASTMONTH:
+                return QString("Last M km/h");
+            case AT_DISTANCEALLTIME:
+                return QString("Total km");
+            case AT_COMMENT:
+                return QString("Comment");
+            }
+        }
+        break;
+    }
+
+    return QVariant();
+}
+
+
+
+bool CActiveRidersTableModel::setData(const QModelIndex &index, const QVariant &/*value*/, int role) {
+    int row = index.row();
+    switch (role) {
+    case Qt::EditRole:
+        QModelIndex topLeft(createIndex(row, 1));
+        QModelIndex bottomRight(createIndex(activeRidersList.size() - 1, columnCount()));
+        emit dataChanged(topLeft, bottomRight);
+    }
+    return true;
+}
+
+
+
+Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
+    return QAbstractTableModel::flags(index);
+}
+
+
+
+void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
+
+    // ActiveRidersList is the main list containing information of each active rider
+
+    int activeRiderIndex = -1;
+    bool firstCrossing = false;
+    bool firstCrossingAfterBreak = false;
+
+
+    // Check to see if tag is in activeRidersList and append new empty entry if not,
+    // else set firstCrossing
+
+    CRider *rider = NULL;
+    for (int i=0; i<activeRidersList.size(); i++) {
+        if (tagInfo.tagId == activeRidersList[i].tagId) {
+            rider = &activeRidersList[i];
+            activeRiderIndex = i;
+            break;
+        }
+    }
+    if (!rider) {
+        bool scrollToBottomRequired = false;
+        if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
+            scrollToBottomRequired = true;
+        insertRows(activeRidersList.size()-1, 1);
+        if (scrollToBottomRequired)
+            mainWindow->ui->activeRidersTableView->scrollToBottom();
+
+        activeRiderIndex = activeRidersList.size() - 1;
+        rider = &activeRidersList[activeRiderIndex];
+        firstCrossing = true;
+    }
+    else {
+        firstCrossing = false;
+    }
+
+
+    // If this is a new active rider try getting name from dbase, or default to tagId provided on tag
+
+    QString name;
+    if (firstCrossing) {   // New rider, so get name from dBase and calculate best times in each category
+        QByteArray tagId;
+        QString firstName;
+        QString lastName;
+        int membershipNumber = 0;
+        int id = mainWindow->dbase.getIdFromTagId(tagInfo.tagId);
+        if (id > 0) {
+            mainWindow->dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            name = firstName + " " + lastName;
+        }
+        else {
+            name = tagInfo.tagId;
+        }
+        rider->name = name;
+        rider->tagId = tagInfo.tagId;
+        rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+
+        // Get prior stats for this rider
+
+        mainWindow->dbase.getStats(tagInfo.tagId, rider);
+    }
+
+
+    // If we have completed at least one full lap, update lap stats and thisMonth stats
+
+    if (!firstCrossing) {
+
+        // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break so do not
+        // calculate lap time
+
+        float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+        if (lapSec > mainWindow->maxAcceptableLapSec) {
+            firstCrossingAfterBreak = true;
+            rider->lapSec = 0.;
+            rider->lapM = 0.;
+        }
+        else {
+            firstCrossingAfterBreak = false;
+            rider->lapCount++;
+            rider->lapSec = lapSec;
+            rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
+//            float lapSpeed = 0.;
+//            if (rider->lapSec > 0.) {
+//                lapSpeed = rider->lapM / rider->lapSec / 1000. * 3600.;
+//            }
+            if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
+                rider->bestLapSec = rider->lapSec;
+                rider->bestLapM = rider->lapM;
+            }
+            rider->totalSec += rider->lapSec;
+            rider->totalM += rider->lapM;
+
+            rider->thisMonth.lapCount++;
+            rider->thisMonth.totalSec += rider->lapSec;
+            rider->thisMonth.totalM += rider->lapM;
+
+            rider->allTime.lapCount++;
+            rider->allTime.totalM += rider->lapM;
+        }
+        rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+    }
+
+
+    // Add a comment
+
+    if (firstCrossing)
+        rider->comment = "First lap";
+    else if (firstCrossingAfterBreak)
+        rider->comment = "First lap after break";
+    else {
+//        float speed = 0.;
+//        if (rider->lapSec > 0.) {
+//            speed = rider->lapM / rider->lapSec / 1000. * 3600.;
+//        }
+        rider->comment.clear();
+    }
+
+
+    // Populate activeRidersTableView entries
+
+    setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
+
+
+    // Add lap to database
+
+    int lapmsec = (int)(rider->lapSec * 1000.);
+    mainWindow->dbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
+
+
+    // Add to lapsTableView
+
+    mainWindow->lapsTableModel->addEntry(*rider);
+
+    // lapCount is total laps all riders
+
+    QString s;
+    mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+}
+
+
+
+void CActiveRidersTableModel::purgeTable(void) {
+    unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+
+    // Loop through all active riders and see which are geting old
+
+    for (int i=activeRidersList.size()-1; i>=0; i--) {
+        long long inactiveSec = (currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000;
+        if (inactiveSec >= (2 * mainWindow->tablePurgeIntervalSec)) {
+            removeRows(i, 1);
+        }
+    }
 }
 
 
@@ -264,18 +808,20 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     trackReader = NULL;
     deskReader = NULL;
+    namesTableModel = NULL;
+    lapsTableModel = NULL;
+    activeRidersTableModel = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
     QCoreApplication::setApplicationVersion("0.1");
 
 
     initializeSettingsPanel();
+    bool initialized = true;
 
     ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
     ui->rightTitleLabel->setText(QString());
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
-
-    guiInformation("This application accepts tag-reader data and displays lap times and information.  Be sure to configure settings for your track in the Settings tab.");
 
 
     // Get track length at position of each antenna.  Lap speed is estimated from
@@ -292,18 +838,17 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->trackLength4LineEdit->setText(s.setNum(trackLengthM[3]));
     for (int i=0; i<trackLengthM.size(); i++) {
         if (trackLengthM[i] == 0.) {
-            guiCritical("Track length must be specified in settings tab");
-            break;
+            initialized = false;
         }
     }
 
 
-    // Get tablePurgeIntervalSec, the interval on which tables are purged of innactive riders
+    // Get tablePurgeIntervalSec, the interval on which tables are purged of inactive riders
 
-    tablePurgeIntervalSec = settings.value("tablePurgeIntervalHours").toFloat() * 3600.;
-    if (tablePurgeIntervalSec == 0.) tablePurgeIntervalSec = 6. * 3600.;
-    if (tablePurgeIntervalSec < 10.) tablePurgeIntervalSec = 10.;
-    ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalSec / 3600.));
+    tablePurgeIntervalSec = settings.value("tablePurgeIntervalHours").toFloat() * 3600;
+    if (tablePurgeIntervalSec == 0) tablePurgeIntervalSec = 6 * 3600;
+    if (tablePurgeIntervalSec < 10) tablePurgeIntervalSec = 10;
+    ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalSec / 3600));
 
 
     // If laps table has more than this number of entries, disable sorting to ensure responsive operation
@@ -311,19 +856,26 @@ MainWindow::MainWindow(QWidget *parent) :
     lapsTableMaxSizeWithSort = 10000;
 
 
+    if (!initialized)
+        guiCritical("Track configuration must be initialized (\"Settings\" tab) before application will work");
+
+
     // Get tag reader information from settings.  Leave IP empty for simulation (test) mode.
 
-    trackReader = new CReader(ui->trackReaderIP->text(), 0, CReader::track);
-    deskReader = new CReader(ui->deskReaderIP->text(), 1, CReader::desk);
+    int readerCounter = 0;
+    if (initialized) {
+        trackReader = new CReader(ui->trackReaderIP->text(), readerCounter++, CReader::track);
+        deskReader = new CReader(ui->deskReaderIP->text(), readerCounter++, CReader::desk);
+    }
 
 
     // Initialize member variables
 
     activeRidersTableSortingEnabled = true;
     lapsTableSortingEnabled = true;
-    float nominalSpeedkmph = 32.0;
+    float nominalSpeedkmph = 32.0;              // Approximate, used to identified riders taking a break
     float nominalLapSec = (trackLengthM[0] / 1000.) / nominalSpeedkmph * 3600.;
-    maxAcceptableLapSec = nominalLapSec * 2.;           // max acceptable time for lap.  If greater, rider must have left and returned to track
+    maxAcceptableLapSec = nominalLapSec * 2.;   // max acceptable time for lap.  If greater, rider must have left and returned to track
 
 
     // Initialize 1-sec timer for panel dateTime and possibly other things
@@ -345,40 +897,6 @@ MainWindow::MainWindow(QWidget *parent) :
     m->setReadOnly(true);
 
 
-    // Configure active riders table
-
-    QTableWidget *t = ui->activeRidersTableWidget;
-    t->setColumnWidth(AT_NAME, CW_NAME);
-    t->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
-    t->setColumnWidth(AT_LAPSPEED, CW_SPEED);
-    t->setColumnWidth(AT_DISTANCE, CW_DISTANCE);
-    t->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
-    t->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
-    t->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
-    t->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
-    t->setColumnWidth(AT_DISTANCEALLTIME, CW_DISTANCE);
-    t->setColumnWidth(AT_COMMENT, 300);
-
-    t->setSortingEnabled(activeRidersTableSortingEnabled);
-    t->setEnabled(false);
-    connect(t->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(onActiveRidersTableHorizontalHeaderSectionClicked(int)));
-    connect(ui->activeRidersTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortedCheckBoxClicked(bool)));
-
-
-    // Configure laps table
-
-    t = ui->lapsTableWidget;
-    t->setColumnWidth(LT_NAME, CW_NAME);
-    t->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
-    t->setColumnWidth(LT_DATETIME, CW_DATETIME);
-    t->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
-    t->setColumnWidth(LT_LAPSPEED, CW_SPEED);
-
-    t->setSortingEnabled(lapsTableSortingEnabled);
-    t->setEnabled(false);
-
-    connect(t->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(onLapsTableHorizontalHeaderSectionClicked(int)));
-    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
 
     // Default to showing messages during connection to reader
@@ -400,32 +918,34 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->trackAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna1PowerComboBoxActivated(int)));
 
-    connect(trackReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-    connect(trackReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
-    connect(trackReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewTrackTag(CTagInfo)));
 
-    connect(deskReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-    connect(deskReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
-    connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
+    // Move CReader objects to separate threads
 
+    if (trackReader) {
+        QThread *trackReaderThread = new QThread(this);
+        trackReader->moveToThread(trackReaderThread);
+        trackReader->thread = trackReaderThread;
+        readerThreadList.append(trackReaderThread);
+        connect(trackReaderThread, SIGNAL(started(void)), trackReader, SLOT(onStarted(void)));
+        connect(trackReaderThread, SIGNAL(finished(void)), trackReaderThread, SLOT(deleteLater(void)));
+        connect(trackReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
+        connect(trackReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
+        connect(trackReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewTrackTag(CTagInfo)));
+        trackReaderThread->start();
+    }
 
-    // Move CReader class to separate threads
-
-    QThread *trackReaderThread = new QThread(this);
-    trackReader->moveToThread(trackReaderThread);
-    trackReader->thread = trackReaderThread;
-    readerThreadList.append(trackReaderThread);
-    connect(trackReaderThread, SIGNAL(started(void)), trackReader, SLOT(onStarted(void)));
-    connect(trackReaderThread, SIGNAL(finished(void)), trackReaderThread, SLOT(deleteLater(void)));
-    trackReaderThread->start();
-
-    QThread *deskReaderThread = new QThread(this);
-    deskReader->moveToThread(deskReaderThread);
-    deskReader->thread = deskReaderThread;
-    readerThreadList.append(deskReaderThread);
-    connect(deskReaderThread, SIGNAL(started(void)), deskReader, SLOT(onStarted(void)));
-    connect(deskReaderThread, SIGNAL(finished(void)), deskReaderThread, SLOT(deleteLater(void)));
-    deskReaderThread->start();
+    if (deskReader) {
+        QThread *deskReaderThread = new QThread(this);
+        deskReader->moveToThread(deskReaderThread);
+        deskReader->thread = deskReaderThread;
+        readerThreadList.append(deskReaderThread);
+        connect(deskReaderThread, SIGNAL(started(void)), deskReader, SLOT(onStarted(void)));
+        connect(deskReaderThread, SIGNAL(finished(void)), deskReaderThread, SLOT(deleteLater(void)));
+        connect(deskReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
+        connect(deskReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
+        connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
+        deskReaderThread->start();
+    }
 
 
     // Configure Dbase page
@@ -439,24 +959,77 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->deskTagIdLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseTagIdTextChanged(QString)));
     connect(ui->deskFirstNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseFirstNameTextChanged(QString)));
     connect(ui->deskLastNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseLastNameTextChanged(QString)));
+    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseMembershipNumberTextChanged(QString)));
+
     updateDbaseButtons();
+
 
     // Initialize names table
 
-    int rc = dbase.open("test", "abc", "def");
+    int rc = dbase.open("testDbase", "abc", "def");
     if (rc != 0)
         guiCritical("Error opening database file: " + dbase.errorText() + ".\n\nWe will continue but rider names are not available and results are not being recorded.");
 
-    namesModel = new CNamesModel(this);
-    namesModel->loadNames();
-    ui->namesTableView->setModel(namesModel);
+    namesTableModel = new CNamesTableModel(this);
+    ui->namesTableView->setModel(namesTableModel);
     ui->namesTableView->setColumnWidth(0, 200);
     ui->namesTableView->setColumnWidth(1, 200);
+    ui->namesTableView->setColumnWidth(2, 200);
+
     ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
     ui->namesTableView->setSortingEnabled(true);
 
-//    ui->namesTableView->setColumnWidth(2, 300);
-//    ui->namesTableView->setSortingEnabled(true);
+
+    // Initialize laps table
+
+    lapsTableModel = new CLapsTableModel(this);
+    ui->lapsTableView->setModel(lapsTableModel);
+    ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
+    ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
+    ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
+    ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
+    ui->lapsTableView->setColumnWidth(LT_LAPTIME, CW_SPEED);
+    ui->lapsTableView->setColumnWidth(LT_LAPSPEED, CW_SPEED);
+
+    ui->lapsTableView->setAlternatingRowColors(true);
+    ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->lapsTableView->setSortingEnabled(true);
+    ui->lapsTableView->setEnabled(false);
+
+
+//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
+
+
+    // Configure active riders table
+
+    activeRidersTableModel = new CActiveRidersTableModel(this);
+    ui->activeRidersTableView->setModel(activeRidersTableModel);
+    ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCE, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPSPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCETHISMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCELASTMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCEALLTIME, CW_DISTANCE);
+
+    ui->activeRidersTableView->setAlternatingRowColors(true);
+    ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->activeRidersTableView->setSortingEnabled(true);
+    ui->activeRidersTableView->setEnabled(false);
+
+//    TestModel model;
+//        QSortFilterProxyModel proxyModel;
+//        proxyModel.setSourceModel(activeRidersTableModel);
+//    .setModel( &proxyModel );
+
+//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
 
     // Start timer that will purge old riders from activeRidersTable
@@ -469,17 +1042,6 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->applySettingsPushButton, SIGNAL(clicked()), this, SLOT(onApplySettingsPushButtonClicked()));
     connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
 
-
-    QStandardItemModel *model = new QStandardItemModel(2,3,this); //2 Rows and 3 Columns
-    model->setHorizontalHeaderItem(0, new QStandardItem(QString("Column1 Header")));
-    model->setHorizontalHeaderItem(1, new QStandardItem(QString("Column2 Header")));
-    model->setHorizontalHeaderItem(2, new QStandardItem(QString("Column3 Header")));
-
-    ui->tableView->setModel(model);
-    ui->tableView->hide();
-
-    QStandardItem *firstRow = new QStandardItem(QString("ColumnValue"));
-    model->setItem(0,0,firstRow);
 }
 
 
@@ -507,8 +1069,6 @@ MainWindow::~MainWindow() {
 
 void MainWindow::initializeSettingsPanel(void) {
     ui->trackNameLineEdit->setText(settings.value("trackName").toString());
-
-
 }
 
 
@@ -566,59 +1126,11 @@ void MainWindow::onClockTimerTimeout(void) {
 // Then loop through lapsTable and remove old entries.
 //
 void MainWindow::onPurgeActiveRidersList(void) {
-    unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+    if (activeRidersTableModel)
+        activeRidersTableModel->purgeTable();
 
-    // Loop through all active riders and see which are geting old
-
-    activeRidersTableMutex.lock();
-    ui->activeRidersTableWidget->setSortingEnabled(false);
-
-    for (int i=activeRidersList.size()-1; i>=0; i--) {
-        long long inactiveSec = (currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000;
-        if (inactiveSec >= (2*tablePurgeIntervalSec)) {
-            bool riderRemoved = false;
-            QString nameToRemove = activeRidersList[i].name;
-            qDebug() << "Removing" << nameToRemove;
-            for (int j=ui->activeRidersTableWidget->rowCount()-1; j>=0; j--) {
-                if (ui->activeRidersTableWidget->item(j, AT_NAME)->text() == nameToRemove) {
-                    activeRidersList.removeAt(i);
-                    ui->activeRidersTableWidget->removeRow(j);
-                    riderRemoved = true;
-                    break;
-                }
-            }
-            if (!riderRemoved) {
-                printf("Rider not found in activeRidersTable in onPurgeActiveRidersList\n");
-                fflush(stdout);
-            }
-        }
-    }
-
-    activeRidersTableMutex.unlock();
-    ui->activeRidersTableWidget->setSortingEnabled(activeRidersTableSortingEnabled);
-
-    // Loop through lapsTable and remove any entries where the timeStamp is older than tablePurgeIntervalSec
-
-    lapsTableMutex.lock();
-    ui->lapsTableWidget->setSortingEnabled(false);
-
-    bool scrollToBottomRequired = false;
-    if (ui->lapsTableWidget->verticalScrollBar()->sliderPosition() == ui->lapsTableWidget->verticalScrollBar()->maximum()) {
-        scrollToBottomRequired = true;
-    }
-    for (int i=ui->lapsTableWidget->rowCount()-1; i>=0; i--) {  // ignore last entry
-        unsigned long long timeStampUSec = ui->lapsTableWidget->item(i, LT_TIMESTAMP)->text().toULongLong();
-        long long timeStampAgeSec = (currentTimeUSec - timeStampUSec) / 1000000;
-        if (timeStampAgeSec >= (2*tablePurgeIntervalSec)) {
-            ui->lapsTableWidget->removeRow(i);
-        }
-    }
-    if (scrollToBottomRequired) {
-        ui->lapsTableWidget->scrollToBottom();
-    }
-
-    lapsTableMutex.unlock();
-    ui->lapsTableWidget->setSortingEnabled(lapsTableSortingEnabled);
+    if (lapsTableModel)
+        lapsTableModel->purgeTable();
 }
 
 
@@ -686,48 +1198,31 @@ void MainWindow::onReaderConnected(void) {
     }
 
 
-    ui->lapsTableWidget->setEnabled(true);
-    ui->activeRidersTableWidget->setEnabled(true);
+    ui->lapsTableView->setEnabled(true);
+    ui->activeRidersTableView->setEnabled(true);
 }
 
 
 
-void MainWindow::onLapsTableHorizontalHeaderSectionClicked(int /*section*/) {
-    if (ui->lapsTableWidget->isSortingEnabled()) {
-        ui->lapsTableSortedCheckBox->setCheckable(true);
-        ui->lapsTableSortedCheckBox->setChecked(true);
-    }
+void MainWindow::onLapsTableSortedCheckBoxClicked(bool /*state*/) {
+//    if (!state) {
+//        ui->lapsTableSortedCheckBox->setChecked(false);
+//        ui->lapsTableSortedCheckBox->setCheckable(false);
+//        ui->lapsTableWidget->setSortingEnabled(true);
+//        ui->lapsTableWidget->sortByColumn(LT_TIMESTAMP);
+//        ui->lapsTableWidget->setSortingEnabled(false);
+//    }
 }
 
 
-
-void MainWindow::onActiveRidersTableHorizontalHeaderSectionClicked(int /*section*/) {
-    if (ui->activeRidersTableWidget->isSortingEnabled()) {
-        ui->activeRidersTableSortedCheckBox->setCheckable(true);
-        ui->activeRidersTableSortedCheckBox->setChecked(true);
-    }
-}
-
-
-void MainWindow::onLapsTableSortedCheckBoxClicked(bool state) {
-    if (!state) {
-        ui->lapsTableSortedCheckBox->setChecked(false);
-        ui->lapsTableSortedCheckBox->setCheckable(false);
-        ui->lapsTableWidget->setSortingEnabled(true);
-        ui->lapsTableWidget->sortByColumn(LT_TIMESTAMP);
-        ui->lapsTableWidget->setSortingEnabled(false);
-    }
-}
-
-
-void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool state) {
-    if (!state) {
-        ui->activeRidersTableSortedCheckBox->setChecked(false);
-        ui->activeRidersTableSortedCheckBox->setCheckable(false);
-        ui->activeRidersTableWidget->setSortingEnabled(true);
-        ui->activeRidersTableWidget->sortByColumn(LT_TIMESTAMP);
-        ui->activeRidersTableWidget->setSortingEnabled(false);
-    }
+void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool /*state*/) {
+//    if (!state) {
+//        ui->activeRidersTableSortedCheckBox->setChecked(false);
+//        ui->activeRidersTableSortedCheckBox->setCheckable(false);
+//        ui->activeRidersTableWidget->setSortingEnabled(true);
+//        ui->activeRidersTableWidget->sortByColumn(LT_TIMESTAMP);
+//        ui->activeRidersTableWidget->setSortingEnabled(false);
+//    }
 }
 
 
@@ -735,427 +1230,21 @@ void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool state) {
 // Process new tag
 //
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
-    QString s;
-    QTableWidget *lapsTable = ui->lapsTableWidget;
-    QTableWidget *activeRidersTable = ui->activeRidersTableWidget;
     static int tagCount = 0;
-
     tagCount++;
+
+    QString s;
 
     // Add string to messages window
 
     onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.data()));
 
-
-    // Turn off table sorting and lock mutex while we update tables
-
-    lapsTableMutex.lock();
-    activeRidersTableMutex.lock();
-    ui->lapsTableWidget->setSortingEnabled(false);
-    ui->activeRidersTableWidget->setSortingEnabled(false);
-
-
-    // ActiveRidersList is the main list containing information from each active rider.  Use it for all calculations
-    // and then put information to be displayed into activeRidersTable and/or lapsTable.
-
-    try {
-
-        // Check to see if tag is in activeRidersList and get index if it is.  If not in list, set firstLap
-        // to indicate rider is riding first lap of workout.
-
-        int activeRidersListIndex = -1;
-        for (int i=0; i<activeRidersList.size(); i++) {
-            if (tagInfo.tagId == activeRidersList[i].tagId) {
-                activeRidersListIndex = i;
-                break;
-            }
-        }
-
-        // firstCrossing is set true if this is the first time this tag is seen in this workout
-
-        bool firstCrossing = false;
-        if (activeRidersListIndex < 0)
-            firstCrossing = true;
-        else
-            firstCrossing = false;
-
-
-        // If this is a new rider in this workout, try getting name from dbase
-
-        QString name;
-        if (activeRidersListIndex < 0) {   // New rider, so get name from dBase and calculate best times in each category
-            QString firstName;
-            QString lastName;
-            int rc = dbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
-            if (rc == 0)
-                name = firstName + " " + lastName;
-
-            if (name.isEmpty())
-                name = tagInfo.tagId;
-        }
-        else {
-            name = activeRidersList[activeRidersListIndex].name;
-        }
-
-
-        // firstCrossingAfterBreak will be set true if this is the first time this tag is seen after taking a break
-
-        bool firstCrossingAfterBreak = false;
-
-
-        // Set rider to point to CRider entry in activeRidersList
-
-        CRider *rider = NULL;
-
-        // If firstCrossing, get best times and add new entry to activeRidersList
-
-        if (firstCrossing) {
-            rider = new CRider();
-
-            rider->name = name;
-            rider->tagId = tagInfo.tagId;
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-
-
-            // Get stats for this rider
-
-            dbase.getStats(tagInfo.tagId, rider);
-
-            // Add to active riders list
-
-            activeRidersList.append(*rider);
-            activeRidersListIndex = activeRidersList.size() - 1;
-            rider = &activeRidersList[activeRidersListIndex];
-        }
-
-        // else we have completed at least one full lap so update lap stats and thisMonth stats
-
-        else {
-            rider = &activeRidersList[activeRidersListIndex];
-
-            // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break so do not
-            // calculate lap time
-
-            float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
-            if (lapSec > maxAcceptableLapSec) {
-                firstCrossingAfterBreak = true;
-
-                rider->lapSec = 0.;
-                rider->lapM = 0.;
-            }
-            else {
-                firstCrossingAfterBreak = false;
-
-                rider->lapCount++;
-                rider->lapSec = lapSec;
-                rider->lapM = trackLengthM[tagInfo.antennaId - 1];
-                if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
-                    rider->bestLapSec = rider->lapSec;
-                    rider->bestLapM = rider->lapM;
-                }
-                rider->totalSec += rider->lapSec;
-                rider->totalM += rider->lapM;
-
-                rider->thisMonth.lapCount++;
-                rider->thisMonth.totalSec += rider->lapSec;
-                rider->thisMonth.totalM += rider->lapM;
-
-                rider->allTime.lapCount++;
-                rider->allTime.totalM += rider->lapM;
-            }
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-        }
-
-
-        // Update currentTime string
-
-        QString currentTimeString(QDateTime::fromMSecsSinceEpoch(tagInfo.timeStampUSec / 1000).toString("hh:mm:ss"));
-
-
-        // Append new entry (row) to lapsTable
-
-        int r = lapsTable->rowCount();
-        bool scrollToBottomRequired = false;
-        if (lapsTable->verticalScrollBar()->sliderPosition() == lapsTable->verticalScrollBar()->maximum()) {
-            scrollToBottomRequired = true;
-        }
-        lapsTable->insertRow(r);
-        lapsTable->setRowHeight(r, 20);
-        if (scrollToBottomRequired) {
-            lapsTable->scrollToBottom();
-        }
-
-        QTableWidgetItem *item = new QTableWidgetItem;
-        item->setData(Qt::DisplayRole, name);
-        lapsTable->setItem(r, LT_NAME, item);
-        lapsTable->item(r, LT_NAME)->setTextAlignment(Qt::AlignLeft);
-
-        item = new QTableWidgetItem;
-        item->setData(Qt::DisplayRole, rider->lapCount);
-        lapsTable->setItem(r, LT_LAPCOUNT, item);
-        lapsTable->item(r, LT_LAPCOUNT)->setTextAlignment(Qt::AlignHCenter);
-
-        item = new QTableWidgetItem;
-        item->setData(Qt::DisplayRole, currentTimeString);
-        lapsTable->setItem(r, LT_DATETIME, item);
-        lapsTable->item(r, LT_DATETIME)->setTextAlignment(Qt::AlignHCenter);
-
-        item = new QTableWidgetItem;
-        item->setData(Qt::DisplayRole, tagInfo.timeStampUSec);
-        lapsTable->setItem(r, LT_TIMESTAMP, item);
-        lapsTable->item(r, LT_TIMESTAMP)->setTextAlignment(Qt::AlignHCenter);
-
-        if (firstCrossing) {
-            item = new QTableWidgetItem;
-            item->setData(Qt::DisplayRole, "First lap of workout");
-            lapsTable->setItem(r, LT_COMMENT, item);
-            lapsTable->item(r, LT_COMMENT)->setTextAlignment(Qt::AlignLeft);
-        }
-        else {
-            if (firstCrossingAfterBreak) {
-                item = new QTableWidgetItem;
-                item->setData(Qt::DisplayRole, "First lap after break");
-                lapsTable->setItem(r, LT_COMMENT, item);
-                lapsTable->item(r, LT_COMMENT)->setTextAlignment(Qt::AlignLeft);
-            }
-            else {
-                item = new QTableWidgetItem;
-                item->setData(Qt::DisplayRole, rider->lapSec);
-                lapsTable->setItem(r, LT_LAPTIME, item);
-                lapsTable->item(r, LT_LAPTIME)->setTextAlignment(Qt::AlignHCenter);
-
-                if (rider->lapSec > 0.) {
-                    item = new QTableWidgetItem;
-                    item->setData(Qt::DisplayRole, lapSpeed(rider->lapSec, rider->lapM));
-                    lapsTable->setItem(r, LT_LAPSPEED, item);
-                    lapsTable->item(r, LT_LAPSPEED)->setTextAlignment(Qt::AlignHCenter);
-                }
-            }
-        }
-
-
-        // Populate activeRidersTable entries
-        // If new active rider, append new blank line to activeRidersTable and set activeRidersTableIndex
-        // and add previous best times
-
-        r = activeRidersTable->rowCount();
-        int activeRidersTableIndex = -1;
-        if (firstCrossing) {
-            bool scrollToBottomRequired = false;
-            if (activeRidersTable->verticalScrollBar()->sliderPosition() == activeRidersTable->verticalScrollBar()->maximum()) {
-                scrollToBottomRequired = true;
-            }
-            activeRidersTable->insertRow(r);
-            activeRidersTableIndex = r;
-            activeRidersTable->setRowHeight(activeRidersTableIndex, 20);
-            if (scrollToBottomRequired) {
-                activeRidersTable->scrollToBottom();
-            }
-
-            activeRidersTable->setItem(r, AT_NAME, new QTableWidgetItem());
-            activeRidersTable->item(r, AT_NAME)->setText(rider->name);
-            activeRidersTable->item(r, AT_NAME)->setTextAlignment(Qt::AlignLeft);
-
-            QTableWidgetItem *item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_LAPCOUNT, item);
-            activeRidersTable->item(r, AT_LAPCOUNT)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_LAPSPEED, item);
-            activeRidersTable->item(r, AT_LAPSPEED)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_BESTLAPSPEED, item);
-            activeRidersTable->item(r, AT_BESTLAPSPEED)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_DISTANCE, item);
-            activeRidersTable->item(r, AT_DISTANCE)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_AVERAGESPEED, item);
-            activeRidersTable->item(r, AT_AVERAGESPEED)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_DISTANCELASTMONTH, item);
-            activeRidersTable->item(r, AT_DISTANCELASTMONTH)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_AVERAGESPEEDLASTMONTH, item);
-            activeRidersTable->item(r, AT_AVERAGESPEEDLASTMONTH)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_DISTANCETHISMONTH, item);
-            activeRidersTable->item(r, AT_DISTANCETHISMONTH)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_AVERAGESPEEDTHISMONTH, item);
-            activeRidersTable->item(r, AT_AVERAGESPEEDTHISMONTH)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_DISTANCEALLTIME, item);
-            activeRidersTable->item(r, AT_DISTANCEALLTIME)->setTextAlignment(Qt::AlignHCenter);
-
-            item = new QTableWidgetItem;
-            activeRidersTable->setItem(r, AT_COMMENT, item);
-            activeRidersTable->item(r, AT_COMMENT)->setTextAlignment(Qt::AlignLeft);
-
-
-            // Set initial this month values
-
-            if (rider->thisMonth.lapCount > 0) {
-                activeRidersTable->item(r, AT_DISTANCETHISMONTH)->setData(Qt::DisplayRole, rider->thisMonth.totalM / 1000.);
-                activeRidersTable->item(r, AT_AVERAGESPEEDTHISMONTH)->setData(Qt::DisplayRole, lapSpeed(rider->thisMonth.totalSec, rider->thisMonth.totalM));
-            }
-
-            // Set initial last month values
-
-            if (rider->lastMonth.lapCount > 0) {
-                activeRidersTable->item(r, AT_DISTANCELASTMONTH)->setData(Qt::DisplayRole, rider->lastMonth.totalM / 1000.);
-                activeRidersTable->item(r, AT_AVERAGESPEEDLASTMONTH)->setData(Qt::DisplayRole, lapSpeed(rider->lastMonth.totalSec, rider->lastMonth.totalM));
-            }
-
-            // Set initial all time values
-
-            activeRidersTable->item(r, AT_DISTANCEALLTIME)->setData(Qt::DisplayRole, rider->allTime.totalM / 1000.);
-
-            // Set initial comment
-
-//            activeRidersTable->item(r, AT_COMMENT)->setText("First lap");
-        }
-
-        // Otherwise get activeRidersTableIndex corresponding to this rider already in table
-
-        else {
-            for (int i=0; i<ui->activeRidersTableWidget->rowCount(); i++) {
-                if (ui->activeRidersTableWidget->item(i, AT_NAME)->text() == rider->name) {
-                    activeRidersTableIndex = i;
-                    break;
-                }
-            }
-
-            // Set comment
-
-//            activeRidersTable->item(r, AT_COMMENT)->setText("");
-        }
-
-        // If activeRidersTableIndex is still < 0 (should never happen), append blank entry with name ???
-
-        if (activeRidersTableIndex < 0) {
-//            int r = activeRidersTable->rowCount();
-            bool scrollToBottomRequired = false;
-            if (activeRidersTable->verticalScrollBar()->sliderPosition() == activeRidersTable->verticalScrollBar()->maximum()) {
-                scrollToBottomRequired = true;
-            }
-            activeRidersTable->insertRow(r);
-            activeRidersTable->setRowHeight(r, 20);
-            if (scrollToBottomRequired) {
-                activeRidersTable->scrollToBottom();
-            }
-            activeRidersTable->setItem(r, AT_NAME, new QTableWidgetItem());
-            activeRidersTable->item(r, AT_NAME)->setText("????");
-
-            activeRidersTable->setItem(r, AT_LAPCOUNT, new QTableWidgetItem());
-            activeRidersTable->setItem(r, AT_LAPSPEED, new QTableWidgetItem());
-            activeRidersTable->setItem(r, AT_BESTLAPSPEED, new QTableWidgetItem());
-            activeRidersTable->setItem(r, AT_DISTANCE, new QTableWidgetItem());
-            activeRidersTable->setItem(r, AT_AVERAGESPEED, new QTableWidgetItem());
-        }
-
-        // activeRidersListIndex now points to new entry in activeRidersList and
-        // activeRidersTableIndex points to entry in activeRidersTable
-
-
-        // Update activeRidersTable entries
-
-        if (!firstCrossing && !firstCrossingAfterBreak && (activeRidersTableIndex >= 0)) {
-            int r = activeRidersTableIndex;
-
-            // Lap count and speed
-
-            activeRidersTable->item(r, AT_LAPCOUNT)->setData(Qt::DisplayRole, rider->lapCount);
-            activeRidersTable->item(r, AT_LAPSPEED)->setData(Qt::DisplayRole, lapSpeed(rider->lapSec, rider->lapM));
-
-            // Best lap speed
-
-            if (rider->bestLapSec > 0.)
-                activeRidersTable->item(r, AT_BESTLAPSPEED)->setData(Qt::DisplayRole, lapSpeed(rider->bestLapSec, rider->bestLapM));
-            else
-                activeRidersTable->item(r, AT_BESTLAPSPEED)->setData(Qt::DisplayRole, "");
-
-            // Distance
-
-            activeRidersTable->item(r, AT_DISTANCE)->setData(Qt::DisplayRole, rider->totalM / 1000.);
-            if (rider->thisMonth.lapCount > 0) {
-                activeRidersTable->item(r, AT_DISTANCETHISMONTH)->setData(Qt::DisplayRole, rider->thisMonth.totalM / 1000.);
-                activeRidersTable->item(r, AT_AVERAGESPEEDTHISMONTH)->setData(Qt::DisplayRole, lapSpeed(rider->thisMonth.totalSec, rider->thisMonth.totalM));
-            }
-
-            // Average speed
-
-            if (rider->lapCount > 0)
-                activeRidersTable->item(r, AT_AVERAGESPEED)->setData(Qt::DisplayRole, lapSpeed(rider->totalSec, rider->totalM));
-            else
-                activeRidersTable->item(r, AT_AVERAGESPEED)->setData(Qt::DisplayRole, "");
-
-            // All time distance
-
-            activeRidersTable->item(r, AT_DISTANCEALLTIME)->setData(Qt::DisplayRole, rider->allTime.totalM / 1000.);
-
-        }
-
-
-        // Add lap to database
-
-        int lapmsec = (int)(rider->lapSec * 1000.);
-        dbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
-
-
-        // Loop through entries in activeRiders table and flag riders on break
-
-//        for (int i=0; i<ui->activeRidersTableWidget)
-
-
-        // Re-enable sorting on lapsTable if enabled and lapsTable is not really large
-
-        if (ui->lapsTableWidget->rowCount() < lapsTableMaxSizeWithSort) {
-            ui->lapsTableWidget->setSortingEnabled(lapsTableSortingEnabled);
-        }
-        else if (ui->lapsTableWidget->rowCount() == lapsTableMaxSizeWithSort) {
-            ui->lapsTableWidget->sortByColumn(LT_TIMESTAMP, Qt::AscendingOrder);
-            ui->lapsTableWidget->setSortingEnabled(false);
-            ui->lapsTableSortedCheckBox->setChecked(false);
-            ui->lapsTableSortedCheckBox->setEnabled(false);
-        }
-
-        // Re-enable sorting on activeRidersTable if enabled
-
-        ui->activeRidersTableWidget->setSortingEnabled(activeRidersTableSortingEnabled);
-    }
-
-    catch (const char *p) {
-        qDebug() << "Exception caught:" << QString(p);
-    }
-
-    catch (QString s) {
-        qDebug() << "Exception caught:" << s;
-    }
-
-    catch (...) {
-        qDebug() << "Exception caught";
-    }
-
-
-    // Unlock tables mutex
-
-    lapsTableMutex.unlock();
-    activeRidersTableMutex.unlock();
-
-
     // lapCount is total laps all riders
 
     ui->lapCountLineEdit->setText(s.setNum(tagCount));
-    ui->riderCountLineEdit->setText(s.setNum(ui->activeRidersTableWidget->rowCount()));
+
+    if (activeRidersTableModel)
+        activeRidersTableModel->newTrackTag(tagInfo);
 }
 
 
@@ -1178,58 +1267,94 @@ void MainWindow::onNewLogMessage(QString s) {
 // **********************************************************************************************************
 
 void MainWindow::onDbaseSearchPushButtonClicked(void) {
+    QString s;
     QByteArray tagId = ui->deskTagIdLineEdit->text().toLatin1();
     QString firstName = ui->deskFirstNameLineEdit->text();
     QString lastName = ui->deskLastNameLineEdit->text();
+    int membershipNumber = ui->deskMembershipNumberLineEdit->text().toInt();
 
     // If tagId contains entry, search based on only that.
-    // If found, enter name.  Otherwise clear name.
+    // If found, update fields.  Otherwise clear fields.
 
-    if (!tagId.isEmpty()) {
-        int rc = dbase.findNameFromTagId(tagId, &firstName, &lastName);
-        if (rc == 0) {
+    if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && (membershipNumber == 0)) {
+        int id = dbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
+        if (id > 0) {
+            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
+            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
         }
         else {
             ui->deskFirstNameLineEdit->clear();
             ui->deskLastNameLineEdit->clear();
+            ui->deskMembershipNumberLineEdit->clear();
         }
     }
 
-    // Else if first or last name givem, search on that.  Don't clear names on search fail.
+    // Else if first or last name given, search on that.  Don't clear names on search fail.
 
-    else if (!lastName.isEmpty() || !firstName.isEmpty()) {
+    else if ((!lastName.isEmpty() || !firstName.isEmpty()) && (membershipNumber == 0)) {
         int id = dbase.getIdFromName(firstName, lastName);
         if (id > 0) {
-            dbase.getAllFromId(id, &tagId, &firstName, &lastName);
+            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
+            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
         }
     }
 
+    // Else if membership number is given, search on that.  Don't clear names on search fail.
+
+    else if ((lastName.isEmpty() && firstName.isEmpty()) && (membershipNumber > 0)) {
+        int id = dbase.getIdFromMembershipNumber(membershipNumber);
+        if (id > 0) {
+            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            ui->deskTagIdLineEdit->setText(tagId);
+            ui->deskFirstNameLineEdit->setText(firstName);
+            ui->deskLastNameLineEdit->setText(lastName);
+            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
+        }
+    }
     updateDbaseButtons();
 }
 
 
 
 void MainWindow::onDbaseAddPushButtonClicked(void) {
-    QByteArray tagId = ui->deskTagIdLineEdit->text().toLatin1();
-    QByteArray firstName = ui->deskFirstNameLineEdit->text().toLatin1();
-    QByteArray lastName = ui->deskLastNameLineEdit->text().toLatin1();
 
-    int rc = dbase.addTagId(tagId, firstName, lastName);
+    // Check whether tagId is already in dbase
+
+    int rc = dbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
+    if (rc != 0) {
+        guiCritical("Tag \"" + ui->deskTagIdLineEdit->text().toLatin1() + "\" already in database");
+        return;
+    }
+
+    // Check whether first and last name is already in dbase
+
+    rc = dbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
+    if (rc != 0) {
+        guiCritical("Name \"" + ui->deskFirstNameLineEdit->text() + " " + ui->deskLastNameLineEdit->text() + "\" already in database");
+        return;
+    }
+
+    // Add entry to database
+
+    rc = dbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt());
     if (rc != 0) {
         guiCritical(dbase.errorText());
         return;
     }
 
+    // Add to table
+
+    if (!namesTableModel->addName(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt())) {
+        guiCritical("Could not add name to namesTable");
+        return;
+    }
+
     onDbaseClearPushButtonClicked();
-
-    namesModel->addName(tagId, firstName, lastName);    // todo: check for success
-
-    updateDbaseButtons();
 }
 
 
@@ -1238,7 +1363,7 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
     ui->deskTagIdLineEdit->clear();
     ui->deskFirstNameLineEdit->clear();
     ui->deskLastNameLineEdit->clear();
-
+    ui->deskMembershipNumberLineEdit->clear();
     updateDbaseButtons();
 }
 
@@ -1247,15 +1372,19 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
 void MainWindow::onDbaseRemovePushButtonClicked(void) {
     QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
     if (b == QMessageBox::Ok) {
-        // Remove from table, get index into tagIdList, remove
-        int rc = dbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1());
-        if (rc == 0) {
-            ui->deskTagIdLineEdit->clear();
-            ui->deskFirstNameLineEdit->clear();
-            ui->deskLastNameLineEdit->clear();
+        if (dbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1()) != 0) {
+            guiCritical("Error removing name from database");
+            return;
+        }
+        if (!namesTableModel->removeName(ui->deskTagIdLineEdit->text().toLatin1())) {
+            guiCritical("Error removing name from namesTable");
+            return;
         }
     }
 
+    ui->deskTagIdLineEdit->clear();
+    ui->deskFirstNameLineEdit->clear();
+    ui->deskLastNameLineEdit->clear();
     updateDbaseButtons();
 }
 
@@ -1265,13 +1394,13 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
     QByteArray tagId = ui->deskTagIdLineEdit->text().toLatin1();
     QByteArray firstName = ui->deskFirstNameLineEdit->text().toLatin1();
     QByteArray lastName = ui->deskLastNameLineEdit->text().toLatin1();
-    int rc = dbase.updateTagId(tagId, firstName, lastName);
+    int membershipNumber = ui->deskMembershipNumberLineEdit->text().toInt();
+    int rc = dbase.update(tagId, firstName, lastName, membershipNumber);
     if (rc == 0)
         onDbaseClearPushButtonClicked();
     else
         guiCritical(dbase.errorText());
 
-//    namesModel->loadNames();
     updateDbaseButtons();
 }
 
@@ -1336,10 +1465,13 @@ void MainWindow::onDbaseLastNameTextChanged(QString) {
 }
 
 
+void MainWindow::onDbaseMembershipNumberTextChanged(QString) {
+    updateDbaseButtons();
+}
+
+
 
 void MainWindow::updateDbaseButtons(void) {
-
-//    qDebug() << ui->deskTagIdLineEdit->text();
 
     // If ReadTag pushed, all others should be disabled
 
@@ -1352,38 +1484,60 @@ void MainWindow::updateDbaseButtons(void) {
         return;
     }
 
-    // Search is enabled when TagId, FirstName or LastName is filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty())
+    // Search is enabled when one of TagId, FirstName and/or LastName, or membershipNumber is filled
+
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskSearchPushButton->setEnabled(true);
+
+    else if (ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
+        ui->deskSearchPushButton->setEnabled(true);
+
+    else if (ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
+        ui->deskSearchPushButton->setEnabled(true);
+
+    else if (ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
+        ui->deskSearchPushButton->setEnabled(true);
+
+    else if (ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
+        ui->deskSearchPushButton->setEnabled(true);
+
     else
         ui->deskSearchPushButton->setEnabled(false);
 
-    // Add is enabled when TagId, FirstName and LastName are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty())
+    // Add is enabled when all fields are filled
+
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskAddPushButton->setEnabled(true);
+
     else
         ui->deskAddPushButton->setEnabled(false);
 
+
     // Clear is enabled when any of TagId, FirstName or LastName are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty() || !ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskClearPushButton->setEnabled(true);
+
     else
         ui->deskClearPushButton->setEnabled(false);
 
-    // Remove is enabled when TagId, FirstName and LastName are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty())
+    // Remove is enabled when all fields are filled
+
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskRemovePushButton->setEnabled(true);
+
     else
         ui->deskRemovePushButton->setEnabled(false);
 
-    // Update is enabled when TagId, FirstName and LastName are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty())
+    // Update is enabled when all fields are filled
+
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskUpdatePushButton->setEnabled(true);
+
     else
         ui->deskUpdatePushButton->setEnabled(false);
 
