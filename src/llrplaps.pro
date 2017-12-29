@@ -44,13 +44,17 @@ linux-g++ {
 #  QMAKE_RPATHDIR = $$LIBDIR
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
+#  INCLUDEPATH += /usr/include
+#  LIBS += -L/usr/lib/mysql -lrt
+  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
 }
 
-#message(QMAKE_REL_RPATH_BASE: $$QMAKE_REL_RPATH_BASE)
 
-message(INCLUDE: $$INCLUDEPATH)
-message(LIBS: $$LIBS)
-#message(PATH: $$PATH)
+  #message(QMAKE_REL_RPATH_BASE: $$QMAKE_REL_RPATH_BASE)
+
+  message(INCLUDE: $$INCLUDEPATH)
+  message(LIBS: $$LIBS)
+  #message(PATH: $$PATH)
 
 
 

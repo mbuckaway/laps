@@ -815,7 +815,6 @@ MainWindow::MainWindow(QWidget *parent) :
     QCoreApplication::setApplicationName("LLRPLaps");
     QCoreApplication::setApplicationVersion("0.1");
 
-
     initializeSettingsPanel();
     bool initialized = true;
 
@@ -898,8 +897,6 @@ MainWindow::MainWindow(QWidget *parent) :
     m->setReadOnly(true);
 
 
-
-
     // Default to showing messages during connection to reader
 
     ui->tabWidget->setCurrentIndex(2);
@@ -920,7 +917,131 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->trackAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna1PowerComboBoxActivated(int)));
 
 
-    // Move CReader objects to separate threads
+    // Configure Dbase page
+
+    connect(ui->deskClearPushButton, SIGNAL(clicked()), this, SLOT(onDbaseClearPushButtonClicked()));
+    connect(ui->deskSearchPushButton, SIGNAL(clicked()), this, SLOT(onDbaseSearchPushButtonClicked()));
+    connect(ui->deskAddPushButton, SIGNAL(clicked()), this, SLOT(onDbaseAddPushButtonClicked()));
+    connect(ui->deskRemovePushButton, SIGNAL(clicked()), this, SLOT(onDbaseRemovePushButtonClicked()));
+    connect(ui->deskUpdatePushButton, SIGNAL(clicked()), this, SLOT(onDbaseUpdatePushButtonClicked()));
+    connect(ui->deskReadPushButton, SIGNAL(clicked(bool)), this, SLOT(onDbaseReadPushButtonClicked(bool)));
+    connect(ui->deskTagIdLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseTagIdTextChanged(QString)));
+    connect(ui->deskFirstNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseFirstNameTextChanged(QString)));
+    connect(ui->deskLastNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseLastNameTextChanged(QString)));
+    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseMembershipNumberTextChanged(QString)));
+
+    updateDbaseButtons();
+
+
+    // Two databases are used.
+    // membershipDbase contains track membership info for each rider.
+    // lapsDbase contains a record of all laps for all riders.
+
+    QString membershipDbaseFileName = "membership.db";
+    QString membershipDbaseUserName = "abc";
+    QString membershipDbasePassword = "def";
+    int rc = 0;
+    qDebug() << "A0";
+    membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
+    if (!membershipDbase.isOpen())
+        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nWe will continue but rider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
+    qDebug() << "A1";
+
+
+    QString lapsDbaseFileName = "laps.db";
+    QString lapsDbaseUserName = "abc";
+    QString lapsDbasePassword = "def";
+    rc = lapsDbase.open(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
+    if (!lapsDbase.isOpen())
+        guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
+
+    qDebug() << "A2";
+
+    // Initialize names table
+
+    membershipTableModel = new CMembershipTableModel(this);
+    ui->namesTableView->setModel(membershipTableModel);
+    ui->namesTableView->setColumnWidth(0, 200);
+    ui->namesTableView->setColumnWidth(1, 200);
+    ui->namesTableView->setColumnWidth(2, 200);
+
+    ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->namesTableView->setSortingEnabled(true);
+
+    qDebug() << "A3";
+
+    // Disable dbase tab if database not open
+
+    if (!membershipDbase.isOpen())
+        ui->tabWidget->setTabEnabled(3, false);
+
+
+    // Initialize laps table
+
+    lapsTableModel = new CLapsTableModel(this);
+    ui->lapsTableView->setModel(lapsTableModel);
+    ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
+    ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
+    ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
+    ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
+    ui->lapsTableView->setColumnWidth(LT_LAPTIME, CW_SPEED);
+    ui->lapsTableView->setColumnWidth(LT_LAPSPEED, CW_SPEED);
+
+    ui->lapsTableView->setAlternatingRowColors(true);
+    ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->lapsTableView->setSortingEnabled(true);
+    ui->lapsTableView->setEnabled(false);   // will be enabled when connected to reader
+
+
+//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
+
+    qDebug() << "A4";
+
+    // Configure active riders table
+
+    activeRidersTableModel = new CActiveRidersTableModel(this);
+    ui->activeRidersTableView->setModel(activeRidersTableModel);
+    ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCE, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPSPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCETHISMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCELASTMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_DISTANCEALLTIME, CW_DISTANCE);
+
+    ui->activeRidersTableView->setAlternatingRowColors(true);
+    ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
+    ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->activeRidersTableView->setSortingEnabled(true);
+    ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
+
+//    TestModel model;
+//        QSortFilterProxyModel proxyModel;
+//        proxyModel.setSourceModel(activeRidersTableModel);
+//    .setModel( &proxyModel );
+
+//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
+
+
+    // Start timer that will purge old riders from activeRidersTable
+    qDebug() << "A5";
+
+    connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
+    purgeActiveRidersListTimer.setInterval(tablePurgeIntervalSec * 1000);
+    purgeActiveRidersListTimer.start();
+
+
+    connect(ui->applySettingsPushButton, SIGNAL(clicked()), this, SLOT(onApplySettingsPushButtonClicked()));
+    connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
+
+
+    // Move CReader objects to separate threads and start
 
     if (trackReader) {
         QThread *trackReaderThread = new QThread(this);
@@ -947,117 +1068,7 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
         deskReaderThread->start();
     }
-
-
-    // Configure Dbase page
-
-    connect(ui->deskClearPushButton, SIGNAL(clicked()), this, SLOT(onDbaseClearPushButtonClicked()));
-    connect(ui->deskSearchPushButton, SIGNAL(clicked()), this, SLOT(onDbaseSearchPushButtonClicked()));
-    connect(ui->deskAddPushButton, SIGNAL(clicked()), this, SLOT(onDbaseAddPushButtonClicked()));
-    connect(ui->deskRemovePushButton, SIGNAL(clicked()), this, SLOT(onDbaseRemovePushButtonClicked()));
-    connect(ui->deskUpdatePushButton, SIGNAL(clicked()), this, SLOT(onDbaseUpdatePushButtonClicked()));
-    connect(ui->deskReadPushButton, SIGNAL(clicked(bool)), this, SLOT(onDbaseReadPushButtonClicked(bool)));
-    connect(ui->deskTagIdLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseTagIdTextChanged(QString)));
-    connect(ui->deskFirstNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseFirstNameTextChanged(QString)));
-    connect(ui->deskLastNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseLastNameTextChanged(QString)));
-    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseMembershipNumberTextChanged(QString)));
-
-    updateDbaseButtons();
-
-
-    // Two databases are used.
-    // membershipDbase contains track membership info for each rider.
-    // lapsDbase contains a record of all laps for all riders.
-
-    QString membershipDbaseFileName = "membership.sqlite";
-    QString membersgipDbaseUserName = "abc";
-    QString membersgipDbasePassword = "def";
-    int rc = membershipDbase.open(membershipDbaseFileName, membersgipDbaseUserName, membersgipDbasePassword);
-    if (rc != 0)
-        guiCritical("Error opening membership database file \"" + membershipDbaseFileName + "\": " + membershipDbase.errorText() + ".\n\nWe will continue but rider names will not be displayed and new tags cannot be added.");
-
-
-    QString lapsDbaseFileName = "laps.sqlite";
-    QString lapsDbaseUserName = "abc";
-    QString lapsDbasePassword = "def";
-    rc = lapsDbase.open(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
-    if (rc != 0)
-        guiCritical("Error opening laps database file \"" + lapsDbaseFileName + "\": " + lapsDbase.errorText() + ".\n\nWe will continue but lap times and statistics are not being recorded.");
-
-
-    // Initialize names table
-
-    membershipTableModel = new CMembershipTableModel(this);
-    ui->namesTableView->setModel(membershipTableModel);
-    ui->namesTableView->setColumnWidth(0, 200);
-    ui->namesTableView->setColumnWidth(1, 200);
-    ui->namesTableView->setColumnWidth(2, 200);
-
-    ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
-    ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->namesTableView->setSortingEnabled(true);
-
-
-    // Initialize laps table
-
-    lapsTableModel = new CLapsTableModel(this);
-    ui->lapsTableView->setModel(lapsTableModel);
-    ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
-    ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
-    ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
-    ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
-    ui->lapsTableView->setColumnWidth(LT_LAPTIME, CW_SPEED);
-    ui->lapsTableView->setColumnWidth(LT_LAPSPEED, CW_SPEED);
-
-    ui->lapsTableView->setAlternatingRowColors(true);
-    ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
-    ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->lapsTableView->setSortingEnabled(true);
-    ui->lapsTableView->setEnabled(false);
-
-
-//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
-
-
-    // Configure active riders table
-
-    activeRidersTableModel = new CActiveRidersTableModel(this);
-    ui->activeRidersTableView->setModel(activeRidersTableModel);
-    ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
-    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCE, CW_DISTANCE);
-    ui->activeRidersTableView->setColumnWidth(AT_LAPSPEED, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCETHISMONTH, CW_DISTANCE);
-    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCELASTMONTH, CW_DISTANCE);
-    ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCEALLTIME, CW_DISTANCE);
-
-    ui->activeRidersTableView->setAlternatingRowColors(true);
-    ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
-    ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->activeRidersTableView->setSortingEnabled(true);
-    ui->activeRidersTableView->setEnabled(false);
-
-//    TestModel model;
-//        QSortFilterProxyModel proxyModel;
-//        proxyModel.setSourceModel(activeRidersTableModel);
-//    .setModel( &proxyModel );
-
-//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
-
-
-    // Start timer that will purge old riders from activeRidersTable
-
-    connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
-    purgeActiveRidersListTimer.setInterval(tablePurgeIntervalSec * 1000);
-    purgeActiveRidersListTimer.start();
-
-
-    connect(ui->applySettingsPushButton, SIGNAL(clicked()), this, SLOT(onApplySettingsPushButtonClicked()));
-    connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
+    qDebug() << "A9";
 
 }
 
