@@ -18,10 +18,7 @@ CMembershipDbase::CMembershipDbase() {
 
 
 int CMembershipDbase::open(const QString &filename, const QString &username, const QString &password) {
-    QSqlQuery query;
-
     errorTextVal.clear();
-
     dBase.setUserName(username);
     dBase.setPassword(password);
     dBase.setDatabaseName(filename);
@@ -33,6 +30,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
     }
 
     bool showNames = true;//false;
+    QSqlQuery query;
 
     // Make sure table exists and create as necessary
 
@@ -413,7 +411,6 @@ CLapsDbase::CLapsDbase() {
 
 
 int CLapsDbase::open(const QString &filename, const QString &username, const QString &password) {
-    QSqlQuery query;
 
     errorTextVal.clear();
 
@@ -429,6 +426,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
 
 
     bool showLaps = true;//false;
+    QSqlQuery query;
 
     // Make sure table exists and create as necessary
 
