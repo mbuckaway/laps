@@ -33,16 +33,18 @@ class MainWindow;
 class MainWindow;
 
 
-class CNamesTableModel : public QAbstractTableModel {
+class CMembershipTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
-    CNamesTableModel(QObject *parent);
+    CMembershipTableModel(QObject *parent);
     QStringList tagIdList;
     QStringList firstNameList;
     QStringList lastNameList;
     QList<int> membershipList;
-    bool addName(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membership);
-    bool removeName(const QByteArray &tagId);
+//    QList<int> ccaRegistrationList;
+//    QList<QByteArray> emailList;
+    bool add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membership);
+    bool remove(const QByteArray &tagId);
     int rowCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     int columnCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     QVariant data(const QModelIndex &index, int role=Qt::DisplayRole) const Q_DECL_OVERRIDE;
@@ -114,7 +116,8 @@ public:
     Ui::MainWindow *ui;
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
-    CDbase dbase;
+    CMembershipDbase membershipDbase;
+    CLapsDbase lapsDbase;
     float maxAcceptableLapSec;        // max time allowable for lap.  If greater, rider must have left and return to track
     QList<float> trackLengthM;      // length of track (1 lap) at height of each antenna
     float blackLineDistancem;
@@ -125,7 +128,7 @@ public:
     long long tablePurgeIntervalSec;
     CLapsTableModel *lapsTableModel;
 private:
-    CNamesTableModel *namesTableModel;
+    CMembershipTableModel *membershipTableModel;
     CActiveRidersTableModel *activeRidersTableModel;
     QTimer clockTimer;
     QTimer purgeActiveRidersListTimer;

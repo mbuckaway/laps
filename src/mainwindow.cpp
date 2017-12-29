@@ -97,12 +97,13 @@
 
 
 // *****************************************************************************
-// CNamesTableModel
+// CMembershipTableModel
 //
-CNamesTableModel::CNamesTableModel(QObject *parent) : QAbstractTableModel(parent) {
+CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableModel(parent) {
     tagIdList.clear();
     firstNameList.clear();
     lastNameList.clear();
+    membershipList.clear();
 
     QSqlQuery query;
     query.prepare("select * from names");
@@ -120,13 +121,13 @@ CNamesTableModel::CNamesTableModel(QObject *parent) : QAbstractTableModel(parent
         membershipList.append(query.value(idMembership).toInt());
     }
     QModelIndex topLeft = index(0, 0);
-    QModelIndex bottomRight = index(tagIdList.size() - 1, 2);
+    QModelIndex bottomRight = index(tagIdList.size() - 1, 0);
     emit dataChanged(topLeft, bottomRight);
 }
 
 
 
-bool CNamesTableModel::addName(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
+bool CMembershipTableModel::add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
     int row = rowCount();
     insertRows(row, 1);
     setData(index(row, 0), tagId, Qt::EditRole);
@@ -141,7 +142,7 @@ bool CNamesTableModel::addName(const QByteArray &tagId, const QString &firstName
 
 
 
-bool CNamesTableModel::removeName(const QByteArray &tagId) {
+bool CMembershipTableModel::remove(const QByteArray &tagId) {
     int row = tagIdList.indexOf(tagId);
     if (!removeRows(row, 1))
         return false;
@@ -153,7 +154,7 @@ bool CNamesTableModel::removeName(const QByteArray &tagId) {
 
 
 
-bool CNamesTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
+bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
     beginInsertRows(QModelIndex(), position, position + rows - 1);
     for (int row = 0; row < rows; ++row) {
         tagIdList.insert(position, QString());
@@ -170,7 +171,7 @@ bool CNamesTableModel::insertRows(int position, int rows, const QModelIndex &/*p
 
 
 
-bool CNamesTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
+bool CMembershipTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
     beginRemoveRows(QModelIndex(), position, position + rows - 1);
     for (int row = 0; row < rows; ++row) {
         tagIdList.removeAt(position);
@@ -184,20 +185,20 @@ bool CNamesTableModel::removeRows(int position, int rows, const QModelIndex &/*p
 
 
 
-int CNamesTableModel::rowCount(const QModelIndex &/*parent*/) const {
+int CMembershipTableModel::rowCount(const QModelIndex &/*parent*/) const {
     return tagIdList.size();
 
 }
 
 
 
-int CNamesTableModel::columnCount(const QModelIndex &/*parent*/) const {
+int CMembershipTableModel::columnCount(const QModelIndex &/*parent*/) const {
     return 4;
 }
 
 
 
-QVariant CNamesTableModel::data(const QModelIndex &index, int role) const {
+QVariant CMembershipTableModel::data(const QModelIndex &index, int role) const {
     int row = index.row();
     int col = index.column();
 
@@ -227,7 +228,7 @@ QVariant CNamesTableModel::data(const QModelIndex &index, int role) const {
 
 
 
-QVariant CNamesTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
+QVariant CMembershipTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
     switch (role) {
     case Qt::DisplayRole:
         if (orientation == Qt::Horizontal) {
@@ -248,7 +249,7 @@ QVariant CNamesTableModel::headerData(int section, Qt::Orientation orientation, 
 
 
 
-bool CNamesTableModel::setData(const QModelIndex &index, const QVariant &value, int role) {
+bool CMembershipTableModel::setData(const QModelIndex &index, const QVariant &value, int role) {
     int row = index.row();
     int col = index.column();
     if (role == Qt::EditRole) {
@@ -272,7 +273,7 @@ bool CNamesTableModel::setData(const QModelIndex &index, const QVariant &value, 
 
 
 
-Qt::ItemFlags CNamesTableModel::flags(const QModelIndex &index) const {
+Qt::ItemFlags CMembershipTableModel::flags(const QModelIndex &index) const {
     return QAbstractTableModel::flags(index);
 }
 
@@ -687,9 +688,9 @@ void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
         QString firstName;
         QString lastName;
         int membershipNumber = 0;
-        int id = mainWindow->dbase.getIdFromTagId(tagInfo.tagId);
+        int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
         if (id > 0) {
-            mainWindow->dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             name = firstName + " " + lastName;
         }
         else {
@@ -701,7 +702,7 @@ void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
 
         // Get prior stats for this rider
 
-        mainWindow->dbase.getStats(tagInfo.tagId, rider);
+        mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
     }
 
 
@@ -768,7 +769,7 @@ void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
     // Add lap to database
 
     int lapmsec = (int)(rider->lapSec * 1000.);
-    mainWindow->dbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
+    mainWindow->lapsDbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
 
 
     // Add to lapsTableView
@@ -808,7 +809,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     trackReader = NULL;
     deskReader = NULL;
-    namesTableModel = NULL;
+    membershipTableModel = NULL;
     lapsTableModel = NULL;
     activeRidersTableModel = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
@@ -964,14 +965,30 @@ MainWindow::MainWindow(QWidget *parent) :
     updateDbaseButtons();
 
 
+    // Two databases are used.
+    // membershipDbase contains track membership info for each rider.
+    // lapsDbase contains a record of all laps for all riders.
+
+    QString membershipDbaseFileName = "membership.sqlite";
+    QString membersgipDbaseUserName = "abc";
+    QString membersgipDbasePassword = "def";
+    int rc = membershipDbase.open(membershipDbaseFileName, membersgipDbaseUserName, membersgipDbasePassword);
+    if (rc != 0)
+        guiCritical("Error opening membership database file \"" + membershipDbaseFileName + "\": " + membershipDbase.errorText() + ".\n\nWe will continue but rider names will not be displayed and new tags cannot be added.");
+
+
+    QString lapsDbaseFileName = "laps.sqlite";
+    QString lapsDbaseUserName = "abc";
+    QString lapsDbasePassword = "def";
+    rc = lapsDbase.open(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
+    if (rc != 0)
+        guiCritical("Error opening laps database file \"" + lapsDbaseFileName + "\": " + lapsDbase.errorText() + ".\n\nWe will continue but lap times and statistics are not being recorded.");
+
+
     // Initialize names table
 
-    int rc = dbase.open("testDbase", "abc", "def");
-    if (rc != 0)
-        guiCritical("Error opening database file: " + dbase.errorText() + ".\n\nWe will continue but rider names are not available and results are not being recorded.");
-
-    namesTableModel = new CNamesTableModel(this);
-    ui->namesTableView->setModel(namesTableModel);
+    membershipTableModel = new CMembershipTableModel(this);
+    ui->namesTableView->setModel(membershipTableModel);
     ui->namesTableView->setColumnWidth(0, 200);
     ui->namesTableView->setColumnWidth(1, 200);
     ui->namesTableView->setColumnWidth(2, 200);
@@ -1051,7 +1068,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow() {
     qDebug() << "closing...";
-    dbase.close();
+    membershipDbase.close();
+    lapsDbase.close();
     for (int i=0; i<readerThreadList.size(); i++) {
         readerThreadList[i]->requestInterruption();
         readerThreadList[i]->wait();
@@ -1277,9 +1295,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     // If found, update fields.  Otherwise clear fields.
 
     if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && (membershipNumber == 0)) {
-        int id = dbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
+        int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
         if (id > 0) {
-            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
             ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
@@ -1294,9 +1312,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     // Else if first or last name given, search on that.  Don't clear names on search fail.
 
     else if ((!lastName.isEmpty() || !firstName.isEmpty()) && (membershipNumber == 0)) {
-        int id = dbase.getIdFromName(firstName, lastName);
+        int id = membershipDbase.getIdFromName(firstName, lastName);
         if (id > 0) {
-            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
@@ -1307,9 +1325,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     // Else if membership number is given, search on that.  Don't clear names on search fail.
 
     else if ((lastName.isEmpty() && firstName.isEmpty()) && (membershipNumber > 0)) {
-        int id = dbase.getIdFromMembershipNumber(membershipNumber);
+        int id = membershipDbase.getIdFromMembershipNumber(membershipNumber);
         if (id > 0) {
-            dbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
@@ -1325,7 +1343,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Check whether tagId is already in dbase
 
-    int rc = dbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
+    int rc = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
     if (rc != 0) {
         guiCritical("Tag \"" + ui->deskTagIdLineEdit->text().toLatin1() + "\" already in database");
         return;
@@ -1333,7 +1351,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Check whether first and last name is already in dbase
 
-    rc = dbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
+    rc = membershipDbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
     if (rc != 0) {
         guiCritical("Name \"" + ui->deskFirstNameLineEdit->text() + " " + ui->deskLastNameLineEdit->text() + "\" already in database");
         return;
@@ -1341,16 +1359,16 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Add entry to database
 
-    rc = dbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt());
+    rc = membershipDbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt(), 0, QByteArray());
     if (rc != 0) {
-        guiCritical(dbase.errorText());
+        guiCritical(membershipDbase.errorText());
         return;
     }
 
     // Add to table
 
-    if (!namesTableModel->addName(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt())) {
-        guiCritical("Could not add name to namesTable");
+    if (!membershipTableModel->add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt())) {
+        guiCritical("Could not add entry to membershipTable");
         return;
     }
 
@@ -1372,11 +1390,11 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
 void MainWindow::onDbaseRemovePushButtonClicked(void) {
     QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
     if (b == QMessageBox::Ok) {
-        if (dbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1()) != 0) {
+        if (membershipDbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1()) != 0) {
             guiCritical("Error removing name from database");
             return;
         }
-        if (!namesTableModel->removeName(ui->deskTagIdLineEdit->text().toLatin1())) {
+        if (!membershipTableModel->remove(ui->deskTagIdLineEdit->text().toLatin1())) {
             guiCritical("Error removing name from namesTable");
             return;
         }
@@ -1395,11 +1413,13 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
     QByteArray firstName = ui->deskFirstNameLineEdit->text().toLatin1();
     QByteArray lastName = ui->deskLastNameLineEdit->text().toLatin1();
     int membershipNumber = ui->deskMembershipNumberLineEdit->text().toInt();
-    int rc = dbase.update(tagId, firstName, lastName, membershipNumber);
+    int ccaRegistration = 0;
+    QByteArray email;
+    int rc = membershipDbase.update(tagId, firstName, lastName, membershipNumber, ccaRegistration, email);
     if (rc == 0)
         onDbaseClearPushButtonClicked();
     else
-        guiCritical(dbase.errorText());
+        guiCritical(membershipDbase.errorText());
 
     updateDbaseButtons();
 }
@@ -1431,7 +1451,7 @@ void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
     QString firstName;
     QString lastName;
     if (!tagInfo.tagId.isEmpty()) {
-        int rc = dbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
+        int rc = membershipDbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
         if (rc == 0) {
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
