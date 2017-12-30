@@ -131,13 +131,6 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_3">
         <item row="0" column="0">
-         <widget class="QCheckBox" name="activeRidersTableSortedCheckBox">
-          <property name="text">
-           <string>Table Sorted</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
          <widget class="QTableView" name="activeRidersTableView"/>
         </item>
        </layout>
@@ -148,13 +141,6 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_2">
         <item row="0" column="0">
-         <widget class="QCheckBox" name="lapsTableSortedCheckBox">
-          <property name="text">
-           <string>Table Sorted</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="0">
          <widget class="QTableView" name="lapsTableView"/>
         </item>
        </layout>
@@ -187,7 +173,7 @@
       </widget>
       <widget class="QWidget" name="deskDBaseTab">
        <attribute name="title">
-        <string>DataBase</string>
+        <string>Membership</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_5">
         <item row="0" column="0">
@@ -267,7 +253,7 @@
           <item>
            <widget class="QLabel" name="deskMembershipNumberLabel">
             <property name="text">
-             <string>Membership Number</string>
+             <string>Track Membership Number</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
@@ -289,9 +275,9 @@
         <item row="0" column="4">
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
-           <widget class="QLabel" name="deskCCARegistrationLabel">
+           <widget class="QLabel" name="deskCaRegistrationLabel">
             <property name="text">
-             <string>CCA Registration</string>
+             <string>CA Registration</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
@@ -299,7 +285,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QLineEdit" name="deskCCARegistrationLineEdit">
+           <widget class="QLineEdit" name="deskCaRegistrationLineEdit">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>1</horstretch>

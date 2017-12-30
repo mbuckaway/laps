@@ -29,6 +29,7 @@
 #include "creader.h"
 #include "cdbase.h"
 #include "main.h"
+#include "csmtp.h"
 
 
 // Columns in active riders table
@@ -67,7 +68,7 @@
 #define CW_SPEED            90
 #define CW_DISTANCE         80
 #define CW_MEMBERSHIPNUMBER 80
-#define CW_CCAREGISTRATION  80
+#define CW_CAREGISTRATION   80
 #define CW_EMAIL            80
 
 
@@ -93,6 +94,8 @@
 // - alltime best 40k
 
 
+int testMode = true;
+
 
 
 
@@ -107,6 +110,8 @@ CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableMo
     firstNameList.clear();
     lastNameList.clear();
     membershipList.clear();
+    caRegistrationList.clear();
+    eMailList.clear();
 
     QSqlQuery query(mainWindow->membershipDbase.dBase);
     query.prepare("select * from membershipTable");
@@ -117,11 +122,15 @@ CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableMo
     int idFirst = query.record().indexOf("firstName");
     int idLast = query.record().indexOf("lastName");
     int idMembership = query.record().indexOf("membershipNumber");
+    int idCaRegistration = query.record().indexOf("caRegistration");
+    int idEmail = query.record().indexOf("eMail");
     while (query.next()) {
         tagIdList.append(query.value(idTagId).toString());
         firstNameList.append(query.value(idFirst).toString());
         lastNameList.append(query.value(idLast).toString());
-        membershipList.append(query.value(idMembership).toInt());
+        membershipList.append(query.value(idMembership).toString());
+        caRegistrationList.append(query.value(idCaRegistration).toString());
+        eMailList.append(query.value(idEmail).toString());
     }
     QModelIndex topLeft = index(0, 0);
     QModelIndex bottomRight = index(tagIdList.size() - 1, 0);
@@ -130,22 +139,24 @@ CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableMo
 
 
 
-bool CMembershipTableModel::add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber) {
+bool CMembershipTableModel::add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
     int row = rowCount();
     insertRows(row, 1);
     setData(index(row, 0), tagId, Qt::EditRole);
     setData(index(row, 1), firstName, Qt::EditRole);
     setData(index(row, 2), lastName, Qt::EditRole);
     setData(index(row, 3), membershipNumber, Qt::EditRole);
+    setData(index(row, 4), caRegistration, Qt::EditRole);
+    setData(index(row, 5), eMail, Qt::EditRole);
     QModelIndex topLeft = index(row, 0);
-    QModelIndex bottomRight = index(row, 2);
+    QModelIndex bottomRight = index(row, 0);
     emit dataChanged(topLeft, bottomRight);
     return true;
 }
 
 
 
-bool CMembershipTableModel::remove(const QByteArray &tagId) {
+bool CMembershipTableModel::remove(const QString &tagId) {
     int row = tagIdList.indexOf(tagId);
     if (!removeRows(row, 1))
         return false;
@@ -163,7 +174,9 @@ bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex
         tagIdList.insert(position, QString());
         firstNameList.insert(position, QString());
         lastNameList.insert(position, QString());
-        membershipList.insert(position, 0);
+        membershipList.insert(position, QString());
+        caRegistrationList.insert(position, QString());
+        eMailList.insert(position, QString());
     }
     endInsertRows();
     QModelIndex topLeft = index(position, 0);
@@ -181,6 +194,8 @@ bool CMembershipTableModel::removeRows(int position, int rows, const QModelIndex
         firstNameList.removeAt(position);
         lastNameList.removeAt(position);
         membershipList.removeAt(position);
+        caRegistrationList.removeAt(position);
+        eMailList.removeAt(position);
     }
     endRemoveRows();
     return true;
@@ -216,6 +231,10 @@ QVariant CMembershipTableModel::data(const QModelIndex &index, int role) const {
             return lastNameList[row];
         case 3:
             return membershipList[row];
+        case 4:
+            return caRegistrationList[row];
+        case 5:
+            return eMailList[row];
         }
         break;
     case Qt::FontRole:
@@ -243,7 +262,11 @@ QVariant CMembershipTableModel::headerData(int section, Qt::Orientation orientat
             case 2:
                 return QString("Last Name");
             case 3:
-                return QString("Membership Number");
+                return QString("Track Membership N");
+            case 4:
+                return QString("CA Registration");
+            case 5:
+                return QString("eMail");
             }
         }
     }
@@ -267,7 +290,13 @@ bool CMembershipTableModel::setData(const QModelIndex &index, const QVariant &va
             lastNameList[row] = value.toString();
             return true;
         case 3:
-            membershipList[row] = value.toInt();
+            membershipList[row] = value.toString();
+            return true;
+        case 4:
+            caRegistrationList[row] = value.toString();
+            return true;
+        case 5:
+            eMailList[row] = value.toString();
             return true;
         }
     }
@@ -687,13 +716,15 @@ void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
 
     QString name;
     if (firstCrossing) {   // New rider, so get name from dBase and calculate best times in each category
-        QByteArray tagId;
+        QString tagId;
         QString firstName;
         QString lastName;
-        int membershipNumber = 0;
+        QString membershipNumber;
+        QString caRegistration;
+        QString email;
         int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
         if (id > 0) {
-            mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
             name = firstName + " " + lastName;
         }
         else {
@@ -816,7 +847,10 @@ MainWindow::MainWindow(QWidget *parent) :
     lapsTableModel = NULL;
     activeRidersTableModel = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.1");
+    if (testMode)
+        QCoreApplication::setApplicationVersion("0.1-TestMode");
+    else
+        QCoreApplication::setApplicationVersion("0.1");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -888,12 +922,6 @@ MainWindow::MainWindow(QWidget *parent) :
     clockTimer.start();
 
 
-    // Configure gui
-
-    ui->lapsTableSortedCheckBox->setCheckable(false);
-    ui->activeRidersTableSortedCheckBox->setCheckable(false);
-
-
     // Configure messages console
 
     QPlainTextEdit *m = ui->messagesPlainTextEdit;
@@ -932,6 +960,8 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->deskFirstNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseFirstNameTextChanged(QString)));
     connect(ui->deskLastNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseLastNameTextChanged(QString)));
     connect(ui->deskMembershipNumberLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseMembershipNumberTextChanged(QString)));
+    connect(ui->deskCaRegistrationLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseCaRegistrationTextChanged(QString)));
+    connect(ui->deskEMailLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseEMailTextChanged(QString)));
 
     updateDbaseButtons();
 
@@ -940,30 +970,36 @@ MainWindow::MainWindow(QWidget *parent) :
     // membershipDbase contains track membership info for each rider.
     // lapsDbase contains a record of all laps for all riders.
 
-    QString membershipDbaseFileName = "membership.db";
-    QString membershipDbaseUserName = "abc";
-    QString membershipDbasePassword = "def";
+    QString membershipDbaseFileName;
+    if (testMode) membershipDbaseFileName = "membershipTest.db";
+    else membershipDbaseFileName = "membership.db";
+    QString membershipDbaseUserName = "fcv";
+    QString membershipDbasePassword = "fcv";
     int rc = 0;
     rc = membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
 
 
-    QString lapsDbaseFileName = "laps.db";
-    QString lapsDbaseUserName = "abc";
-    QString lapsDbasePassword = "def";
+    QString lapsDbaseFileName;
+    if (testMode) lapsDbaseFileName = "lapsTest.db";
+    else lapsDbaseFileName = "laps.db";
+    QString lapsDbaseUserName = "fcv";
+    QString lapsDbasePassword = "fcv";
     rc = lapsDbase.open(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
     if (!lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
 
 
-    // Initialize names table
+    // Initialize membership table
 
     membershipTableModel = new CMembershipTableModel(this);
     ui->namesTableView->setModel(membershipTableModel);
-    ui->namesTableView->setColumnWidth(0, 200);
-    ui->namesTableView->setColumnWidth(1, 200);
+    ui->namesTableView->setColumnWidth(0, 150);
+    ui->namesTableView->setColumnWidth(1, 150);
     ui->namesTableView->setColumnWidth(2, 200);
+    ui->namesTableView->setColumnWidth(3, 200);
+    ui->namesTableView->setColumnWidth(4, 200);
 
     ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
     ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
@@ -1065,6 +1101,16 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
         deskReaderThread->start();
     }
+
+
+//    QString from("icunning015@gmail.com");
+//    QString to("icunning015@gmail.com");
+//    QString subject("subject");
+//    QString body("body");
+
+//    Smtp smtp(from, to, subject, body );
+
+
 
 }
 
@@ -1230,24 +1276,10 @@ void MainWindow::onReaderConnected(void) {
 
 
 void MainWindow::onLapsTableSortedCheckBoxClicked(bool /*state*/) {
-//    if (!state) {
-//        ui->lapsTableSortedCheckBox->setChecked(false);
-//        ui->lapsTableSortedCheckBox->setCheckable(false);
-//        ui->lapsTableWidget->setSortingEnabled(true);
-//        ui->lapsTableWidget->sortByColumn(LT_TIMESTAMP);
-//        ui->lapsTableWidget->setSortingEnabled(false);
-//    }
 }
 
 
 void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool /*state*/) {
-//    if (!state) {
-//        ui->activeRidersTableSortedCheckBox->setChecked(false);
-//        ui->activeRidersTableSortedCheckBox->setCheckable(false);
-//        ui->activeRidersTableWidget->setSortingEnabled(true);
-//        ui->activeRidersTableWidget->sortByColumn(LT_TIMESTAMP);
-//        ui->activeRidersTableWidget->setSortingEnabled(false);
-//    }
 }
 
 
@@ -1262,7 +1294,7 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Add string to messages window
 
-    onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.data()));
+    onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
     // lapCount is total laps all riders
 
@@ -1292,53 +1324,62 @@ void MainWindow::onNewLogMessage(QString s) {
 // **********************************************************************************************************
 
 void MainWindow::onDbaseSearchPushButtonClicked(void) {
-    QString s;
-    QByteArray tagId = ui->deskTagIdLineEdit->text().toLatin1();
+    QString tagId = ui->deskTagIdLineEdit->text();
     QString firstName = ui->deskFirstNameLineEdit->text();
     QString lastName = ui->deskLastNameLineEdit->text();
-    int membershipNumber = ui->deskMembershipNumberLineEdit->text().toInt();
+    QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
+    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
+    QString eMail = ui->deskEMailLineEdit->text();
 
     // If tagId contains entry, search based on only that.
     // If found, update fields.  Otherwise clear fields.
 
-    if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && (membershipNumber == 0)) {
+    if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
         if (id > 0) {
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
+            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(caRegistration);
+            ui->deskEMailLineEdit->setText(eMail);
         }
         else {
             ui->deskFirstNameLineEdit->clear();
             ui->deskLastNameLineEdit->clear();
             ui->deskMembershipNumberLineEdit->clear();
+            ui->deskCaRegistrationLineEdit->clear();
+            ui->deskEMailLineEdit->clear();
         }
     }
 
     // Else if first or last name given, search on that.  Don't clear names on search fail.
 
-    else if ((!lastName.isEmpty() || !firstName.isEmpty()) && (membershipNumber == 0)) {
+    else if ((!lastName.isEmpty() || !firstName.isEmpty()) && membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromName(firstName, lastName);
         if (id > 0) {
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
+            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(caRegistration);
+            ui->deskEMailLineEdit->setText(eMail);
         }
     }
 
     // Else if membership number is given, search on that.  Don't clear names on search fail.
 
-    else if ((lastName.isEmpty() && firstName.isEmpty()) && (membershipNumber > 0)) {
+    else if ((lastName.isEmpty() && firstName.isEmpty()) && !membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromMembershipNumber(membershipNumber);
         if (id > 0) {
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber);
+            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(s.setNum(membershipNumber));
+            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(caRegistration);
+            ui->deskEMailLineEdit->setText(eMail);
         }
     }
     updateDbaseButtons();
@@ -1366,7 +1407,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Add entry to database
 
-    rc = membershipDbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt(), 0, QByteArray());
+    rc = membershipDbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text());
     if (rc != 0) {
         guiCritical(membershipDbase.errorText());
         return;
@@ -1374,7 +1415,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Add to table
 
-    if (!membershipTableModel->add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text().toInt())) {
+    if (!membershipTableModel->add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text())) {
         guiCritical("Could not add entry to membershipTable");
         return;
     }
@@ -1389,6 +1430,8 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
     ui->deskFirstNameLineEdit->clear();
     ui->deskLastNameLineEdit->clear();
     ui->deskMembershipNumberLineEdit->clear();
+    ui->deskCaRegistrationLineEdit->clear();
+    ui->deskEMailLineEdit->clear();
     updateDbaseButtons();
 }
 
@@ -1407,22 +1450,19 @@ void MainWindow::onDbaseRemovePushButtonClicked(void) {
         }
     }
 
-    ui->deskTagIdLineEdit->clear();
-    ui->deskFirstNameLineEdit->clear();
-    ui->deskLastNameLineEdit->clear();
-    updateDbaseButtons();
+    onDbaseClearPushButtonClicked();
 }
 
 
 
 void MainWindow::onDbaseUpdatePushButtonClicked(void) {
-    QByteArray tagId = ui->deskTagIdLineEdit->text().toLatin1();
-    QByteArray firstName = ui->deskFirstNameLineEdit->text().toLatin1();
-    QByteArray lastName = ui->deskLastNameLineEdit->text().toLatin1();
-    int membershipNumber = ui->deskMembershipNumberLineEdit->text().toInt();
-    int ccaRegistration = 0;
-    QByteArray email;
-    int rc = membershipDbase.update(tagId, firstName, lastName, membershipNumber, ccaRegistration, email);
+    QString tagId = ui->deskTagIdLineEdit->text();
+    QString firstName = ui->deskFirstNameLineEdit->text();
+    QString lastName = ui->deskLastNameLineEdit->text();
+    QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
+    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
+    QString eMail = ui->deskEMailLineEdit->text();
+    int rc = membershipDbase.update(tagId, firstName, lastName, membershipNumber, caRegistration, eMail);
     if (rc == 0)
         onDbaseClearPushButtonClicked();
     else
@@ -1454,20 +1494,21 @@ void MainWindow::onDbaseReadPushButtonClicked(bool state) {
 
 void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
     deskReader->blockSignals(true);
+    onDbaseClearPushButtonClicked();
     ui->deskTagIdLineEdit->setText(tagInfo.tagId);
-    QString firstName;
-    QString lastName;
-    if (!tagInfo.tagId.isEmpty()) {
-        int rc = membershipDbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
-        if (rc == 0) {
-            ui->deskFirstNameLineEdit->setText(firstName);
-            ui->deskLastNameLineEdit->setText(lastName);
-        }
-        else {
-            ui->deskFirstNameLineEdit->clear();
-            ui->deskLastNameLineEdit->clear();
-        }
-    }
+//    QString firstName;
+//    QString lastName;
+//    if (!tagInfo.tagId.isEmpty()) {
+//        int rc = membershipDbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
+//        if (rc == 0) {
+//            ui->deskFirstNameLineEdit->setText(firstName);
+//            ui->deskLastNameLineEdit->setText(lastName);
+//        }
+//        else {
+//            ui->deskFirstNameLineEdit->clear();
+//            ui->deskLastNameLineEdit->clear();
+//        }
+//    }
     ui->deskReadPushButton->setChecked(false);
 
     updateDbaseButtons();
@@ -1496,6 +1537,15 @@ void MainWindow::onDbaseMembershipNumberTextChanged(QString) {
     updateDbaseButtons();
 }
 
+
+void MainWindow::onDbaseCaRegistrationTextChanged(QString) {
+    updateDbaseButtons();
+}
+
+
+void MainWindow::onDbaseEMailTextChanged(QString) {
+    updateDbaseButtons();
+}
 
 
 void MainWindow::updateDbaseButtons(void) {
@@ -1535,23 +1585,23 @@ void MainWindow::updateDbaseButtons(void) {
 
     // Add is enabled when all fields are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !ui->deskEMailLineEdit->text().isEmpty())
         ui->deskAddPushButton->setEnabled(true);
 
     else
         ui->deskAddPushButton->setEnabled(false);
 
 
-    // Clear is enabled when any of TagId, FirstName or LastName are filled
+    // Clear is enabled when any field is filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty() || !ui->deskMembershipNumberLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty() || !ui->deskMembershipNumberLineEdit->text().isEmpty() || !ui->deskCaRegistrationLineEdit->text().isEmpty() || !ui->deskEMailLineEdit->text().isEmpty())
         ui->deskClearPushButton->setEnabled(true);
 
     else
         ui->deskClearPushButton->setEnabled(false);
 
 
-    // Remove is enabled when all fields are filled
+    // Remove is enabled when tadId and first name and last name are filled
 
     if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
         ui->deskRemovePushButton->setEnabled(true);
@@ -1562,7 +1612,7 @@ void MainWindow::updateDbaseButtons(void) {
 
     // Update is enabled when all fields are filled
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !ui->deskEMailLineEdit->text().isEmpty())
         ui->deskUpdatePushButton->setEnabled(true);
 
     else

@@ -40,11 +40,11 @@ public:
     QStringList tagIdList;
     QStringList firstNameList;
     QStringList lastNameList;
-    QList<int> membershipList;
-//    QList<int> ccaRegistrationList;
-//    QList<QByteArray> emailList;
-    bool add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membership);
-    bool remove(const QByteArray &tagId);
+    QStringList membershipList;
+    QStringList caRegistrationList;
+    QStringList eMailList;
+    bool add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membership, const QString &caRegistration, const QString &email);
+    bool remove(const QString &tagId);
     int rowCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     int columnCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     QVariant data(const QModelIndex &index, int role=Qt::DisplayRole) const Q_DECL_OVERRIDE;
@@ -155,6 +155,8 @@ public slots:
     void onDbaseFirstNameTextChanged(QString);
     void onDbaseLastNameTextChanged(QString);
     void onDbaseMembershipNumberTextChanged(QString);
+    void onDbaseCaRegistrationTextChanged(QString);
+    void onDbaseEMailTextChanged(QString);
 private slots:
     void onReaderConnected(void);
     void onClockTimerTimeout(void);

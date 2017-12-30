@@ -19,10 +19,10 @@ CMembershipDbase::CMembershipDbase() {
 
 
 
-int CMembershipDbase::open(const QString &filename, const QString &/*username*/, const QString &/*password*/) {
+int CMembershipDbase::open(const QString &filename, const QString &username, const QString &password) {
     errorTextVal.clear();
-//    dBase.setUserName(username);
-//    dBase.setPassword(password);
+    dBase.setUserName(username);
+    dBase.setPassword(password);
     dBase.setDatabaseName(filename);
 
     if (!dBase.open()) {
@@ -31,21 +31,21 @@ int CMembershipDbase::open(const QString &filename, const QString &/*username*/,
         return 1;
     }
 
-    bool showContents = true;//false;
+    bool showContents = false;
 
     // Make sure table exists and create as necessary
 
     QStringList tableList = dBase.tables();
     if (!tableList.contains("membershipTable")) {
         QSqlQuery query(dBase);
-        qDebug() << "Creating new membershipTable";
-        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, ccaRegistration INTEGER UNIQUE, email VARCHAR(20) UNIQUE)");
+        qDebug() << "Creating new membershipTable in" << filename;
+        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, caRegistration VARCHAR(20) UNIQUE, eMail VARCHAR(20))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << "Error creating new membershipTable:" << errorTextVal;
             return 2;
         }
-        qDebug() << "Created new membershipTable";
+        qDebug() << "  Created new membershipTable";
     }
 
     if (showContents) {
@@ -62,8 +62,10 @@ int CMembershipDbase::open(const QString &filename, const QString &/*username*/,
         int idFirst = query.record().indexOf("firstName");
         int idLast = query.record().indexOf("lastName");
         int idMembership = query.record().indexOf("membershipNumber");
+        int idcaRegistration = query.record().indexOf("caRegistration");
+        int idEmail = query.record().indexOf("eMail");
         while (query.next()) {
-            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toInt());
+            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%s caRegistration=%s eMail=%s", query.value(id).toString().toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toString().toLatin1().data(), query.value(idcaRegistration).toString().toLatin1().data(), query.value(idEmail).toString().toLatin1().data());
         }
     }
 
@@ -75,7 +77,6 @@ int CMembershipDbase::open(const QString &filename, const QString &/*username*/,
 void CMembershipDbase::close(void) {
     if (dBase.isOpen())
         dBase.close();
-//    QSqlDatabase::removeDatabase("membership");
 }
 
 
@@ -83,16 +84,18 @@ void CMembershipDbase::close(void) {
 // add
 // Add entry to membership database.  TagId and first-last name must be unique.
 //
-int CMembershipDbase::add(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber, const int ccaRegistration, const QByteArray email) {
+int CMembershipDbase::add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
     if (!dBase.isOpen())
         return 1;
 
     QSqlQuery query(dBase);
-    query.prepare("INSERT INTO membershipTable (tagId, firstName, lastName, membershipNumber) VALUES (:tagId, :firstName, :lastName, :membershipNumber)");
+    query.prepare("INSERT INTO membershipTable (tagId, firstName, lastName, membershipNumber, caRegistration, eMail) VALUES (:tagId, :firstName, :lastName, :membershipNumber, :caRegistration, :eMail)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
     query.bindValue(":lastName", lastName);
     query.bindValue(":membershipNumber", membershipNumber);
+    query.bindValue(":caRegistration", caRegistration);
+    query.bindValue(":eMail", eMail);
     if (!query.exec()) {
         errorTextVal = "Could not add to database";
         return 2;
@@ -104,7 +107,7 @@ int CMembershipDbase::add(const QByteArray &tagId, const QString &firstName, con
 
 // updateTagId
 //
-int CMembershipDbase::update(const QByteArray &tagId, const QString &firstName, const QString &lastName, const int membershipNumber, const int ccaRegistration, const QByteArray &email) {
+int CMembershipDbase::update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
     if (!dBase.isOpen())
         return 1;
 
@@ -120,15 +123,29 @@ int CMembershipDbase::update(const QByteArray &tagId, const QString &firstName, 
     query.bindValue(":tagId", tagId);
     query.bindValue(":lastName", lastName);
     if (!query.exec()) {
-        errorTextVal = "Could not update last name database";
+        errorTextVal = "Could not update last name in database";
         return 3;
     }
     query.prepare("UPDATE membershipTable SET membershipNumber = :membershipNumber WHERE tagId = :tagId");
     query.bindValue(":tagId", tagId);
     query.bindValue(":membershipNumber", membershipNumber);
     if (!query.exec()) {
-        errorTextVal = "Could not update membership number database";
+        errorTextVal = "Could not update membership number in database";
         return 4;
+    }
+    query.prepare("UPDATE membershipTable SET caRegistration = :caRegistration WHERE tagId = :tagId");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":caRegistration", caRegistration);
+    if (!query.exec()) {
+        errorTextVal = "Could not update cycling association registration in database";
+        return 5;
+    }
+    query.prepare("UPDATE membershipTable SET eMail = :eMail WHERE tagId = :tagId");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":eMail", eMail);
+    if (!query.exec()) {
+        errorTextVal = "Could not update eMail in database";
+        return 6;
     }
 
     return 0;
@@ -138,7 +155,7 @@ int CMembershipDbase::update(const QByteArray &tagId, const QString &firstName, 
 // removeTagId
 // Remove entry with specified tagId
 //
-int CMembershipDbase::removeTagId(const QByteArray &tagId) {
+int CMembershipDbase::removeTagId(const QString &tagId) {
     if (!dBase.isOpen())
         return 1;
 
@@ -155,7 +172,7 @@ int CMembershipDbase::removeTagId(const QByteArray &tagId) {
 
 
 
-int CMembershipDbase::findTagIdFromName(const QString &firstName, const QString &lastName, QByteArray *tagId) {
+int CMembershipDbase::findTagIdFromName(const QString &firstName, const QString &lastName, QString *tagId) {
     if (!dBase.isOpen())
         return 1;
 
@@ -195,7 +212,7 @@ int CMembershipDbase::findTagIdFromName(const QString &firstName, const QString 
 // getIdFromTagId()
 // Return 0 on error
 //
-int CMembershipDbase::getIdFromTagId(const QByteArray &tagId) {
+int CMembershipDbase::getIdFromTagId(const QString &tagId) {
     if (!dBase.isOpen())
         return 0;
 
@@ -267,7 +284,7 @@ int CMembershipDbase::getIdFromName(const QString &firstName, const QString &las
 // getIdFromMembershipNumber()
 // Return 0 on error
 //
-int CMembershipDbase::getIdFromMembershipNumber(const int membershipNumber) {
+int CMembershipDbase::getIdFromMembershipNumber(const QString &membershipNumber) {
     if (!dBase.isOpen())
         return 0;
 
@@ -292,7 +309,7 @@ int CMembershipDbase::getIdFromMembershipNumber(const int membershipNumber) {
 
 
 
-int CMembershipDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName, QString *lastName, int *membershipNumber) {
+int CMembershipDbase::getAllFromId(int id, QString *tagId, QString *firstName, QString *lastName, QString *membershipNumber, QString *caRegistration, QString *eMail) {
     if (!dBase.isOpen())
         return 1;
 
@@ -309,7 +326,9 @@ int CMembershipDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName
     int firstNameIndex = query.record().indexOf("firstName");
     int lastNameIndex = query.record().indexOf("lastName");
     int membershipNumberIndex = query.record().indexOf("membershipNumber");
-    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0)) {
+    int caRegistrationIndex = query.record().indexOf("caRegistration");
+    int eMailIndex = query.record().indexOf("eMail");
+    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0) || (caRegistrationIndex < 0) || (eMailIndex < 0)) {
         errorTextVal = "Could not find index";
         qDebug() << errorTextVal;
         return 3;
@@ -319,7 +338,9 @@ int CMembershipDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName
         *tagId = query.value(tagIdIndex).toString().toLatin1();
         *firstName = query.value(firstNameIndex).toString();
         *lastName = query.value(lastNameIndex).toString();
-        *membershipNumber = query.value(membershipNumberIndex).toInt();
+        *membershipNumber = query.value(membershipNumberIndex).toString();
+        *caRegistration = query.value(caRegistrationIndex).toString();
+        *eMail = query.value(eMailIndex).toString();
         errorTextVal.clear();
         return 0;
     }
@@ -329,7 +350,7 @@ int CMembershipDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName
 
 
 
-int CMembershipDbase::findNameFromTagId(const QByteArray &tagId, QString *firstName, QString *lastName) {
+int CMembershipDbase::findNameFromTagId(const QString &tagId, QString *firstName, QString *lastName) {
     if (!dBase.isOpen())
         return 1;
 
@@ -421,31 +442,31 @@ CLapsDbase::CLapsDbase() {
 
 int CLapsDbase::open(const QString &filename, const QString &username, const QString &password) {
     errorTextVal.clear();
-//    dBase.setUserName(username);
-//    dBase.setPassword(password);
+    dBase.setUserName(username);
+    dBase.setPassword(password);
     dBase.setDatabaseName(filename);
 
     if (!dBase.open()) {
         errorTextVal = dBase.lastError().text();
-        qDebug() << "Error opening laps database:" << errorText();
+        qDebug() << "Error opening " + filename + ":" << errorText();
         return 1;
     }
 
-    bool showContents = true;//false;
+    bool showContents = false;
 
     // Make sure table exists and create as necessary
 
     QStringList tableList = dBase.tables();
     if (!tableList.contains("lapsTable")) {
         QSqlQuery query(dBase);
-        qDebug() << "Creating new lapsTable";
+        qDebug() << "Creating new lapsTable in " + filename;
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime INTEGER(10), lapmsec INTEGER(10), lapm FLOAT(10))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            qDebug() << "Error creating new lapsTable:" << errorTextVal;
+            qDebug() << "Error creating new lapsTable in " + filename << errorTextVal;
             return 2;
         }
-        qDebug() << "Created new lapsTable";
+        qDebug() << "  Created new lapsTable";
     }
 
     if (showContents) {
@@ -477,7 +498,6 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
 void CLapsDbase::close(void) {
     if (dBase.isOpen())
         dBase.close();
-//    QSqlDatabase::removeDatabase("laps");
 }
 
 
@@ -486,7 +506,7 @@ void CLapsDbase::close(void) {
 // addLap
 // Add entry to laps database
 //
-int CLapsDbase::addLap(const QByteArray &tagId, int year, int month, int day, int hour, int minute, int second, int lapmsec, float lapm) {
+int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, int lapmsec, float lapm) {
     if (!dBase.isOpen())
         return 1;
 
@@ -507,11 +527,9 @@ int CLapsDbase::addLap(const QByteArray &tagId, int year, int month, int day, in
 
 
 
-
-
 // Calculate stats for specified rider (tagId) from dbase entries and populate CRider
 //
-int CLapsDbase::getStats(const QByteArray &tagId, CRider *rider) {
+int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     if (!dBase.isOpen())
         return 1;
 
@@ -557,7 +575,7 @@ int CLapsDbase::getStats(const QByteArray &tagId, CRider *rider) {
 
 // Get stats for specified tagId and time period from dbase
 //
-int CLapsDbase::getStatsForPeriod(const QByteArray &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats) {
+int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats) {
     if (!dBase.isOpen())
         return 1;
 

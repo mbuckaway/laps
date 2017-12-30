@@ -44,7 +44,7 @@ public:
     void clear(void);
     int readerId;
     int antennaId;
-    QByteArray tagId;
+    QString tagId;
     unsigned long long timeStampUSec;
     unsigned long long firstSeenInApplicationUSec;
 };

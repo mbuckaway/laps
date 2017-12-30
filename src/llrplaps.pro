@@ -4,9 +4,9 @@
 #
 #-------------------------------------------------
 
-QT += core gui sql
+QT += core widgets gui sql network
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+#greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = llrplaps
 TEMPLATE = app
@@ -68,12 +68,14 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     creader.cpp \
     cdbase.cpp \
-    crider.cpp
+    crider.cpp \
+    csmtp.cpp
 
 HEADERS  += mainwindow.h \
     creader.h \
     main.h \
     cdbase.h \
-    crider.h
+    crider.h \
+    csmtp.h
 
 FORMS    += mainwindow.ui
