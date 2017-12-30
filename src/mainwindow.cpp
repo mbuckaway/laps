@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "ltkcpp.h"
+#include <ltkcpp.h>
 #include "creader.h"
 #include "cdbase.h"
 #include "main.h"
@@ -67,6 +67,8 @@
 #define CW_SPEED            90
 #define CW_DISTANCE         80
 #define CW_MEMBERSHIPNUMBER 80
+#define CW_CCAREGISTRATION  80
+#define CW_EMAIL            80
 
 
 
@@ -100,13 +102,14 @@
 // CMembershipTableModel
 //
 CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableModel(parent) {
+    mainWindow = (MainWindow *)parent;
     tagIdList.clear();
     firstNameList.clear();
     lastNameList.clear();
     membershipList.clear();
 
-    QSqlQuery query;
-    query.prepare("select * from names");
+    QSqlQuery query(mainWindow->membershipDbase.dBase);
+    query.prepare("select * from membershipTable");
     if (!query.exec())
         return;
 
@@ -193,7 +196,7 @@ int CMembershipTableModel::rowCount(const QModelIndex &/*parent*/) const {
 
 
 int CMembershipTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 4;
+    return 6;
 }
 
 
@@ -941,11 +944,9 @@ MainWindow::MainWindow(QWidget *parent) :
     QString membershipDbaseUserName = "abc";
     QString membershipDbasePassword = "def";
     int rc = 0;
-    qDebug() << "A0";
-    membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
-    if (!membershipDbase.isOpen())
-        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nWe will continue but rider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
-    qDebug() << "A1";
+    rc = membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
+    if ((rc != 0) || !membershipDbase.isOpen())
+        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
 
 
     QString lapsDbaseFileName = "laps.db";
@@ -955,7 +956,6 @@ MainWindow::MainWindow(QWidget *parent) :
     if (!lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
 
-    qDebug() << "A2";
 
     // Initialize names table
 
@@ -969,7 +969,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
     ui->namesTableView->setSortingEnabled(true);
 
-    qDebug() << "A3";
 
     // Disable dbase tab if database not open
 
@@ -997,7 +996,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
 //    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
-    qDebug() << "A4";
 
     // Configure active riders table
 
@@ -1030,7 +1028,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     // Start timer that will purge old riders from activeRidersTable
-    qDebug() << "A5";
 
     connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
     purgeActiveRidersListTimer.setInterval(tablePurgeIntervalSec * 1000);
@@ -1068,7 +1065,6 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
         deskReaderThread->start();
     }
-    qDebug() << "A9";
 
 }
 

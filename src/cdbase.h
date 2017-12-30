@@ -29,8 +29,8 @@ public:
     int error(void);
     bool isOpen(void);
     QString errorText(void);
-private:
     QSqlDatabase dBase;
+private:
     QString errorTextVal;
     int errorVal;
 };
@@ -51,8 +51,8 @@ public:
     int error(void);
     bool isOpen(void);
     QString errorText(void);
-private:
     QSqlDatabase dBase;
+private:
     QString errorTextVal;
     int errorVal;
 };

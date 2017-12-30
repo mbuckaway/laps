@@ -54,6 +54,7 @@ public:
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
 private:
+    MainWindow *mainWindow;
 private slots:
 signals:
 };
@@ -97,7 +98,6 @@ public:
     int columnCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     QVariant data(const QModelIndex &index, int role=Qt::DisplayRole) const Q_DECL_OVERRIDE;
     QVariant headerData(int section, Qt::Orientation orientation, int role) const;
-//    bool setData(const QModelIndex &index, const QVariant &value, int role) Q_DECL_OVERRIDE;
     Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());

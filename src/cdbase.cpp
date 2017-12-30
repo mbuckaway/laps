@@ -10,17 +10,19 @@
 // ************************************************************************************************
 
 CMembershipDbase::CMembershipDbase() {
-    qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers();
-//    dBase.addDatabase("QSQLITE", "membership");
+    errorTextVal.clear();
+    if (!QSqlDatabase::drivers().contains("QSQLITE"))
+        qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
+
     dBase = QSqlDatabase::addDatabase("QSQLITE", "membership");
 }
 
 
 
-int CMembershipDbase::open(const QString &filename, const QString &username, const QString &password) {
+int CMembershipDbase::open(const QString &filename, const QString &/*username*/, const QString &/*password*/) {
     errorTextVal.clear();
-    dBase.setUserName(username);
-    dBase.setPassword(password);
+//    dBase.setUserName(username);
+//    dBase.setPassword(password);
     dBase.setDatabaseName(filename);
 
     if (!dBase.open()) {
@@ -29,30 +31,31 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         return 1;
     }
 
-    bool showNames = true;//false;
-    QSqlQuery query;
+    bool showContents = true;//false;
 
     // Make sure table exists and create as necessary
 
     QStringList tableList = dBase.tables();
     if (!tableList.contains("membershipTable")) {
+        QSqlQuery query(dBase);
+        qDebug() << "Creating new membershipTable";
         query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, ccaRegistration INTEGER UNIQUE, email VARCHAR(20) UNIQUE)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            qDebug() << "Error creating table membershipTable: " << errorTextVal;
+            qDebug() << "Error creating new membershipTable:" << errorTextVal;
             return 2;
         }
-        query.clear();
-        qDebug() << "Created new membership table";
+        qDebug() << "Created new membershipTable";
     }
 
-    if (showNames) {
-        qDebug() << "List of tagId, names and membership numbers in membershipTable in " + filename + "...";
+    if (showContents) {
+        QSqlQuery query(dBase);
+        qDebug() << "List of membershipTable...";
         query.prepare("select * from membershipTable");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << errorTextVal;
-            return 2;
+            return 3;
         }
         int id = query.record().indexOf("id");
         int idTagId = query.record().indexOf("tagId");
@@ -62,15 +65,17 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         while (query.next()) {
             qDebug("id=%d tagId=%s name=%s %s membershipNumber=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toInt());
         }
-        query.clear();
     }
+
     return 0;
 }
+
 
 
 void CMembershipDbase::close(void) {
     if (dBase.isOpen())
         dBase.close();
+//    QSqlDatabase::removeDatabase("membership");
 }
 
 
@@ -82,7 +87,7 @@ int CMembershipDbase::add(const QByteArray &tagId, const QString &firstName, con
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("INSERT INTO membershipTable (tagId, firstName, lastName, membershipNumber) VALUES (:tagId, :firstName, :lastName, :membershipNumber)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
@@ -103,7 +108,7 @@ int CMembershipDbase::update(const QByteArray &tagId, const QString &firstName, 
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("UPDATE membershipTable SET firstName = :firstName WHERE tagId = :tagId");
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
@@ -137,7 +142,7 @@ int CMembershipDbase::removeTagId(const QByteArray &tagId) {
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("DELETE FROM membershipTable WHERE tagId = (:tagId)");
     query.bindValue(":tagId", tagId);
     if (!query.exec()) {
@@ -154,7 +159,7 @@ int CMembershipDbase::findTagIdFromName(const QString &firstName, const QString 
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     if (!lastName.isEmpty() && !firstName.isEmpty()) {
         query.prepare("SELECT tagId FROM membershipTable WHERE lastName = (:lastName) AND firstName = (:firstName)");
         query.bindValue(":lastName", lastName);
@@ -197,7 +202,7 @@ int CMembershipDbase::getIdFromTagId(const QByteArray &tagId) {
     if (tagId.isEmpty())
         return 0;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT id FROM membershipTable WHERE tagId = (:tagId)");
     query.bindValue(":tagId", tagId);
 
@@ -226,7 +231,7 @@ int CMembershipDbase::getIdFromName(const QString &firstName, const QString &las
     if (!dBase.isOpen())
         return 0;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     if (!lastName.isEmpty() && !firstName.isEmpty()) {
         query.prepare("SELECT id FROM membershipTable WHERE lastName = (:lastName) AND firstName = (:firstName) COLLATE NOCASE");
         query.bindValue(":lastName", lastName);
@@ -266,7 +271,7 @@ int CMembershipDbase::getIdFromMembershipNumber(const int membershipNumber) {
     if (!dBase.isOpen())
         return 0;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT id FROM membershipTable WHERE membershipNumber = (:membershipNumber)");
     query.bindValue(":membershipNumber", membershipNumber);
 
@@ -291,7 +296,7 @@ int CMembershipDbase::getAllFromId(int id, QByteArray *tagId, QString *firstName
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT * FROM membershipTable WHERE id = (:id)");
     query.bindValue(":id", id);
     if (!query.exec()) {
@@ -328,7 +333,7 @@ int CMembershipDbase::findNameFromTagId(const QByteArray &tagId, QString *firstN
     if (!dBase.isOpen())
         return 1;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT * FROM membershipTable WHERE tagId = (:tagId)");
     query.bindValue(":tagId", tagId);
     if (!query.exec()) {
@@ -362,7 +367,7 @@ int CMembershipDbase::namesRowCount(void) {
     if (!dBase.isOpen())
         return 0;
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT Count(*) FROM membershipTable");
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
@@ -406,16 +411,18 @@ bool CMembershipDbase::isOpen(void) {
 // ***************************************************************************************************
 
 CLapsDbase::CLapsDbase() {
+    errorTextVal.clear();
+    if (!QSqlDatabase::drivers().contains("QSQLITE"))
+        qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
+
     dBase = QSqlDatabase::addDatabase("QSQLITE", "laps");
 }
 
 
 int CLapsDbase::open(const QString &filename, const QString &username, const QString &password) {
-
     errorTextVal.clear();
-
-    dBase.setUserName(username);
-    dBase.setPassword(password);
+//    dBase.setUserName(username);
+//    dBase.setPassword(password);
     dBase.setDatabaseName(filename);
 
     if (!dBase.open()) {
@@ -424,43 +431,31 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         return 1;
     }
 
-
-    bool showLaps = true;//false;
-    QSqlQuery query;
+    bool showContents = true;//false;
 
     // Make sure table exists and create as necessary
 
     QStringList tableList = dBase.tables();
-
-//    bool deleteLapsTable = false;
-//    if (deleteLapsTable) {
-//        query.prepare("drop table laps");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            qDebug() << "Error deleting table " << tableLaps << ": " << errorTextVal;
-//            return 3;
-//        }
-//        qDebug() << "Laps table deleted";
-//    }
-
     if (!tableList.contains("lapsTable")) {
+        QSqlQuery query(dBase);
+        qDebug() << "Creating new lapsTable";
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime INTEGER(10), lapmsec INTEGER(10), lapm FLOAT(10))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            qDebug() << "Error creating table lapsTable: " << errorTextVal;
+            qDebug() << "Error creating new lapsTable:" << errorTextVal;
             return 2;
         }
-        query.clear();
-        qDebug() << "Created new laps table";
+        qDebug() << "Created new lapsTable";
     }
 
-    if (showLaps) {
-        qDebug() << "List of laps in lapsTable...";
+    if (showContents) {
+        QSqlQuery query(dBase);
+        qDebug() << "List of lapsTable...";
         query.prepare("select * from lapsTable");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << errorTextVal;
-            return 5;
+            return 3;
         }
         int id = query.record().indexOf("id");
         int idTagId = query.record().indexOf("tagId");
@@ -472,7 +467,6 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
             float lapm = query.value(idLapm).toFloat();
             qDebug("id=%d tagId=%s dateTime=%d lapmsec=%d lapm=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idDateTime).toInt(), lapmsec, lapm);
         }
-        query.clear();
     }
 
     return 0;
@@ -483,6 +477,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
 void CLapsDbase::close(void) {
     if (dBase.isOpen())
         dBase.close();
+//    QSqlDatabase::removeDatabase("laps");
 }
 
 
@@ -496,7 +491,7 @@ int CLapsDbase::addLap(const QByteArray &tagId, int year, int month, int day, in
         return 1;
 
     unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapmsec, lapm) VALUES (:tagId, :dateTime, :lapmsec, :lapm)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":dateTime", dateTime);
@@ -505,7 +500,7 @@ int CLapsDbase::addLap(const QByteArray &tagId, int year, int month, int day, in
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
         qDebug() << errorTextVal;
-        return 1;
+        return 2;
     }
     return 0;
 }
@@ -574,7 +569,7 @@ int CLapsDbase::getStatsForPeriod(const QByteArray &tagId, unsigned int dateTime
 
     int workoutDateTimeSeparation = dateTime2Int(2000,0,0,12,0,0) - dateTime2Int(2000,0,0,0,0,0);
 
-    QSqlQuery query;
+    QSqlQuery query(dBase);
     query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
     query.bindValue(":dateTimeStart", dateTimeStart);
