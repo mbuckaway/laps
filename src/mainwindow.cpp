@@ -34,18 +34,19 @@
 
 // Columns in active riders table
 
-#define AT_NAME             0
-#define AT_LAPCOUNT         1
-#define AT_DISTANCE         2
-#define AT_LAPSPEED         3
-#define AT_BESTLAPSPEED     4
-#define AT_AVERAGESPEED     5
-#define AT_DISTANCETHISMONTH 6
-#define AT_AVERAGESPEEDTHISMONTH 7
-#define AT_DISTANCELASTMONTH 8
-#define AT_AVERAGESPEEDLASTMONTH 9
-#define AT_DISTANCEALLTIME  10
-#define AT_COMMENT          11
+#define AT_NAME                 0
+#define AT_LAPCOUNT             1
+#define AT_DISTANCE             2
+#define AT_LAPSEC               3
+#define AT_LAPSPEED             4
+#define AT_BESTLAPSPEED         5
+#define AT_AVERAGESPEED         6
+#define AT_DISTANCETHISMONTH    7
+#define AT_AVERAGESPEEDTHISMONTH 8
+#define AT_DISTANCELASTMONTH    9
+#define AT_AVERAGESPEEDLASTMONTH 10
+#define AT_DISTANCEALLTIME      11
+#define AT_COMMENT              12
 
 
 // Columns in lap table (listing of all laps)
@@ -65,6 +66,7 @@
 #define CW_DATETIME         80
 #define CW_TIMESTAMP        190
 #define CW_LAPCOUNT         60
+#define CW_SEC              80
 #define CW_SPEED            90
 #define CW_DISTANCE         80
 #define CW_MEMBERSHIPNUMBER 80
@@ -146,10 +148,26 @@ bool CMembershipTableModel::add(const QString &tagId, const QString &firstName, 
     setData(index(row, 1), firstName, Qt::EditRole);
     setData(index(row, 2), lastName, Qt::EditRole);
     setData(index(row, 3), membershipNumber, Qt::EditRole);
-    setData(index(row, 4), caRegistration, Qt::EditRole);
+    setData(index(row, 4), caRegistration.toUpper(), Qt::EditRole);
     setData(index(row, 5), eMail, Qt::EditRole);
     QModelIndex topLeft = index(row, 0);
-    QModelIndex bottomRight = index(row, 0);
+    QModelIndex bottomRight = index(row, 5);
+    emit dataChanged(topLeft, bottomRight);
+    return true;
+}
+
+
+
+bool CMembershipTableModel::update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
+    int row = tagIdList.indexOf(tagId);
+    setData(index(row, 0), tagId, Qt::EditRole);
+    setData(index(row, 1), firstName, Qt::EditRole);
+    setData(index(row, 2), lastName, Qt::EditRole);
+    setData(index(row, 3), membershipNumber, Qt::EditRole);
+    setData(index(row, 4), caRegistration.toUpper(), Qt::EditRole);
+    setData(index(row, 5), eMail, Qt::EditRole);
+    QModelIndex topLeft = index(row, 0);
+    QModelIndex bottomRight = index(row, 5);
     emit dataChanged(topLeft, bottomRight);
     return true;
 }
@@ -180,7 +198,7 @@ bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex
     }
     endInsertRows();
     QModelIndex topLeft = index(position, 0);
-    QModelIndex bottomRight = index(position, 2);
+    QModelIndex bottomRight = index(position, 0);
     emit dataChanged(topLeft, bottomRight);
     return true;
 }
@@ -308,6 +326,7 @@ bool CMembershipTableModel::setData(const QModelIndex &index, const QVariant &va
 Qt::ItemFlags CMembershipTableModel::flags(const QModelIndex &index) const {
     return QAbstractTableModel::flags(index);
 }
+
 
 
 
@@ -516,7 +535,7 @@ int CActiveRidersTableModel::rowCount(const QModelIndex &/*parent*/) const {
 
 
 int CActiveRidersTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 12;
+    return 13;
 }
 
 
@@ -561,6 +580,8 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             return rider->name;
         case AT_LAPCOUNT:
             return rider->lapCount;
+        case AT_LAPSEC:
+            return rider->lapSec;
         case AT_DISTANCE:
             return rider->totalM / 1000.;
         case AT_LAPSPEED:
@@ -626,6 +647,8 @@ QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orient
                 return QString("Name");
             case AT_LAPCOUNT:
                 return QString("Laps");
+            case AT_LAPSEC:
+                return QString("L Sec");
             case AT_DISTANCE:
                 return QString("km");
             case AT_LAPSPEED:
@@ -675,145 +698,172 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 
 
-void CActiveRidersTableModel::newTrackTag(CTagInfo tagInfo) {
+void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
+
+    // If there is no tagId, this must be a blank tag so just check to see if any riders are on a break
+
+    bool nullTag = tagInfo.tagId.isEmpty();
+
 
     // ActiveRidersList is the main list containing information of each active rider
-
-    int activeRiderIndex = -1;
-    bool firstCrossing = false;
-    bool firstCrossingAfterBreak = false;
-
-
-    // Check to see if tag is in activeRidersList and append new empty entry if not,
-    // else set firstCrossing
+    // Set rider to point to appropriate entry if in list
 
     CRider *rider = NULL;
-    for (int i=0; i<activeRidersList.size(); i++) {
-        if (tagInfo.tagId == activeRidersList[i].tagId) {
-            rider = &activeRidersList[i];
-            activeRiderIndex = i;
-            break;
-        }
-    }
-    if (!rider) {
-        bool scrollToBottomRequired = false;
-        if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
-            scrollToBottomRequired = true;
-        insertRows(activeRidersList.size()-1, 1);
-        if (scrollToBottomRequired)
-            mainWindow->ui->activeRidersTableView->scrollToBottom();
-
-        activeRiderIndex = activeRidersList.size() - 1;
-        rider = &activeRidersList[activeRiderIndex];
-        firstCrossing = true;
-    }
-    else {
-        firstCrossing = false;
-    }
-
-
-    // If this is a new active rider try getting name from dbase, or default to tagId provided on tag
-
-    QString name;
-    if (firstCrossing) {   // New rider, so get name from dBase and calculate best times in each category
-        QString tagId;
-        QString firstName;
-        QString lastName;
-        QString membershipNumber;
-        QString caRegistration;
-        QString email;
-        int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
-        if (id > 0) {
-            mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
-            name = firstName + " " + lastName;
-        }
-        else {
-            name = tagInfo.tagId;
-        }
-        rider->name = name;
-        rider->tagId = tagInfo.tagId;
-        rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-
-        // Get prior stats for this rider
-
-        mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
-    }
-
-
-    // If we have completed at least one full lap, update lap stats and thisMonth stats
-
-    if (!firstCrossing) {
-
-        // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break so do not
-        // calculate lap time
-
-        float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
-        if (lapSec > mainWindow->maxAcceptableLapSec) {
-            firstCrossingAfterBreak = true;
-            rider->lapSec = 0.;
-            rider->lapM = 0.;
-        }
-        else {
-            firstCrossingAfterBreak = false;
-            rider->lapCount++;
-            rider->lapSec = lapSec;
-            rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
-//            float lapSpeed = 0.;
-//            if (rider->lapSec > 0.) {
-//                lapSpeed = rider->lapM / rider->lapSec / 1000. * 3600.;
-//            }
-            if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
-                rider->bestLapSec = rider->lapSec;
-                rider->bestLapM = rider->lapM;
+    int activeRiderIndex = -1;
+    if (!nullTag) {
+        for (int i=0; i<activeRidersList.size(); i++) {
+            if (tagInfo.tagId == activeRidersList[i].tagId) {
+                rider = &activeRidersList[i];
+                activeRiderIndex = i;
+                break;
             }
-            rider->totalSec += rider->lapSec;
-            rider->totalM += rider->lapM;
-
-            rider->thisMonth.lapCount++;
-            rider->thisMonth.totalSec += rider->lapSec;
-            rider->thisMonth.totalM += rider->lapM;
-
-            rider->allTime.lapCount++;
-            rider->allTime.totalM += rider->lapM;
         }
-        rider->previousTimeStampUSec = tagInfo.timeStampUSec;
     }
 
+    // Process tag if not nullTag
 
-    // Add a comment
+    if (!nullTag) {
 
-    if (firstCrossing)
-        rider->comment = "First lap";
-    else if (firstCrossingAfterBreak)
-        rider->comment = "First lap after break";
+        // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
+
+        if (!rider) {
+            bool scrollToBottomRequired = false;
+            if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
+                scrollToBottomRequired = true;
+            insertRows(activeRidersList.size()-1, 1);
+            if (scrollToBottomRequired)
+                mainWindow->ui->activeRidersTableView->scrollToBottom();
+
+            activeRiderIndex = activeRidersList.size() - 1;
+            rider = &activeRidersList[activeRiderIndex];
+            rider->firstLap = true;
+        }
+        else {
+            rider->firstLap = false;
+        }
+
+
+        // If this is first lap, try getting name from dbase or default to tagId provided on tag
+
+        QString name;
+        if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
+            QString tagId;
+            QString firstName;
+            QString lastName;
+            QString membershipNumber;
+            QString caRegistration;
+            QString email;
+            int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
+            if (id > 0) {
+                mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
+                name = firstName + " " + lastName;
+            }
+            else {
+                name = tagInfo.tagId;
+            }
+            rider->name = name;
+            rider->tagId = tagInfo.tagId;
+            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+
+            // Get prior stats for this rider
+
+            mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
+        }
+
+        // else if on break this is the first lap after a break
+
+        else if (rider->onBreak) {
+            rider->onBreak = false;
+            rider->firstLapAfterBreak = true;
+            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+        }
+
+        // else update lap stats and thisMonth stats
+
+        else {
+
+            // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break
+
+            float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+            if (lapSec > mainWindow->maxAcceptableLapSec) {
+                rider->onBreak = true;
+                rider->firstLapAfterBreak = false;
+            }
+            else {
+                rider->firstLapAfterBreak = false;
+                rider->lapCount++;
+                rider->lapSec = lapSec;
+                rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
+                if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
+                    rider->bestLapSec = rider->lapSec;
+                    rider->bestLapM = rider->lapM;
+                }
+                rider->totalSec += rider->lapSec;
+                rider->totalM += rider->lapM;
+
+                rider->thisMonth.lapCount++;
+                rider->thisMonth.totalSec += rider->lapSec;
+                rider->thisMonth.totalM += rider->lapM;
+
+                rider->allTime.lapCount++;
+                rider->allTime.totalM += rider->lapM;
+            }
+            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+        }
+
+
+        // Add a comment
+
+        if (rider->firstLap)
+            rider->comment = "First lap";
+        else if (rider->onBreak)
+            rider->comment = "On break";
+        else if (rider->firstLapAfterBreak)
+            rider->comment = "First lap after break";
+        else {
+            rider->comment.clear();
+        }
+
+
+        // Populate activeRidersTableView entries
+
+        setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
+
+
+        // Add lap to database
+
+        int lapmsec = (int)(rider->lapSec * 1000.);
+        mainWindow->lapsDbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
+
+
+        // Add to lapsTableView
+
+        mainWindow->lapsTableModel->addEntry(*rider);
+
+        // lapCount is total laps all riders
+
+        QString s;
+        mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+    }
+
+    // else process nullTag
+
     else {
-//        float speed = 0.;
-//        if (rider->lapSec > 0.) {
-//            speed = rider->lapM / rider->lapSec / 1000. * 3600.;
-//        }
-        rider->comment.clear();
+        for (int i=0; i<activeRidersList.size(); i++) {
+            CRider *rider = &activeRidersList[i];
+            float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+            if (lapSec > mainWindow->maxAcceptableLapSec) {
+                rider->onBreak = true;
+                rider->firstLap = false;
+                rider->firstLapAfterBreak = false;
+                rider->comment = "On break";
+
+                // Update activeRidersTableView
+
+                setData(createIndex(i, 0), 0, Qt::EditRole);
+            }
+        }
     }
-
-
-    // Populate activeRidersTableView entries
-
-    setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
-
-
-    // Add lap to database
-
-    int lapmsec = (int)(rider->lapSec * 1000.);
-    mainWindow->lapsDbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
-
-
-    // Add to lapsTableView
-
-    mainWindow->lapsTableModel->addEntry(*rider);
-
-    // lapCount is total laps all riders
-
-    QString s;
-    mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
 }
 
 
@@ -854,6 +904,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     initializeSettingsPanel();
     bool initialized = true;
+    tagInDbase = false;
 
     ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
@@ -1288,7 +1339,9 @@ void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool /*state*/) {
 //
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     static int tagCount = 0;
-    tagCount++;
+
+    if (!tagInfo.tagId.isEmpty())
+        tagCount++;
 
     QString s;
 
@@ -1337,6 +1390,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
         if (id > 0) {
+            tagInDbase = true;
             membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskFirstNameLineEdit->setText(firstName);
             ui->deskLastNameLineEdit->setText(lastName);
@@ -1345,6 +1399,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
             ui->deskEMailLineEdit->setText(eMail);
         }
         else {
+            tagInDbase = false;
             ui->deskFirstNameLineEdit->clear();
             ui->deskLastNameLineEdit->clear();
             ui->deskMembershipNumberLineEdit->clear();
@@ -1358,6 +1413,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     else if ((!lastName.isEmpty() || !firstName.isEmpty()) && membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromName(firstName, lastName);
         if (id > 0) {
+            tagInDbase = true;
             membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
@@ -1366,6 +1422,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
             ui->deskCaRegistrationLineEdit->setText(caRegistration);
             ui->deskEMailLineEdit->setText(eMail);
         }
+        else {
+            tagInDbase = false;
+        }
     }
 
     // Else if membership number is given, search on that.  Don't clear names on search fail.
@@ -1373,6 +1432,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     else if ((lastName.isEmpty() && firstName.isEmpty()) && !membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromMembershipNumber(membershipNumber);
         if (id > 0) {
+            tagInDbase = true;
             membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
             ui->deskTagIdLineEdit->setText(tagId);
             ui->deskFirstNameLineEdit->setText(firstName);
@@ -1380,6 +1440,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
             ui->deskMembershipNumberLineEdit->setText(membershipNumber);
             ui->deskCaRegistrationLineEdit->setText(caRegistration);
             ui->deskEMailLineEdit->setText(eMail);
+        }
+        else {
+            tagInDbase = false;
         }
     }
     updateDbaseButtons();
@@ -1426,6 +1489,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
 
 void MainWindow::onDbaseClearPushButtonClicked(void) {
+    tagInDbase = false;
     ui->deskTagIdLineEdit->clear();
     ui->deskFirstNameLineEdit->clear();
     ui->deskLastNameLineEdit->clear();
@@ -1438,7 +1502,7 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
 
 
 void MainWindow::onDbaseRemovePushButtonClicked(void) {
-    QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
+    QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag entry from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
     if (b == QMessageBox::Ok) {
         if (membershipDbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1()) != 0) {
             guiCritical("Error removing name from database");
@@ -1456,19 +1520,28 @@ void MainWindow::onDbaseRemovePushButtonClicked(void) {
 
 
 void MainWindow::onDbaseUpdatePushButtonClicked(void) {
-    QString tagId = ui->deskTagIdLineEdit->text();
-    QString firstName = ui->deskFirstNameLineEdit->text();
-    QString lastName = ui->deskLastNameLineEdit->text();
-    QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
-    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
-    QString eMail = ui->deskEMailLineEdit->text();
-    int rc = membershipDbase.update(tagId, firstName, lastName, membershipNumber, caRegistration, eMail);
-    if (rc == 0)
-        onDbaseClearPushButtonClicked();
-    else
-        guiCritical(membershipDbase.errorText());
 
-    updateDbaseButtons();
+    // Confirm we should be changing database
+
+    if (guiQuestion("You are about to modify an existing tag entry in the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort) != QMessageBox::Ok)
+        return;
+
+    // Add entry to database
+
+    int rc = membershipDbase.update(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text());
+    if (rc != 0) {
+        guiCritical("Could not update database: " + membershipDbase.errorText());
+        return;
+    }
+
+    // Add to table
+
+    if (!membershipTableModel->update(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text())) {
+        guiCritical("Could not update membershipTable");
+        return;
+    }
+
+    onDbaseClearPushButtonClicked();
 }
 
 
@@ -1496,19 +1569,7 @@ void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
     deskReader->blockSignals(true);
     onDbaseClearPushButtonClicked();
     ui->deskTagIdLineEdit->setText(tagInfo.tagId);
-//    QString firstName;
-//    QString lastName;
-//    if (!tagInfo.tagId.isEmpty()) {
-//        int rc = membershipDbase.findNameFromTagId(tagInfo.tagId, &firstName, &lastName);
-//        if (rc == 0) {
-//            ui->deskFirstNameLineEdit->setText(firstName);
-//            ui->deskLastNameLineEdit->setText(lastName);
-//        }
-//        else {
-//            ui->deskFirstNameLineEdit->clear();
-//            ui->deskLastNameLineEdit->clear();
-//        }
-//    }
+    onDbaseSearchPushButtonClicked();
     ui->deskReadPushButton->setChecked(false);
 
     updateDbaseButtons();
@@ -1517,6 +1578,7 @@ void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
 
 
 void MainWindow::onDbaseTagIdTextChanged(QString) {
+    tagInDbase = false;
     updateDbaseButtons();
 }
 
@@ -1583,9 +1645,9 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskSearchPushButton->setEnabled(false);
 
 
-    // Add is enabled when all fields are filled
+    // Add is enabled when all fields are filled, tagInDbase is false, and with email optional
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !ui->deskEMailLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !tagInDbase)
         ui->deskAddPushButton->setEnabled(true);
 
     else
@@ -1601,18 +1663,18 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskClearPushButton->setEnabled(false);
 
 
-    // Remove is enabled when tadId and first name and last name are filled
+    // Remove is enabled when tadId and first name and last name are filled, and tagInDbase is true
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && tagInDbase)
         ui->deskRemovePushButton->setEnabled(true);
 
     else
         ui->deskRemovePushButton->setEnabled(false);
 
 
-    // Update is enabled when all fields are filled
+    // Update is enabled when all fields are filled, tagInDbase is true, and with email optional
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !ui->deskEMailLineEdit->text().isEmpty())
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase)
         ui->deskUpdatePushButton->setEnabled(true);
 
     else

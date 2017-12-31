@@ -45,6 +45,9 @@ void CRider::clear(void) {
     totalM = 0.;
     bestLapSec = 0.;
     bestLapM = 0.;
+    firstLap = false;
+    firstLapAfterBreak = false;
+    onBreak = false;
 }
 
 

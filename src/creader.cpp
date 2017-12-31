@@ -27,6 +27,7 @@ void CTagInfo::clear(void) {
     tagId.clear();
     timeStampUSec = 0;
     antennaId = 0;
+    readerId = 0;
 }
 
 
@@ -128,6 +129,13 @@ void CReader::onStarted(void) {
             }
             sleep(3);
 
+            // emit null tag to update tables
+
+            CTagInfo tagInfo;
+            tagInfo.readerId = readerId;
+            tagInfo.antennaId = 0;
+            tagInfo.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+            emit newTag(tagInfo);
         }
     }
 
@@ -257,7 +265,6 @@ int CReader::connectToReader(void) {
 
     return 0;
 }
-
 
 
 

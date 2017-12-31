@@ -52,7 +52,7 @@ public:
 Q_DECLARE_METATYPE(CTagInfo)
 
 
-class CReader : public QObject //QThread
+class CReader : public QObject
 {
     Q_OBJECT
 public:

@@ -41,6 +41,9 @@ public:
     CStats lastMonth;
     CStats allTime;
     QString comment;
+    bool firstLap;
+    bool firstLapAfterBreak;
+    bool onBreak;
 };
 
 

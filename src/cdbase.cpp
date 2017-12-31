@@ -69,6 +69,26 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         }
     }
 
+//    {
+//        QSqlQuery query(dBase);
+//        qDebug() << "Integrity check of membershipTable...";
+//        query.prepare("PRAGMA integrity_check");
+//        if (!query.exec()) {
+//            errorTextVal = query.lastError().text();
+//            qDebug() << errorTextVal;
+//            return 4;
+//        }
+//        int id = query.record().indexOf("id");
+//        int idTagId = query.record().indexOf("tagId");
+//        int idFirst = query.record().indexOf("firstName");
+//        int idLast = query.record().indexOf("lastName");
+//        int idMembership = query.record().indexOf("membershipNumber");
+//        int idcaRegistration = query.record().indexOf("caRegistration");
+//        int idEmail = query.record().indexOf("eMail");
+//        while (query.next()) {
+//            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%s caRegistration=%s eMail=%s", query.value(id).toString().toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toString().toLatin1().data(), query.value(idcaRegistration).toString().toLatin1().data(), query.value(idEmail).toString().toLatin1().data());
+//        }
+//    }
     return 0;
 }
 
@@ -678,7 +698,7 @@ unsigned int CLapsDbase::dateTime2Int(int year, int month, int day, int hour, in
     if (year < 2000)
         throw("Year < 2000 in dateTime2Int");
 
-    unsigned int dateTime = (year-2000) << 26 | month << 22 | day << 17 | hour << 12 | minute << 6 | (second & 0x3f);
+    unsigned int dateTime = ((year-2000) & 0x3f) << 26 | (month & 0x0f) << 22 | (day & 0x1f) << 17 | (hour & 0x1f) << 12 | (minute & 0x3f) << 6 | (second & 0x3f);
     return dateTime;
 }
 
@@ -686,12 +706,12 @@ unsigned int CLapsDbase::dateTime2Int(int year, int month, int day, int hour, in
 // int2DateTime()
 //
 void CLapsDbase::int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second) {
-    *year = ((dateTime >> 26) & 0x00ff) + 2000;
+    *year = ((dateTime >> 26) & 0x3f) + 2000;
     *month = (dateTime >> 22) & 0x0f;
     *day = (dateTime >> 17) & 0x1f;
-    *hour = (dateTime >> 12) & 0x0f;
-    *minute = (dateTime >> 6) & 0x1f;
-    *second = (dateTime >> 0) & 0x1f;
+    *hour = (dateTime >> 12) & 0x1f;
+    *minute = (dateTime >> 6) & 0x3f;
+    *second = (dateTime >> 0) & 0x3f;
 }
 
 

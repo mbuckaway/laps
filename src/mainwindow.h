@@ -44,6 +44,7 @@ public:
     QStringList caRegistrationList;
     QStringList eMailList;
     bool add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membership, const QString &caRegistration, const QString &email);
+    bool update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membership, const QString &caRegistration, const QString &email);
     bool remove(const QString &tagId);
     int rowCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     int columnCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
@@ -73,7 +74,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
-    void newTrackTag(CTagInfo tagInfo);
+    void newTrackTag(const CTagInfo &tagInfo);
     void purgeTable(void);
 private:
     MainWindow *mainWindow;
@@ -143,6 +144,9 @@ private:
     float lapSpeed(float lapSec, float lapM);
     QSettings settings;
     void initializeSettingsPanel(void);
+    bool tagInDbase;
+signals:
+    void newTrackTag(CTagInfo tagInfo);
 public slots:
     void updateDbaseButtons(void);
     void onDbaseSearchPushButtonClicked(void);

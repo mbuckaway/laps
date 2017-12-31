@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1248</width>
-    <height>760</height>
+    <width>1306</width>
+    <height>792</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -123,7 +123,7 @@
        <enum>Qt::NoFocus</enum>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="ridersTab">
        <attribute name="title">
@@ -960,7 +960,7 @@ Leave blank for simulator.</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1248</width>
+     <width>1306</width>
      <height>20</height>
     </rect>
    </property>
