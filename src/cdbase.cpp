@@ -480,7 +480,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
     if (!tableList.contains("lapsTable")) {
         QSqlQuery query(dBase);
         qDebug() << "Creating new lapsTable in " + filename;
-        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime INTEGER(10), lapmsec INTEGER(10), lapm FLOAT(10))");
+        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER(10), lapsec FLOAT(10), lapm FLOAT(10))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << "Error creating new lapsTable in " + filename << errorTextVal;
@@ -501,12 +501,20 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         int id = query.record().indexOf("id");
         int idTagId = query.record().indexOf("tagId");
         int idDateTime = query.record().indexOf("dateTime");
-        int idLapmsec = query.record().indexOf("lapmsec");
-        int idLapm = query.record().indexOf("lapm");
+        int idLapSec = query.record().indexOf("lapsec");
+        int idLapM = query.record().indexOf("lapm");
         while (query.next()) {
-            int lapmsec = query.value(idLapmsec).toInt();
-            float lapm = query.value(idLapm).toFloat();
-            qDebug("id=%d tagId=%s dateTime=%d lapmsec=%d lapm=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idDateTime).toInt(), lapmsec, lapm);
+            int year;
+            int month;
+            int day;
+            int hour;
+            int minute;
+            int second;
+            unsigned int dateTime = query.value(idDateTime).toUInt();
+            int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
+            float lapSec = query.value(idLapSec).toFloat();
+            float lapM = query.value(idLapM).toFloat();
+            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM);
         }
     }
 
@@ -526,16 +534,16 @@ void CLapsDbase::close(void) {
 // addLap
 // Add entry to laps database
 //
-int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, int lapmsec, float lapm) {
+int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float lapsec, float lapm) {
     if (!dBase.isOpen())
         return 1;
 
     unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
     QSqlQuery query(dBase);
-    query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapmsec, lapm) VALUES (:tagId, :dateTime, :lapmsec, :lapm)");
+    query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm) VALUES (:tagId, :dateTime, :lapsec, :lapm)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":dateTime", dateTime);
-    query.bindValue(":lapmsec", lapmsec);
+    query.bindValue(":lapsec", lapsec);
     query.bindValue(":lapm", lapm);
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
@@ -553,9 +561,10 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     if (!dBase.isOpen())
         return 1;
 
-    int thisMonthYear = QDateTime::currentDateTime().date().year();
-    int thisMonthMonth = QDateTime::currentDateTime().date().month();
-    QDateTime lastMonthDateTime(QDateTime::currentDateTime().addMonths(-1));
+    QDateTime dateTime(QDateTime::currentDateTime());
+    int thisMonthYear = dateTime.date().year();
+    int thisMonthMonth = dateTime.date().month();
+    QDateTime lastMonthDateTime(dateTime.addMonths(-1));
     int lastMonthYear = lastMonthDateTime.date().year();
     int lastMonthMonth = lastMonthDateTime.date().month();
 
@@ -565,16 +574,16 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 
     // Get stats for this month
 
-    unsigned int dateTimeStart = dateTime2Int(thisMonthYear, thisMonthMonth, 0);
-    unsigned int dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31);
+    unsigned int dateTimeStart = dateTime2Int(thisMonthYear, thisMonthMonth, 0, 0, 0, 0);
+    unsigned int dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
     getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->thisMonth);
 
 
     // Get stats for last month
 
-    dateTimeStart = dateTime2Int(lastMonthYear, lastMonthMonth, 0);
-    dateTimeEnd = dateTime2Int(lastMonthYear, lastMonthMonth, 31);
+    dateTimeStart = dateTime2Int(lastMonthYear, lastMonthMonth, 0, 0, 0, 0);
+    dateTimeEnd = dateTime2Int(lastMonthYear, lastMonthMonth, 31, 24, 0, 0);
 
     getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->lastMonth);
 
@@ -583,14 +592,13 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 
     int allTimeYear = 2000;     // min value is 2000
     int allTimeMonth = 0;
-    dateTimeStart = dateTime2Int(allTimeYear, allTimeMonth, 0);
-    dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31);
+    dateTimeStart = dateTime2Int(allTimeYear, allTimeMonth, 0, 0, 0, 0);
+    dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
     getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->allTime);
 
     return 0;
 }
-
 
 
 // Get stats for specified tagId and time period from dbase
@@ -605,7 +613,7 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
 
     // Determine minimum time difference in dateTimeInt that separates workouts
 
-    int workoutDateTimeSeparation = dateTime2Int(2000,0,0,12,0,0) - dateTime2Int(2000,0,0,0,0,0);
+    unsigned int workoutDateTimeSeparation = dateTime2Int(2000, 0, 0, 12, 0, 0) - dateTime2Int(2000, 0, 0, 0, 0, 0);
 
     QSqlQuery query(dBase);
     query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
@@ -617,9 +625,9 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
         qDebug() << errorTextVal;
         return 1;
     }
-    int lapmsecIndex = query.record().indexOf("lapmsec");
-    if (lapmsecIndex < 0) {
-        errorTextVal = "Could not find lapmsec index in getStats";
+    int lapsecIndex = query.record().indexOf("lapsec");
+    if (lapsecIndex < 0) {
+        errorTextVal = "Could not find lapsec index in getStats";
         qDebug() << errorTextVal;
         return 2;
     }
@@ -639,31 +647,32 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
 
     // Determine workout count, lap count, average lap time, best lap time, distance
 
-    int localBestLapmsec = -1;
+    float localBestLapSec = -1.;
     float localBestLapM = 0.;
-    int previousDateTime = 0;
+    unsigned int previousDateTime = 0;
     int localWorkoutCount = 0;
     int localLapCount = 0;
     float localTotalSec = 0.;
     float localTotalM = 0.;
     while (query.next()) {
-        int lapmsec = query.value(lapmsecIndex).toInt();
-        float lapm = query.value(lapmIndex).toFloat();
-        float lapspeed = 0.;
-        if (lapmsec > 0) lapspeed = lapm / lapspeed;
-        int dateTime = query.value(dateTimeIndex).toInt();
-        if (localBestLapmsec < 0) {
-            localBestLapmsec = lapmsec;
-            localBestLapM = lapm;
+        float lapSec = query.value(lapsecIndex).toFloat();
+        float lapM = query.value(lapmIndex).toFloat();
+//        float lapSpeed = 0.;
+//        if (lapSec > 0.)
+//            lapSpeed = lapM / lapSec;
+        unsigned int dateTime = query.value(dateTimeIndex).toUInt();
+        if (localBestLapSec <= 0.) {
+            localBestLapSec = lapSec;
+            localBestLapM = lapM;
         }
-        else if (lapmsec < localBestLapmsec) {
-            localBestLapmsec = lapmsec;
-            localBestLapM = lapm;
+        else if (lapSec < localBestLapSec) {
+            localBestLapSec = lapSec;
+            localBestLapM = lapM;
         }
-        localTotalSec += (float)lapmsec / 1000.;
+        localTotalSec += lapSec;
         localLapCount++;
-        localTotalM += lapm;
-        int dateTimeDif = dateTime - previousDateTime;
+        localTotalM += lapM;
+        unsigned int dateTimeDif = dateTime - previousDateTime;
         if (dateTimeDif > workoutDateTimeSeparation) {
             localWorkoutCount++;
         }
@@ -673,7 +682,7 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
 
     stats->lapCount = localLapCount;
     stats->workoutCount = localWorkoutCount;
-    stats->bestLapSec = localBestLapmsec;
+    stats->bestLapSec = localBestLapSec;
     stats->bestLapM = localBestLapM;
     stats->totalSec = localTotalSec;
     stats->totalM = localTotalM;

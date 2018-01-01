@@ -104,10 +104,10 @@ void CReader::onStarted(void) {
 
         switch (antennaPosition) {
         case track:
-            averageIntervalMSec = 10000;
+            averageIntervalMSec = 10;
             break;
         case desk:
-            averageIntervalMSec = 10000;
+            averageIntervalMSec = 1000;
             break;
         }
 
@@ -119,7 +119,7 @@ void CReader::onStarted(void) {
                 int id = (rand() % 16) + 1;      // random number between 1 and 16
                 tag.tagId = s.sprintf("2016000000%02x", id).toLatin1();
                 int intervalMSec = rand() % averageIntervalMSec + 1;     // next interval between 1 and 2000 msec
-                usleep(intervalMSec * 100);
+                usleep(intervalMSec * 1000);
                 emit newTag(tag);
 
                 if (thread && thread->isInterruptionRequested()) {

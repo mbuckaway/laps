@@ -42,11 +42,11 @@ public:
     CLapsDbase();
     int open(const QString &filename, const QString &username, const QString &password);
     void close(void);
-    int addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, int msec, float lapm);
-    QList<int> getLapmsec(const QString &tagId, int yearStart=0, int monthStart=0, int dayStart=0, int yearEnd=0, int monthEnd=0, int dayEnd=0);
+    int addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float sec, float lapm);
+    QList<float> getLapSec(const QString &tagId, int yearStart=0, int monthStart=0, int dayStart=0, int yearEnd=0, int monthEnd=0, int dayEnd=0);
     int getStats(const QString &tagId, CRider *rider);
     int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats);
-    unsigned int dateTime2Int(int year=0, int month=0, int day=0, int hour=0, int minute=0, int second=0);
+    unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
     void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);
     bool isOpen(void);

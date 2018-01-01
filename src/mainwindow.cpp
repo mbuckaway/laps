@@ -36,16 +36,16 @@
 
 #define AT_NAME                 0
 #define AT_LAPCOUNT             1
-#define AT_DISTANCE             2
+#define AT_KM                   2
 #define AT_LAPSEC               3
 #define AT_LAPSPEED             4
 #define AT_BESTLAPSPEED         5
 #define AT_AVERAGESPEED         6
-#define AT_DISTANCETHISMONTH    7
+#define AT_KMTHISMONTH          7
 #define AT_AVERAGESPEEDTHISMONTH 8
-#define AT_DISTANCELASTMONTH    9
+#define AT_KMLASTMONTH          9
 #define AT_AVERAGESPEEDLASTMONTH 10
-#define AT_DISTANCEALLTIME      11
+#define AT_KMALLTIME            11
 #define AT_COMMENT              12
 
 
@@ -68,7 +68,7 @@
 #define CW_LAPCOUNT         60
 #define CW_SEC              80
 #define CW_SPEED            90
-#define CW_DISTANCE         80
+#define CW_KM               80
 #define CW_MEMBERSHIPNUMBER 80
 #define CW_CAREGISTRATION   80
 #define CW_EMAIL            80
@@ -487,11 +487,20 @@ bool CLapsTableModel::addEntry(CRider rider) {
     int row = nameList.size();
     insertRows(row, 1);
     nameList[row] = rider.name;
-    lapList[row] = rider.lapCount;
-    timeList[row] = time;
-    timeStampList[row] = rider.previousTimeStampUSec;
-    lapSecList[row] = rider.lapSec;
-    lapSpeedList[row] = speed;
+    if (!rider.firstLap && !rider.firstLapAfterBreak && !rider.onBreak) {
+        lapList[row] = rider.lapCount;
+        timeList[row] = time;
+        timeStampList[row] = rider.previousTimeStampUSec;
+        lapSecList[row] = rider.lapSec;
+        lapSpeedList[row] = speed;
+    }
+    else {
+        lapList[row] = rider.lapCount;
+        timeList[row] = time;
+        timeStampList[row] = rider.previousTimeStampUSec;
+        lapSecList[row] = 0.;
+        lapSpeedList[row] = 0.;
+    }
     commentList[row] = rider.comment;
 
     if (scrollToBottomRequired)
@@ -581,9 +590,15 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
         case AT_LAPCOUNT:
             return rider->lapCount;
         case AT_LAPSEC:
-            return rider->lapSec;
-        case AT_DISTANCE:
-            return rider->totalM / 1000.;
+            if (rider->lapSec > 0.)
+                return rider->lapSec;
+            else
+                return QString();
+        case AT_KM:
+            if (rider->totalM > 0.)
+                return rider->totalM / 1000.;
+            else
+                return QString();
         case AT_LAPSPEED:
             if (rider->lapSec > 0.)
                 return rider->lapM / rider->lapSec * 3600. / 1000.;
@@ -599,22 +614,31 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
                 return rider->totalM / rider->totalSec * 3600. / 1000.;
             else
                 return QString();
-        case AT_DISTANCETHISMONTH:
-            return rider->thisMonth.totalM / 1000.;
+        case AT_KMTHISMONTH:
+            if (rider->thisMonth.totalM > 0.)
+                return rider->thisMonth.totalM / 1000.;
+            else
+                return QString();
         case AT_AVERAGESPEEDTHISMONTH:
             if (rider->thisMonth.totalSec > 0.)
                 return rider->thisMonth.totalM / rider->thisMonth.totalSec * 3600. / 1000.;
             else
                 return QString();
-        case AT_DISTANCELASTMONTH:
-            return rider->lastMonth.totalM / 1000.;
+        case AT_KMLASTMONTH:
+            if (rider->lastMonth.totalM > 0.)
+                return rider->lastMonth.totalM / 1000.;
+            else
+                return QString();
         case AT_AVERAGESPEEDLASTMONTH:
             if (rider->lastMonth.totalSec > 0.)
                 return rider->lastMonth.totalM / rider->lastMonth.totalSec * 3600. / 1000.;
             else
                 return QString();
-        case AT_DISTANCEALLTIME:
-            return rider->allTime.totalM / 1000.;
+        case AT_KMALLTIME:
+            if (rider->allTime.totalM > 0.)
+                return rider->allTime.totalM / 1000.;
+            else
+                return QString();
         case AT_COMMENT:
             return rider->comment;
         }
@@ -649,7 +673,7 @@ QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orient
                 return QString("Laps");
             case AT_LAPSEC:
                 return QString("L Sec");
-            case AT_DISTANCE:
+            case AT_KM:
                 return QString("km");
             case AT_LAPSPEED:
                 return QString("L km/h");
@@ -657,15 +681,15 @@ QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orient
                 return QString("Best L km/h");
             case AT_AVERAGESPEED:
                 return QString("Ave km/h");
-            case AT_DISTANCETHISMONTH:
+            case AT_KMTHISMONTH:
                 return QString("This M km");
             case AT_AVERAGESPEEDTHISMONTH:
                 return QString("This M km/h");
-            case AT_DISTANCELASTMONTH:
+            case AT_KMLASTMONTH:
                 return QString("Last M km");
             case AT_AVERAGESPEEDLASTMONTH:
                 return QString("Last M km/h");
-            case AT_DISTANCEALLTIME:
+            case AT_KMALLTIME:
                 return QString("Total km");
             case AT_COMMENT:
                 return QString("Comment");
@@ -700,7 +724,7 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
-    // If there is no tagId, this must be a blank tag so just check to see if any riders are on a break
+    // If there is no tagId this is a nullTag which is used just to update table display
 
     bool nullTag = tagInfo.tagId.isEmpty();
 
@@ -784,7 +808,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break
 
-            float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+            float lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
             if (lapSec > mainWindow->maxAcceptableLapSec) {
                 rider->onBreak = true;
                 rider->firstLapAfterBreak = false;
@@ -830,10 +854,12 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
         setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
 
 
-        // Add lap to database
+        // Add lap to database if not firstLap or firstLapAfterBreak
 
-        int lapmsec = (int)(rider->lapSec * 1000.);
-        mainWindow->lapsDbase.addLap(rider->tagId.toLatin1(), QDateTime::currentDateTime().date().year(), QDateTime::currentDateTime().date().month(), QDateTime::currentDateTime().date().day(), QTime::currentTime().hour(), QTime::currentTime().minute(), QTime::currentTime().second(), lapmsec, rider->lapM);
+        if (!rider->firstLap && !rider->firstLapAfterBreak) {
+            QDateTime dateTime(QDateTime::currentDateTime());
+            mainWindow->lapsDbase.addLap(rider->tagId, dateTime.date().year(), dateTime.date().month(), dateTime.date().day(), dateTime.time().hour(), dateTime.time().minute(), dateTime.time().second(), rider->lapSec, rider->lapM);
+        }
 
 
         // Add to lapsTableView
@@ -1090,15 +1116,15 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setModel(activeRidersTableModel);
     ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
     ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCE, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_KM, CW_KM);
     ui->activeRidersTableView->setColumnWidth(AT_LAPSPEED, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCETHISMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_KMTHISMONTH, CW_KM);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCELASTMONTH, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_KMLASTMONTH, CW_KM);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_DISTANCEALLTIME, CW_DISTANCE);
+    ui->activeRidersTableView->setColumnWidth(AT_KMALLTIME, CW_KM);
 
     ui->activeRidersTableView->setAlternatingRowColors(true);
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
