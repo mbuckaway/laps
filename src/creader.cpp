@@ -104,7 +104,7 @@ void CReader::onStarted(void) {
 
         switch (antennaPosition) {
         case track:
-            averageIntervalMSec = 10;
+            averageIntervalMSec = 100;
             break;
         case desk:
             averageIntervalMSec = 1000;

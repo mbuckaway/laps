@@ -126,7 +126,7 @@ public:
     void guiCritical(QString);
     void guiInformation(QString);
     QMessageBox::StandardButtons guiQuestion(QString s, QMessageBox::StandardButtons b=QMessageBox::Ok);
-    long long tablePurgeIntervalSec;
+    float tablePurgeIntervalHours;
     CLapsTableModel *lapsTableModel;
 private:
     CMembershipTableModel *membershipTableModel;

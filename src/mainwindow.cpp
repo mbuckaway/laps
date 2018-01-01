@@ -518,8 +518,8 @@ void CLapsTableModel::purgeTable(void) {
     // Loop through all active riders and see which are geting old
 
     for (int i=timeStampList.size()-1; i>=0; i--) {
-        long long inactiveSec = (currentTimeUSec - timeStampList[i]) / 1000000;
-        if (inactiveSec >= (2 * mainWindow->tablePurgeIntervalSec)) {
+        float inactiveHours = (float)((currentTimeUSec - timeStampList[i]) / 1000000) / 3600.;
+        if (inactiveHours >= (2 * mainWindow->tablePurgeIntervalHours)) {
             removeRows(i, 1);
         }
     }
@@ -724,172 +724,182 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
-    // If there is no tagId this is a nullTag which is used just to update table display
+    try {
 
-    bool nullTag = tagInfo.tagId.isEmpty();
+        // If there is no tagId this is a nullTag which is used just to update table display
 
-
-    // ActiveRidersList is the main list containing information of each active rider
-    // Set rider to point to appropriate entry if in list
-
-    CRider *rider = NULL;
-    int activeRiderIndex = -1;
-    if (!nullTag) {
-        for (int i=0; i<activeRidersList.size(); i++) {
-            if (tagInfo.tagId == activeRidersList[i].tagId) {
-                rider = &activeRidersList[i];
-                activeRiderIndex = i;
-                break;
-            }
-        }
-    }
-
-    // Process tag if not nullTag
-
-    if (!nullTag) {
-
-        // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
-
-        if (!rider) {
-            bool scrollToBottomRequired = false;
-            if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
-                scrollToBottomRequired = true;
-            insertRows(activeRidersList.size()-1, 1);
-            if (scrollToBottomRequired)
-                mainWindow->ui->activeRidersTableView->scrollToBottom();
-
-            activeRiderIndex = activeRidersList.size() - 1;
-            rider = &activeRidersList[activeRiderIndex];
-            rider->firstLap = true;
-        }
-        else {
-            rider->firstLap = false;
-        }
+        bool nullTag = tagInfo.tagId.isEmpty();
 
 
-        // If this is first lap, try getting name from dbase or default to tagId provided on tag
+        // ActiveRidersList is the main list containing information of each active rider
+        // Set rider to point to appropriate entry if in list
 
-        QString name;
-        if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
-            QString tagId;
-            QString firstName;
-            QString lastName;
-            QString membershipNumber;
-            QString caRegistration;
-            QString email;
-            int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
-            if (id > 0) {
-                mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
-                name = firstName + " " + lastName;
-            }
-            else {
-                name = tagInfo.tagId;
-            }
-            rider->name = name;
-            rider->tagId = tagInfo.tagId;
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-
-            // Get prior stats for this rider
-
-            mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
-        }
-
-        // else if on break this is the first lap after a break
-
-        else if (rider->onBreak) {
-            rider->onBreak = false;
-            rider->firstLapAfterBreak = true;
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-        }
-
-        // else update lap stats and thisMonth stats
-
-        else {
-
-            // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break
-
-            float lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
-            if (lapSec > mainWindow->maxAcceptableLapSec) {
-                rider->onBreak = true;
-                rider->firstLapAfterBreak = false;
-            }
-            else {
-                rider->firstLapAfterBreak = false;
-                rider->lapCount++;
-                rider->lapSec = lapSec;
-                rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
-                if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
-                    rider->bestLapSec = rider->lapSec;
-                    rider->bestLapM = rider->lapM;
+        CRider *rider = NULL;
+        int activeRiderIndex = -1;
+        if (!nullTag) {
+            for (int i=0; i<activeRidersList.size(); i++) {
+                if (tagInfo.tagId == activeRidersList[i].tagId) {
+                    rider = &activeRidersList[i];
+                    activeRiderIndex = i;
+                    break;
                 }
-                rider->totalSec += rider->lapSec;
-                rider->totalM += rider->lapM;
-
-                rider->thisMonth.lapCount++;
-                rider->thisMonth.totalSec += rider->lapSec;
-                rider->thisMonth.totalM += rider->lapM;
-
-                rider->allTime.lapCount++;
-                rider->allTime.totalM += rider->lapM;
             }
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
         }
 
+        // Process tag if not nullTag
 
-        // Add a comment
+        if (!nullTag) {
 
-        if (rider->firstLap)
-            rider->comment = "First lap";
-        else if (rider->onBreak)
-            rider->comment = "On break";
-        else if (rider->firstLapAfterBreak)
-            rider->comment = "First lap after break";
-        else {
-            rider->comment.clear();
-        }
+            // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
 
+            if (!rider) {
+                bool scrollToBottomRequired = false;
+                if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
+                    scrollToBottomRequired = true;
+                insertRows(activeRidersList.size()-1, 1);
+                if (scrollToBottomRequired)
+                    mainWindow->ui->activeRidersTableView->scrollToBottom();
 
-        // Populate activeRidersTableView entries
-
-        setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
-
-
-        // Add lap to database if not firstLap or firstLapAfterBreak
-
-        if (!rider->firstLap && !rider->firstLapAfterBreak) {
-            QDateTime dateTime(QDateTime::currentDateTime());
-            mainWindow->lapsDbase.addLap(rider->tagId, dateTime.date().year(), dateTime.date().month(), dateTime.date().day(), dateTime.time().hour(), dateTime.time().minute(), dateTime.time().second(), rider->lapSec, rider->lapM);
-        }
-
-
-        // Add to lapsTableView
-
-        mainWindow->lapsTableModel->addEntry(*rider);
-
-        // lapCount is total laps all riders
-
-        QString s;
-        mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
-    }
-
-    // else process nullTag
-
-    else {
-        for (int i=0; i<activeRidersList.size(); i++) {
-            CRider *rider = &activeRidersList[i];
-            float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
-            if (lapSec > mainWindow->maxAcceptableLapSec) {
-                rider->onBreak = true;
+                activeRiderIndex = activeRidersList.size() - 1;
+                rider = &activeRidersList[activeRiderIndex];
+                rider->firstLap = true;
+            }
+            else {
                 rider->firstLap = false;
-                rider->firstLapAfterBreak = false;
+            }
+
+
+            // If this is first lap, try getting name from dbase or default to tagId provided on tag
+
+            QString name;
+            if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
+                QString tagId;
+                QString firstName;
+                QString lastName;
+                QString membershipNumber;
+                QString caRegistration;
+                QString email;
+                int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
+                if (id > 0) {
+                    mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
+                    name = firstName + " " + lastName;
+                }
+                else {
+                    name = tagInfo.tagId;
+                }
+                rider->name = name;
+                rider->tagId = tagInfo.tagId;
+                rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+
+                // Get prior stats for this rider
+
+                mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
+            }
+
+            // else if on break this is the first lap after a break
+
+            else if (rider->onBreak) {
+                rider->onBreak = false;
+                rider->firstLapAfterBreak = true;
+                rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+            }
+
+            // else update lap stats and thisMonth stats
+
+            else {
+
+                // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break
+
+                float lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+                if (lapSec > mainWindow->maxAcceptableLapSec) {
+                    rider->onBreak = true;
+                    rider->firstLapAfterBreak = false;
+                }
+                else {
+                    rider->firstLapAfterBreak = false;
+                    rider->lapCount++;
+                    rider->lapSec = lapSec;
+                    rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
+                    if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
+                        rider->bestLapSec = rider->lapSec;
+                        rider->bestLapM = rider->lapM;
+                    }
+                    rider->totalSec += rider->lapSec;
+                    rider->totalM += rider->lapM;
+
+                    rider->thisMonth.lapCount++;
+                    rider->thisMonth.totalSec += rider->lapSec;
+                    rider->thisMonth.totalM += rider->lapM;
+
+                    rider->allTime.lapCount++;
+                    rider->allTime.totalM += rider->lapM;
+                }
+                rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+            }
+
+
+            // Add a comment
+
+            if (rider->firstLap)
+                rider->comment = "First lap";
+            else if (rider->onBreak)
                 rider->comment = "On break";
+            else if (rider->firstLapAfterBreak)
+                rider->comment = "First lap after break";
+            else {
+                rider->comment.clear();
+            }
 
-                // Update activeRidersTableView
 
-                setData(createIndex(i, 0), 0, Qt::EditRole);
+            // Populate activeRidersTableView entries
+
+            setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
+
+
+            // Add lap to database if not firstLap or firstLapAfterBreak
+
+            if (!rider->firstLap && !rider->firstLapAfterBreak) {
+                QDateTime dateTime(QDateTime::currentDateTime());
+                mainWindow->lapsDbase.addLap(rider->tagId, dateTime.date().year(), dateTime.date().month(), dateTime.date().day(), dateTime.time().hour(), dateTime.time().minute(), dateTime.time().second(), rider->lapSec, rider->lapM);
+            }
+
+
+            // Add to lapsTableView
+
+            mainWindow->lapsTableModel->addEntry(*rider);
+
+            // lapCount is total laps all riders
+
+            QString s;
+            mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+        }
+
+        // else process nullTag
+
+        else {
+            for (int i=0; i<activeRidersList.size(); i++) {
+                CRider *rider = &activeRidersList[i];
+                float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+                if (lapSec > mainWindow->maxAcceptableLapSec) {
+                    rider->onBreak = true;
+                    rider->firstLap = false;
+                    rider->firstLapAfterBreak = false;
+                    rider->comment = "On break";
+
+                    // Update activeRidersTableView
+
+                    setData(createIndex(i, 0), 0, Qt::EditRole);
+                }
             }
         }
     }
+    catch (const QString &s) {
+        mainWindow->guiCritical(s);
+    }
+    catch (const char *p) {
+        mainWindow->guiCritical(QString(*p));
+    }
+
 }
 
 
@@ -900,8 +910,8 @@ void CActiveRidersTableModel::purgeTable(void) {
     // Loop through all active riders and see which are geting old
 
     for (int i=activeRidersList.size()-1; i>=0; i--) {
-        long long inactiveSec = (currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000;
-        if (inactiveSec >= (2 * mainWindow->tablePurgeIntervalSec)) {
+        float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
+        if (inactiveHours >= (2. * mainWindow->tablePurgeIntervalHours)) {
             removeRows(i, 1);
         }
     }
@@ -959,10 +969,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Get tablePurgeIntervalSec, the interval on which tables are purged of inactive riders
 
-    tablePurgeIntervalSec = settings.value("tablePurgeIntervalHours").toFloat() * 3600;
-    if (tablePurgeIntervalSec == 0) tablePurgeIntervalSec = 6 * 3600;
-    if (tablePurgeIntervalSec < 10) tablePurgeIntervalSec = 10;
-    ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalSec / 3600));
+    tablePurgeIntervalHours = settings.value("tablePurgeIntervalHours").toFloat();
+    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
+    ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalHours));
 
 
     // If laps table has more than this number of entries, disable sorting to ensure responsive operation
@@ -1106,7 +1115,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->lapsTableView->setSortingEnabled(true);
     ui->lapsTableView->setEnabled(false);   // will be enabled when connected to reader
 
-
 //    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
 
@@ -1132,6 +1140,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setSortingEnabled(true);
     ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
 
+
 //    TestModel model;
 //        QSortFilterProxyModel proxyModel;
 //        proxyModel.setSourceModel(activeRidersTableModel);
@@ -1143,7 +1152,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // Start timer that will purge old riders from activeRidersTable
 
     connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
-    purgeActiveRidersListTimer.setInterval(tablePurgeIntervalSec * 1000);
+    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
     purgeActiveRidersListTimer.start();
 
 
@@ -1235,7 +1244,7 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("trackLength2M", trackLengthM[1]);
     settings.setValue("trackLength3M", trackLengthM[2]);
     settings.setValue("trackLength4M", trackLengthM[3]);
-    settings.setValue("tablePurgeIntervalHours", tablePurgeIntervalSec / 3600.);
+    settings.setValue("tablePurgeIntervalHours", tablePurgeIntervalHours);
     settings.setValue("transmitPower1", 0.);
     settings.setValue("transmitPower2", 0.);
     settings.setValue("transmitPower3", 0.);
@@ -1251,9 +1260,11 @@ void MainWindow::onApplySettingsPushButtonClicked(void) {
     trackLengthM.append(ui->trackLength2LineEdit->text().toFloat());
     trackLengthM.append(ui->trackLength3LineEdit->text().toFloat());
     trackLengthM.append(ui->trackLength4LineEdit->text().toFloat());
-    tablePurgeIntervalSec = ui->tablePurgeIntervalLineEdit->text().toFloat() * 3600.;
-    if (tablePurgeIntervalSec == 0.) tablePurgeIntervalSec = 6. * 3600.;
-    if (tablePurgeIntervalSec < 10.) tablePurgeIntervalSec = 10.;
+    tablePurgeIntervalHours = ui->tablePurgeIntervalLineEdit->text().toFloat();
+    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
+    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
+    purgeActiveRidersListTimer.start();
+
 }
 
 
@@ -1552,7 +1563,7 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
     if (guiQuestion("You are about to modify an existing tag entry in the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort) != QMessageBox::Ok)
         return;
 
-    // Add entry to database
+    // Update entry in database
 
     int rc = membershipDbase.update(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text());
     if (rc != 0) {
@@ -1575,9 +1586,7 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
 void MainWindow::onDbaseReadPushButtonClicked(bool state) {
     if (state) {
         ui->deskReadPushButton->setChecked(true);
-        ui->deskTagIdLineEdit->clear();
-        ui->deskFirstNameLineEdit->clear();
-        ui->deskLastNameLineEdit->clear();
+        onDbaseClearPushButtonClicked();
         if (deskReader)
             deskReader->blockSignals(false);
     }
@@ -1592,6 +1601,7 @@ void MainWindow::onDbaseReadPushButtonClicked(bool state) {
 
 
 void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
+    if (tagInfo.antennaId <= 0) return;
     deskReader->blockSignals(true);
     onDbaseClearPushButtonClicked();
     ui->deskTagIdLineEdit->setText(tagInfo.tagId);

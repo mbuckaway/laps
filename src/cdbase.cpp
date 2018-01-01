@@ -1,6 +1,8 @@
 // cdbase.cpp
 
 
+#include <QMessageBox>
+
 #include "cdbase.h"
 #include "crider.h"
 
@@ -117,7 +119,7 @@ int CMembershipDbase::add(const QString &tagId, const QString &firstName, const 
     query.bindValue(":caRegistration", caRegistration);
     query.bindValue(":eMail", eMail);
     if (!query.exec()) {
-        errorTextVal = "Could not add to database";
+        errorTextVal = "Could not add to database.  Check that tagId, name, track membership number anc cycling association registration number are unique.";
         return 2;
     }
     return 0;
@@ -132,40 +134,16 @@ int CMembershipDbase::update(const QString &tagId, const QString &firstName, con
         return 1;
 
     QSqlQuery query(dBase);
-    query.prepare("UPDATE membershipTable SET firstName = :firstName WHERE tagId = :tagId");
+    query.prepare("UPDATE membershipTable SET firstName = :firstName, lastName = :lastName, membershipNumber = :membershipNumber, caRegistration = :caRegistration, email = :eMail WHERE tagId = :tagId");
     query.bindValue(":tagId", tagId);
     query.bindValue(":firstName", firstName);
-    if (!query.exec()) {
-        errorTextVal = "Could not update first name in database";
-        return 2;
-    }
-    query.prepare("UPDATE membershipTable SET lastName = :lastName WHERE tagId = :tagId");
-    query.bindValue(":tagId", tagId);
     query.bindValue(":lastName", lastName);
-    if (!query.exec()) {
-        errorTextVal = "Could not update last name in database";
-        return 3;
-    }
-    query.prepare("UPDATE membershipTable SET membershipNumber = :membershipNumber WHERE tagId = :tagId");
-    query.bindValue(":tagId", tagId);
     query.bindValue(":membershipNumber", membershipNumber);
-    if (!query.exec()) {
-        errorTextVal = "Could not update membership number in database";
-        return 4;
-    }
-    query.prepare("UPDATE membershipTable SET caRegistration = :caRegistration WHERE tagId = :tagId");
-    query.bindValue(":tagId", tagId);
     query.bindValue(":caRegistration", caRegistration);
-    if (!query.exec()) {
-        errorTextVal = "Could not update cycling association registration in database";
-        return 5;
-    }
-    query.prepare("UPDATE membershipTable SET eMail = :eMail WHERE tagId = :tagId");
-    query.bindValue(":tagId", tagId);
     query.bindValue(":eMail", eMail);
     if (!query.exec()) {
-        errorTextVal = "Could not update eMail in database";
-        return 6;
+        errorTextVal = "Could not update database.  Check that tagId, name, track membership number and cycling association registration are unique.";
+        return 2;
     }
 
     return 0;
@@ -184,7 +162,6 @@ int CMembershipDbase::removeTagId(const QString &tagId) {
     query.bindValue(":tagId", tagId);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
-        qDebug() << errorTextVal;
         return 2;
     }
     return 0;
@@ -453,6 +430,7 @@ bool CMembershipDbase::isOpen(void) {
 
 CLapsDbase::CLapsDbase() {
     errorTextVal.clear();
+    errorVal = 0;
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
 
@@ -462,14 +440,15 @@ CLapsDbase::CLapsDbase() {
 
 int CLapsDbase::open(const QString &filename, const QString &username, const QString &password) {
     errorTextVal.clear();
+    errorVal = 0;
     dBase.setUserName(username);
     dBase.setPassword(password);
     dBase.setDatabaseName(filename);
 
     if (!dBase.open()) {
         errorTextVal = dBase.lastError().text();
-        qDebug() << "Error opening " + filename + ":" << errorText();
-        return 1;
+        errorVal = 1;
+        return errorVal;
     }
 
     bool showContents = false;
@@ -483,8 +462,8 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER(10), lapsec FLOAT(10), lapm FLOAT(10))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            qDebug() << "Error creating new lapsTable in " + filename << errorTextVal;
-            return 2;
+            errorVal = 2;
+            return errorVal;
         }
         qDebug() << "  Created new lapsTable";
     }
@@ -495,8 +474,8 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         query.prepare("select * from lapsTable");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            qDebug() << errorTextVal;
-            return 3;
+            errorVal = 3;
+            return errorVal;
         }
         int id = query.record().indexOf("id");
         int idTagId = query.record().indexOf("tagId");
@@ -535,8 +514,14 @@ void CLapsDbase::close(void) {
 // Add entry to laps database
 //
 int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float lapsec, float lapm) {
-    if (!dBase.isOpen())
-        return 1;
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase is closed";
+        errorVal = 1;
+        return errorVal;
+    }
 
     unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
     QSqlQuery query(dBase);
@@ -547,8 +532,8 @@ int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int h
     query.bindValue(":lapm", lapm);
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
-        qDebug() << errorTextVal;
-        return 2;
+        errorVal = 2;
+        return errorVal;
     }
     return 0;
 }
@@ -558,8 +543,14 @@ int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int h
 // Calculate stats for specified rider (tagId) from dbase entries and populate CRider
 //
 int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
-    if (!dBase.isOpen())
-        return 1;
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase is closed";
+        errorVal = 1;
+        return errorVal;
+    }
 
     QDateTime dateTime(QDateTime::currentDateTime());
     int thisMonthYear = dateTime.date().year();
@@ -577,16 +568,16 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     unsigned int dateTimeStart = dateTime2Int(thisMonthYear, thisMonthMonth, 0, 0, 0, 0);
     unsigned int dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
-    getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->thisMonth);
-
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->thisMonth);
+    if (errorVal) return errorVal;
 
     // Get stats for last month
 
     dateTimeStart = dateTime2Int(lastMonthYear, lastMonthMonth, 0, 0, 0, 0);
     dateTimeEnd = dateTime2Int(lastMonthYear, lastMonthMonth, 31, 24, 0, 0);
 
-    getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->lastMonth);
-
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->lastMonth);
+    if (errorVal) return errorVal;
 
     // Get stats for all time
 
@@ -595,7 +586,8 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     dateTimeStart = dateTime2Int(allTimeYear, allTimeMonth, 0, 0, 0, 0);
     dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
-    getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->allTime);
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->allTime);
+    if (errorVal) return errorVal;
 
     return 0;
 }
@@ -604,12 +596,20 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 // Get stats for specified tagId and time period from dbase
 //
 int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats) {
-    if (!dBase.isOpen())
-        return 1;
+    errorTextVal.clear();
+    errorVal = 0;
 
-    if (dateTimeStart > dateTimeEnd)
-        throw("dateTimeStart > dateTimeEnd in getStatsForPeriod");
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 1;
+        return errorVal;
+    }
 
+    if (dateTimeStart > dateTimeEnd) {
+        errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
+        errorVal = 2;
+        return errorVal;
+    }
 
     // Determine minimum time difference in dateTimeInt that separates workouts
 
@@ -622,28 +622,31 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
     query.bindValue(":dateTimeEnd", dateTimeEnd);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
-        qDebug() << errorTextVal;
-        return 1;
+        errorVal = 3;
+        return errorVal;
     }
+
     int lapsecIndex = query.record().indexOf("lapsec");
     if (lapsecIndex < 0) {
-        errorTextVal = "Could not find lapsec index in getStats";
-        qDebug() << errorTextVal;
-        return 2;
+        errorTextVal = "Could not find lapsec index in getStatsForPeriod";
+        errorVal = 4;
+        return errorVal;
     }
+
     int lapmIndex = query.record().indexOf("lapm");
     if (lapmIndex < 0) {
-        errorTextVal = "Could not find lapm index in getStats";
-        qDebug() << errorTextVal;
-        return 2;
+        errorTextVal = "Could not find lapm index in getStatsforPeriod";
+        errorVal = 5;
+        return errorVal;
     }
+
     int dateTimeIndex = query.record().indexOf("dateTime");
     if (dateTimeIndex < 0) {
-        errorTextVal = "Could not find dateTime index in getStatus";
-        qDebug() << errorTextVal;
-        return 3;
+        errorTextVal = "Could not find dateTime index in getStatusForPeriod";
+        errorVal = 6;
+        return errorVal;
     }
-    errorTextVal.clear();
+
 
     // Determine workout count, lap count, average lap time, best lap time, distance
 
@@ -657,9 +660,6 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
     while (query.next()) {
         float lapSec = query.value(lapsecIndex).toFloat();
         float lapM = query.value(lapmIndex).toFloat();
-//        float lapSpeed = 0.;
-//        if (lapSec > 0.)
-//            lapSpeed = lapM / lapSec;
         unsigned int dateTime = query.value(dateTimeIndex).toUInt();
         if (localBestLapSec <= 0.) {
             localBestLapSec = lapSec;
@@ -676,7 +676,6 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
         if (dateTimeDif > workoutDateTimeSeparation) {
             localWorkoutCount++;
         }
-
         previousDateTime = dateTime;
     }
 
