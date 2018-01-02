@@ -956,15 +956,6 @@ MainWindow::MainWindow(QWidget *parent) :
     trackLengthM.append(settings.value("trackLength3M").toFloat());
     trackLengthM.append(settings.value("trackLength4M").toFloat());
 
-    ui->trackLength1LineEdit->setText(s.setNum(trackLengthM[0]));
-    ui->trackLength2LineEdit->setText(s.setNum(trackLengthM[1]));
-    ui->trackLength3LineEdit->setText(s.setNum(trackLengthM[2]));
-    ui->trackLength4LineEdit->setText(s.setNum(trackLengthM[3]));
-    for (int i=0; i<trackLengthM.size(); i++) {
-        if (trackLengthM[i] == 0.) {
-            initialized = false;
-        }
-    }
 
 
     // Get tablePurgeIntervalSec, the interval on which tables are purged of inactive riders
@@ -976,7 +967,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // If laps table has more than this number of entries, disable sorting to ensure responsive operation
 
-    lapsTableMaxSizeWithSort = 10000;
+//    lapsTableMaxSizeWithSort = 10000;
 
 
     if (!initialized)
@@ -987,8 +978,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     int readerCounter = 0;
     if (initialized) {
-        trackReader = new CReader(ui->trackReaderIP->text(), readerCounter++, CReader::track);
-        deskReader = new CReader(ui->deskReaderIP->text(), readerCounter++, CReader::desk);
+        trackReader = new CReader(ui->trackReaderIpLineEdit->text(), readerCounter++, CReader::track);
+        qDebug() << ui->trackReaderIpLineEdit->text();
+        deskReader = new CReader(ui->deskReaderIpLineEdit->text(), readerCounter++, CReader::desk);
     }
 
 
@@ -1226,6 +1218,16 @@ MainWindow::~MainWindow() {
 
 void MainWindow::initializeSettingsPanel(void) {
     ui->trackNameLineEdit->setText(settings.value("trackName").toString());
+
+    ui->trackLength1LineEdit->setText(settings.value("trackLength1M").toString());
+    ui->trackLength2LineEdit->setText(settings.value("trackLength2M").toString());
+    ui->trackLength3LineEdit->setText(settings.value("trackLength3M").toString());
+    ui->trackLength4LineEdit->setText(settings.value("trackLength4M").toString());
+
+    ui->trackReaderIpLineEdit->setText(settings.value("trackReaderIp").toString());
+
+    ui->deskReaderIpLineEdit->setText(settings.value("deskReaderIp").toString());
+
 }
 
 
@@ -1240,15 +1242,22 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     onApplySettingsPushButtonClicked();
 
     settings.setValue("trackName", ui->trackNameLineEdit->text());
-    settings.setValue("trackLength1M", trackLengthM[0]);
-    settings.setValue("trackLength2M", trackLengthM[1]);
-    settings.setValue("trackLength3M", trackLengthM[2]);
-    settings.setValue("trackLength4M", trackLengthM[3]);
+    settings.setValue("trackLength1M", ui->trackLength1LineEdit->text());
+    settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
+    settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
+    settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
     settings.setValue("tablePurgeIntervalHours", tablePurgeIntervalHours);
-    settings.setValue("transmitPower1", 0.);
-    settings.setValue("transmitPower2", 0.);
-    settings.setValue("transmitPower3", 0.);
-    settings.setValue("transmitPower4", 0.);
+    settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
+    settings.setValue("trackTransmitPower1", ui->trackAntenna1PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower2", ui->trackAntenna2PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower3", ui->trackAntenna3PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower4", ui->trackAntenna4PowerComboBox->currentText());
+
+    settings.setValue("deskReaderIp", ui->deskReaderIpLineEdit->text());
+    settings.setValue("trackTransmitPower1", ui->deskAntenna1PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower2", ui->deskAntenna2PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower3", ui->deskAntenna3PowerComboBox->currentText());
+    settings.setValue("trackTransmitPower4", ui->deskAntenna4PowerComboBox->currentText());
 }
 
 

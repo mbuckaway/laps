@@ -123,7 +123,7 @@
        <enum>Qt::NoFocus</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="ridersTab">
        <attribute name="title">
@@ -369,12 +369,25 @@
           </item>
          </layout>
         </item>
-        <item row="2" column="0" colspan="6">
+        <item row="2" column="3">
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="3" column="0" colspan="6">
          <widget class="QTableView" name="namesTableView">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>10</horstretch>
-            <verstretch>0</verstretch>
+            <verstretch>100</verstretch>
            </sizepolicy>
           </property>
          </widget>
@@ -488,7 +501,7 @@
          <string>Select power setting for antenna.</string>
         </property>
        </widget>
-       <widget class="QLabel" name="IPLabel">
+       <widget class="QLabel" name="trackReaderLabel">
         <property name="geometry">
          <rect>
           <x>10</x>
@@ -564,7 +577,7 @@
          <set>Qt::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLineEdit" name="trackReaderIP">
+       <widget class="QLineEdit" name="trackReaderIpLineEdit">
         <property name="geometry">
          <rect>
           <x>150</x>
@@ -657,7 +670,7 @@ Leave blank for simulator.</string>
          <string>Select power setting for antenna.</string>
         </property>
        </widget>
-       <widget class="QLineEdit" name="deskReaderIP">
+       <widget class="QLineEdit" name="deskReaderIpLineEdit">
         <property name="geometry">
          <rect>
           <x>150</x>
@@ -674,7 +687,7 @@ Leave blank for simulator.</string>
          <set>Qt::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLabel" name="fuinctonLabel">
+       <widget class="QLabel" name="transmitPowerLabel">
         <property name="geometry">
          <rect>
           <x>280</x>
@@ -712,7 +725,7 @@ Leave blank for simulator.</string>
          <set>Qt::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLabel" name="IPLabel_2">
+       <widget class="QLabel" name="trackReaderIpLabel">
         <property name="geometry">
          <rect>
           <x>150</x>
@@ -734,7 +747,7 @@ Leave blank for simulator.</string>
          <set>Qt::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLabel" name="IPLabel_3">
+       <widget class="QLabel" name="deskReaderLabel">
         <property name="geometry">
          <rect>
           <x>10</x>
@@ -762,7 +775,7 @@ Leave blank for simulator.</string>
          <set>Qt::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QLabel" name="fuinctonLabel_2">
+       <widget class="QLabel" name="trackLengthLabel">
         <property name="geometry">
          <rect>
           <x>280</x>

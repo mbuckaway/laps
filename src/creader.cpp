@@ -14,6 +14,8 @@
 
 #include "creader.h"
 
+extern bool setupMode;
+
 
 // **********************************************************************************************
 
@@ -39,6 +41,7 @@ CReader::CReader(QString hostName, int readerId, CReader::antennaPositionType an
     this->hostName = hostName;
     this->readerId = readerId;
     this->antennaPosition = antennaPosition;
+    qDebug() << hostName;
     messageId = 0;
     simulateReaderMode = hostName.isEmpty();
     waitingForFirstTag = true;
@@ -104,7 +107,7 @@ void CReader::onStarted(void) {
 
         switch (antennaPosition) {
         case track:
-            averageIntervalMSec = 100;
+            averageIntervalMSec = 1000;
             break;
         case desk:
             averageIntervalMSec = 1000;
@@ -1080,6 +1083,7 @@ int CReader::processReports(void) {
 void CReader::processTagList (LLRP::CRO_ACCESS_REPORT *pRO_ACCESS_REPORT) {
     std::list<LLRP::CTagReportData *>::iterator Cur;
     static int count = 0;
+    QString s;
 
     // Get current local time in application msec
 
@@ -1158,8 +1162,8 @@ void CReader::processTagList (LLRP::CRO_ACCESS_REPORT *pRO_ACCESS_REPORT) {
     // newTagsList is a list of tags currently in antenna zone
 
     count++;
-    printf("%d: Processing %d tags\n", count, newTagsList.size());
-    fflush(stdout);
+    if (setupMode) emit newLogMessage(s.sprintf("%d: Processing %d tags\n", count, newTagsList.size()));
+
 
     // Loop through current tag list and remove any current tag that is not in new list
 
@@ -1178,8 +1182,9 @@ void CReader::processTagList (LLRP::CRO_ACCESS_REPORT *pRO_ACCESS_REPORT) {
 
 
     // Loop through new tag list.
-    // If tag is in current list, rider is sitting in antenna zone, so emit newTag signal only if desk reader.
-    // If tag is not in list, rider has just arrived in antenna zone, so add to list and emit newTag signal
+    // If tag is in current list, rider is sitting in antenna zone.
+    // If desk reader, emit newTag signal.
+    // Otherwise, if tag is not in list, rider has just arrived in antenna zone, so add to list and emit newTag signal
     // for both desk and track readers.
 
     for (int i=0; i<newTagsList.size(); i++) {
@@ -1190,15 +1195,14 @@ void CReader::processTagList (LLRP::CRO_ACCESS_REPORT *pRO_ACCESS_REPORT) {
                 break;
             }
         }
-        if (inList) {
-            if (antennaPosition == desk)
-                emit newTag(newTagsList[i]);
+        if (antennaPosition == desk) {
+            emit newTag(newTagsList[i]);
         }
-        else {
+        else if (!inList) {
             currentTagsList.append(newTagsList[i]);
             emit newTag(newTagsList[i]);
         }
-        //qDebug("  %s", newTagsList[i].tagId.data());
+        qDebug() << newTagsList[i].tagId;
     }
 }
 
@@ -1851,7 +1855,7 @@ int CReader::setReaderConfiguration(void) {
 
     // Build a decoder to extract the message from XML
 
-    pDecoder = new LLRP::CXMLTextDecoder(typeRegistry, "../fcvtc/readerConfig.xml");
+    pDecoder = new LLRP::CXMLTextDecoder(typeRegistry, "../readerConfig.xml");
     if (NULL == pDecoder) {
         return -1;
     }
