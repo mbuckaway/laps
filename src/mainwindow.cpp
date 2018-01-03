@@ -512,10 +512,10 @@ bool CLapsTableModel::addEntry(CRider rider) {
 
 
 
+// Loop through all active riders and see which are geting old.
+//
 void CLapsTableModel::purgeTable(void) {
     unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
-
-    // Loop through all active riders and see which are geting old
 
     for (int i=timeStampList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - timeStampList[i]) / 1000000) / 3600.;
@@ -904,17 +904,21 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
 
 
-void CActiveRidersTableModel::purgeTable(void) {
+// Loop through all active riders and see which are geting old
+// Return a list of riders removed.
+//
+QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
 
-    // Loop through all active riders and see which are geting old
-
+    QList<CRider> purgedRiders;
     for (int i=activeRidersList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
         if (inactiveHours >= (2. * mainWindow->tablePurgeIntervalHours)) {
+            purgedRiders.append(activeRidersList[i]);
             removeRows(i, 1);
         }
     }
+    return purgedRiders;
 }
 
 
@@ -966,11 +970,6 @@ MainWindow::MainWindow(QWidget *parent) :
     tablePurgeIntervalHours = settings.value("tablePurgeIntervalHours").toFloat();
     if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
     ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalHours));
-
-
-    // If laps table has more than this number of entries, disable sorting to ensure responsive operation
-
-//    lapsTableMaxSizeWithSort = 10000;
 
 
     if (!initialized)
@@ -1191,34 +1190,24 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
 
-    qDebug() << ui->smtpUsernameLineEdit->text() << ui->smtpPasswordLineEdit->text() << ui->smtpServerLineEdit->text() << ui->smtpPortLineEdit->text().toInt();
-    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-    connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
-
-    QString from("icunning015@gmail.com");
-    QString to("icunningham@robarts.ca");
-//    QString to("mark.buckaway@forestcityvelodrome.ca");
-    QString subject("Track cycling report");
-    QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n");
-
-    body.append("\nMessage body goes here.\n");
-
-
-//    smtp->sendMail(from, to, subject, body);
-
-
-}
-
-
-
-void MainWindow::onMailSent(QString s) {
-    qDebug() << "mailSent" << s;
 }
 
 
 
 MainWindow::~MainWindow() {
-    qDebug() << "closing...";
+
+    // Make sure pending emails have been sent
+
+    if (purgedRiders.size() > 0) {
+        qDebug() << "Sending remaining emails...";
+        emit onMailSent(QString());
+        while (purgedRiders.size() > 0) {
+            sleep(1);
+        }
+        qDebug() << "  done";
+    }
+
+
     membershipDbase.close();
     lapsDbase.close();
     for (int i=0; i<readerThreadList.size(); i++) {
@@ -1252,7 +1241,9 @@ void MainWindow::initializeSettingsPanel(void) {
     ui->smtpPasswordLineEdit->setText(settings.value("smtpPassword").toString());
     ui->smtpServerLineEdit->setText(settings.value("smtpServer").toString());
     ui->smtpPortLineEdit->setText(settings.value("smtpPort").toString());
-
+    ui->emailSendReportsCheckBox->setChecked(settings.value("emailSendReports").toBool());
+    ui->emailFromLineEdit->setText(settings.value("emailFrom").toString());
+    ui->emailSubjectLineEdit->setText(settings.value("emailSubject").toString());
 }
 
 
@@ -1288,6 +1279,9 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("smtpPassword", ui->smtpPasswordLineEdit->text());
     settings.setValue("smtpServer", ui->smtpServerLineEdit->text());
     settings.setValue("smtpPort", ui->smtpPortLineEdit->text().toInt());
+    settings.setValue("emailSendReports", ui->emailSendReportsCheckBox->isChecked());
+    settings.setValue("emailFrom", ui->emailFromLineEdit->text());
+    settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
 }
 
 
@@ -1322,13 +1316,96 @@ void MainWindow::onClockTimerTimeout(void) {
 // Loop through riders in activeRidersList and remove any that are getting old.
 // Remove from activeRidersTable also.
 // Then loop through lapsTable and remove old entries.
+// Send email to riders when removed from list.
 //
 void MainWindow::onPurgeActiveRidersList(void) {
     if (activeRidersTableModel)
-        activeRidersTableModel->purgeTable();
+        purgedRiders.append(activeRidersTableModel->purgeTable());
 
     if (lapsTableModel)
         lapsTableModel->purgeTable();
+
+    // Send first message here, subsequent messages sent from onMailSent
+
+    emit onMailSent(QString());
+}
+
+
+
+void MainWindow::onMailSent(QString s) {
+    qDebug() << "onMailSent" << s << purgedRiders.size();
+    ui->reportsPendingLineEdit->setText(s.setNum(purgedRiders.size()));
+
+    if (purgedRiders.size() == 0) return;
+
+    CRider *rider = &purgedRiders[0];
+    qDebug() << rider->name << rider->lapCount;
+
+    if (rider->lapCount == 0) {
+        purgedRiders.removeAt(0);
+        if (purgedRiders.size() > 0) {
+            emit onMailSent(QString());
+        }
+        return;
+    }
+
+
+    // Create smtp client
+
+    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+    connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
+
+    // Get email address
+
+    int id = membershipDbase.getIdFromTagId(rider->tagId);
+    QString tagId;
+    QString firstName;
+    QString lastName;
+    QString membershipNumber;
+    QString caRegistration;
+    QString eMail;
+    if (id > 0) {
+        membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
+    }
+    else {
+        eMail.clear();
+    }
+
+    // If email is in database, compose message and send
+
+    if ((rider->lapCount > 0) && !eMail.isEmpty()) {
+        QString s;
+        QString to(eMail);
+        QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
+        body.append("Name: " + firstName + " " + lastName + "\n");
+        body.append("TagId: " + tagId + "\n");
+        body.append("MembershipNumber: " + membershipNumber + "\n");
+        body.append("Date: " + QDate::currentDate().toString() + "\n");
+        body.append("Laps: " + s.setNum(rider->lapCount) + "\n");
+        body.append("Distance: " + s.setNum(rider->totalM / 1000.) + " km\n");
+        body.append("Average lap time: " + s.setNum(rider->totalSec) + " sec\n");
+        body.append("Average speed: " + s.setNum(rider->totalM / rider->totalSec / 1000. * 3600.) + " km/h\n");
+        body.append("Best lap time: " + s.setNum(rider->bestLapSec) + " sec\n");
+        body.append("Best speed: " + s.setNum(rider->bestLapM / rider->bestLapSec / 1000. * 3600.) + " km/h\n");
+
+        body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
+
+        //    QString to("mark.buckaway@forestcityvelodrome.ca");
+
+
+        qDebug() << ui->emailFromLineEdit->text() << to << ui->emailSubjectLineEdit->text() << body;
+
+        smtp->sendMail(ui->emailFromLineEdit->text(), to, ui->emailSubjectLineEdit->text(), body);
+        qDebug() << "sent";
+
+    }
+
+    purgedRiders.removeAt(0);
+
+    if (purgedRiders.size() > 0) {
+        emit onMailSent(QString());
+    }
+    ui->reportsPendingLineEdit->setText(s.setNum(purgedRiders.size()));
 }
 
 

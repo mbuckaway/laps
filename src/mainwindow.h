@@ -76,7 +76,7 @@ public:
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
     void newTrackTag(const CTagInfo &tagInfo);
-    void purgeTable(void);
+    QList<CRider> purgeTable(void);
 private:
     MainWindow *mainWindow;
 private slots:
@@ -132,6 +132,7 @@ public:
     QSortFilterProxyModel *lapsProxyModel;
 private:
     CSmtp *smtp;
+    QList<CRider> purgedRiders;
     CMembershipTableModel *membershipTableModel;
     QSortFilterProxyModel *membershipProxyModel;
     CActiveRidersTableModel *activeRidersTableModel;
