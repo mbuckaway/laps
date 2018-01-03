@@ -41,7 +41,7 @@ CReader::CReader(QString hostName, int readerId, CReader::antennaPositionType an
     this->hostName = hostName;
     this->readerId = readerId;
     this->antennaPosition = antennaPosition;
-    qDebug() << hostName;
+//    qDebug() << hostName;
     messageId = 0;
     simulateReaderMode = hostName.isEmpty();
     waitingForFirstTag = true;
