@@ -131,6 +131,7 @@ public:
 private:
     CMembershipTableModel *membershipTableModel;
     CActiveRidersTableModel *activeRidersTableModel;
+    QSortFilterProxyModel *activeRidersProxyModel;
     QTimer clockTimer;
     QTimer purgeActiveRidersListTimer;
     CReader *trackReader;

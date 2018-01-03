@@ -1113,7 +1113,14 @@ MainWindow::MainWindow(QWidget *parent) :
     // Configure active riders table
 
     activeRidersTableModel = new CActiveRidersTableModel(this);
-    ui->activeRidersTableView->setModel(activeRidersTableModel);
+
+    activeRidersProxyModel = new QSortFilterProxyModel;
+    activeRidersProxyModel->setSourceModel(activeRidersTableModel);
+
+    ui->activeRidersTableView->setModel(activeRidersProxyModel);
+
+//    ui->activeRidersTableView->setModel(activeRidersTableModel);
+
     ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
     ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
     ui->activeRidersTableView->setColumnWidth(AT_KM, CW_KM);
@@ -1130,13 +1137,12 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
     ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
     ui->activeRidersTableView->setSortingEnabled(true);
-    ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
+    //ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
+//    ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);
+//    ui->activeRidersTableView->reset();
+//    ui->activeRidersTableView->show();
 
 
-//    TestModel model;
-//        QSortFilterProxyModel proxyModel;
-//        proxyModel.setSourceModel(activeRidersTableModel);
-//    .setModel( &proxyModel );
 
 //    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
