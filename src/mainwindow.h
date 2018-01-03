@@ -18,6 +18,7 @@
 
 #include "creader.h"
 #include "cdbase.h"
+#include "csmtp.h"
 
 
 
@@ -128,8 +129,11 @@ public:
     QMessageBox::StandardButtons guiQuestion(QString s, QMessageBox::StandardButtons b=QMessageBox::Ok);
     float tablePurgeIntervalHours;
     CLapsTableModel *lapsTableModel;
+    QSortFilterProxyModel *lapsProxyModel;
 private:
+    CSmtp *smtp;
     CMembershipTableModel *membershipTableModel;
+    QSortFilterProxyModel *membershipProxyModel;
     CActiveRidersTableModel *activeRidersTableModel;
     QSortFilterProxyModel *activeRidersProxyModel;
     QTimer clockTimer;
@@ -175,6 +179,7 @@ private slots:
     void onApplySettingsPushButtonClicked(void);
     void onSaveSettingsPushButtonClicked(void);
     void onTrackAntenna1PowerComboBoxActivated(int);
+    void onMailSent(QString);
 };
 
 #endif // MAINWINDOW_H

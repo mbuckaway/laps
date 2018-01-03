@@ -930,8 +930,11 @@ MainWindow::MainWindow(QWidget *parent) :
     trackReader = NULL;
     deskReader = NULL;
     membershipTableModel = NULL;
+    membershipProxyModel = NULL;
     lapsTableModel = NULL;
+    lapsProxyModel = NULL;
     activeRidersTableModel = NULL;
+    activeRidersProxyModel = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
     if (testMode)
         QCoreApplication::setApplicationVersion("0.1-TestMode");
@@ -1072,15 +1075,21 @@ MainWindow::MainWindow(QWidget *parent) :
     // Initialize membership table
 
     membershipTableModel = new CMembershipTableModel(this);
-    ui->namesTableView->setModel(membershipTableModel);
+    membershipProxyModel = new QSortFilterProxyModel;
+    membershipProxyModel->setSourceModel(membershipTableModel);
+    membershipProxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+
+    ui->namesTableView->setModel(membershipProxyModel);
     ui->namesTableView->setColumnWidth(0, 150);
     ui->namesTableView->setColumnWidth(1, 150);
     ui->namesTableView->setColumnWidth(2, 200);
     ui->namesTableView->setColumnWidth(3, 200);
     ui->namesTableView->setColumnWidth(4, 200);
 
+    ui->namesTableView->setAlternatingRowColors(true);
     ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
     ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->namesTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
     ui->namesTableView->setSortingEnabled(true);
 
 
@@ -1093,7 +1102,11 @@ MainWindow::MainWindow(QWidget *parent) :
     // Initialize laps table
 
     lapsTableModel = new CLapsTableModel(this);
-    ui->lapsTableView->setModel(lapsTableModel);
+    lapsProxyModel = new QSortFilterProxyModel;
+    lapsProxyModel->setSourceModel(lapsTableModel);
+    lapsProxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+
+    ui->lapsTableView->setModel(lapsProxyModel);
     ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
     ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
     ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
@@ -1104,23 +1117,19 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->lapsTableView->setAlternatingRowColors(true);
     ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
     ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->lapsTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
     ui->lapsTableView->setSortingEnabled(true);
     ui->lapsTableView->setEnabled(false);   // will be enabled when connected to reader
-
-//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
 
     // Configure active riders table
 
     activeRidersTableModel = new CActiveRidersTableModel(this);
-
     activeRidersProxyModel = new QSortFilterProxyModel;
     activeRidersProxyModel->setSourceModel(activeRidersTableModel);
+    activeRidersProxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
 
     ui->activeRidersTableView->setModel(activeRidersProxyModel);
-
-//    ui->activeRidersTableView->setModel(activeRidersTableModel);
-
     ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
     ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
     ui->activeRidersTableView->setColumnWidth(AT_KM, CW_KM);
@@ -1136,15 +1145,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setAlternatingRowColors(true);
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
     ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
+    ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
     ui->activeRidersTableView->setSortingEnabled(true);
-    //ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
-//    ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);
-//    ui->activeRidersTableView->reset();
-//    ui->activeRidersTableView->show();
+    ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
 
-
-
-//    connect(ui->lapsTableSortedCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortedCheckBoxClicked(bool)));
 
 
     // Start timer that will purge old riders from activeRidersTable
@@ -1187,19 +1191,29 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
 
-//    QString from("icunning015@gmail.com");
-//    QString to("icunning015@gmail.com");
-//    QString subject("subject");
-//    QString body("body");
+    qDebug() << ui->smtpUsernameLineEdit->text() << ui->smtpPasswordLineEdit->text() << ui->smtpServerLineEdit->text() << ui->smtpPortLineEdit->text().toInt();
+    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+    connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
 
-//    Smtp smtp(from, to, subject, body );
+    QString from("icunning015@gmail.com");
+    QString to("icunningham@robarts.ca");
+//    QString to("mark.buckaway@forestcityvelodrome.ca");
+    QString subject("Track cycling report");
+    QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n");
 
+    body.append("\nMessage body goes here.\n");
+
+
+//    smtp->sendMail(from, to, subject, body);
 
 
 }
 
 
 
+void MainWindow::onMailSent(QString s) {
+    qDebug() << "mailSent" << s;
+}
 
 
 
@@ -1234,6 +1248,11 @@ void MainWindow::initializeSettingsPanel(void) {
 
     ui->deskReaderIpLineEdit->setText(settings.value("deskReaderIp").toString());
 
+    ui->smtpUsernameLineEdit->setText(settings.value("smtpUsername").toString());
+    ui->smtpPasswordLineEdit->setText(settings.value("smtpPassword").toString());
+    ui->smtpServerLineEdit->setText(settings.value("smtpServer").toString());
+    ui->smtpPortLineEdit->setText(settings.value("smtpPort").toString());
+
 }
 
 
@@ -1264,6 +1283,11 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("trackTransmitPower2", ui->deskAntenna2PowerComboBox->currentText());
     settings.setValue("trackTransmitPower3", ui->deskAntenna3PowerComboBox->currentText());
     settings.setValue("trackTransmitPower4", ui->deskAntenna4PowerComboBox->currentText());
+
+    settings.setValue("smtpUsername", ui->smtpUsernameLineEdit->text());
+    settings.setValue("smtpPassword", ui->smtpPasswordLineEdit->text());
+    settings.setValue("smtpServer", ui->smtpServerLineEdit->text());
+    settings.setValue("smtpPort", ui->smtpPortLineEdit->text().toInt());
 }
 
 
