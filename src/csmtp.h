@@ -27,11 +27,12 @@ class CSmtp : public QObject
 
 
 public:
-    CSmtp( const QString &user, const QString &pass, const QString &host, int port = 465, int timeout = 30000 );
+    CSmtp(const QString &user, const QString &pass, const QString &host, int port = 465, int timeout = 30000);
     ~CSmtp();
-    void sendMail( const QString &from, const QString &to, const QString &subject, const QString &body );
+    void sendMail(const QString &from, const QString &to, const QString &subject, const QString &body);
 signals:
-    void status( const QString &);
+    void status(const QString &);
+    void completed(void);
 private slots:
     void stateChanged(QAbstractSocket::SocketState socketState);
     void errorReceived(QAbstractSocket::SocketError socketError);

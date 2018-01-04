@@ -174,13 +174,15 @@ private slots:
     void onNewTrackTag(CTagInfo);
     void onNewDeskTag(CTagInfo);
     void onNewLogMessage(QString);
-    void onLapsTableSortedCheckBoxClicked(bool);
-    void onActiveRidersTableSortedCheckBoxClicked(bool);
+    void onLapsTableSortEnableCheckBoxClicked(bool);
+    void onActiveRidersTableSortEnableCheckBoxClicked(bool);
 //    void onAntenna1ComboBoxActivated(int);
     void onApplySettingsPushButtonClicked(void);
     void onSaveSettingsPushButtonClicked(void);
     void onTrackAntenna1PowerComboBoxActivated(int);
     void onMailSent(QString);
+    void onEMailTestPushButtonClicked(void);
+    void onTestMailSent(void);
 };
 
 #endif // MAINWINDOW_H

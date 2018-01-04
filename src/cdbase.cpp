@@ -116,7 +116,7 @@ int CMembershipDbase::add(const QString &tagId, const QString &firstName, const 
     query.bindValue(":firstName", firstName);
     query.bindValue(":lastName", lastName);
     query.bindValue(":membershipNumber", membershipNumber);
-    query.bindValue(":caRegistration", caRegistration);
+    query.bindValue(":caRegistration", caRegistration.toUpper());
     query.bindValue(":eMail", eMail);
     if (!query.exec()) {
         errorTextVal = "Could not add to database.  Check that tagId, name, track membership number anc cycling association registration number are unique.";
@@ -139,7 +139,7 @@ int CMembershipDbase::update(const QString &tagId, const QString &firstName, con
     query.bindValue(":firstName", firstName);
     query.bindValue(":lastName", lastName);
     query.bindValue(":membershipNumber", membershipNumber);
-    query.bindValue(":caRegistration", caRegistration);
+    query.bindValue(":caRegistration", caRegistration.toUpper());
     query.bindValue(":eMail", eMail);
     if (!query.exec()) {
         errorTextVal = "Could not update database.  Check that tagId, name, track membership number and cycling association registration are unique.";

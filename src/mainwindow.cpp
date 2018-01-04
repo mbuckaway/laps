@@ -96,7 +96,7 @@
 // - alltime best 40k
 
 
-int testMode = true;
+int testMode = false;//true;
 
 
 
@@ -519,7 +519,7 @@ void CLapsTableModel::purgeTable(void) {
 
     for (int i=timeStampList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - timeStampList[i]) / 1000000) / 3600.;
-        if (inactiveHours >= (2 * mainWindow->tablePurgeIntervalHours)) {
+        if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
             removeRows(i, 1);
         }
     }
@@ -841,11 +841,11 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             // Add a comment
 
             if (rider->firstLap)
-                rider->comment = "First lap";
+                rider->comment = "First crossing";
             else if (rider->onBreak)
                 rider->comment = "On break";
             else if (rider->firstLapAfterBreak)
-                rider->comment = "First lap after break";
+                rider->comment = "First crossing after break";
             else {
                 rider->comment.clear();
             }
@@ -913,7 +913,7 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     QList<CRider> purgedRiders;
     for (int i=activeRidersList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
-        if (inactiveHours >= (2. * mainWindow->tablePurgeIntervalHours)) {
+        if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
             purgedRiders.append(activeRidersList[i]);
             removeRows(i, 1);
         }
@@ -1091,8 +1091,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->namesTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
     ui->namesTableView->setSortingEnabled(true);
 
-
-    // Disable dbase tab if database not open
+    // Disable membershipDbase tab if database not open
 
     if (!membershipDbase.isOpen())
         ui->tabWidget->setTabEnabled(3, false);
@@ -1116,9 +1115,11 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->lapsTableView->setAlternatingRowColors(true);
     ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
     ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->lapsTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
-    ui->lapsTableView->setSortingEnabled(true);
+//    ui->lapsTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
     ui->lapsTableView->setEnabled(false);   // will be enabled when connected to reader
+
+    ui->lapsTableSortEnableCheckBox->hide();
+//    connect(ui->lapsTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onLapsTableSortEnableCheckBoxClicked(bool)));
 
 
     // Configure active riders table
@@ -1144,21 +1145,25 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setAlternatingRowColors(true);
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
     ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
-    ui->activeRidersTableView->setSortingEnabled(true);
+    //ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
+    //ui->activeRidersTableView->setSortingEnabled(false);
     ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
 
+//    ui->activeRidersTableSortEnableCheckBox->hide();
+    connect(ui->activeRidersTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortEnableCheckBoxClicked(bool)));
 
 
     // Start timer that will purge old riders from activeRidersTable
 
     connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
-    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
+    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.) / 4);
     purgeActiveRidersListTimer.start();
 
 
     connect(ui->applySettingsPushButton, SIGNAL(clicked()), this, SLOT(onApplySettingsPushButtonClicked()));
     connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
+
+    connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
 
 
     // Move CReader objects to separate threads and start
@@ -1302,6 +1307,30 @@ void MainWindow::onApplySettingsPushButtonClicked(void) {
 
 
 
+void MainWindow::onEMailTestPushButtonClicked(void) {
+    qDebug() << "Sending a test email message to" << ui->emailTestToLineEdit->text();
+
+    CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+
+//    connect(smtp, SIGNAL(status(QString)), this, SLOT(onTestMailSent(QString)));
+    connect(smtp, SIGNAL(completed()), this, SLOT(onTestMailSent()));
+
+    QString body("This is test email message.");
+
+    body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
+
+    smtp->sendMail(ui->emailFromLineEdit->text(), ui->emailTestToLineEdit->text(), ui->emailTestSubjectLineEdit->text(), body);
+
+}
+
+
+void MainWindow::onTestMailSent(void) {
+    qDebug() << "testmailsent";
+    QMessageBox::information(this, "EMail Test", "Email message sent");
+}
+
+
+
 void MainWindow::onClockTimerTimeout(void) {
     ui->rightTitleLabel->setText(QDateTime::currentDateTime().toString("ddd MMMM d yyyy  hh:mm:ss"));
 }
@@ -1333,13 +1362,11 @@ void MainWindow::onPurgeActiveRidersList(void) {
 
 
 void MainWindow::onMailSent(QString s) {
-//    qDebug() << "onMailSent" << s << purgedRiders.size();
     ui->reportsPendingLineEdit->setText(s.setNum(purgedRiders.size()));
 
     if (purgedRiders.size() == 0) return;
 
     CRider *rider = &purgedRiders[0];
-//    qDebug() << rider->name << rider->lapCount;
 
     if (rider->lapCount == 0) {
         purgedRiders.removeAt(0);
@@ -1479,11 +1506,33 @@ void MainWindow::onReaderConnected(void) {
 
 
 
-void MainWindow::onLapsTableSortedCheckBoxClicked(bool /*state*/) {
+void MainWindow::onLapsTableSortEnableCheckBoxClicked(bool state) {
+    if (state) {
+//        lapsProxyModel->setDynamicSortFilter(true);
+//        ui->lapsTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
+//        ui->lapsTableView->setSortingEnabled(true);
+    }
+    else {
+//        lapsProxyModel->setDynamicSortFilter(false);
+//        ui->lapsTableView->setSortingEnabled(false);
+//        ui->lapsTableView->sortByColumn(3, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
+    }
 }
 
 
-void MainWindow::onActiveRidersTableSortedCheckBoxClicked(bool /*state*/) {
+
+void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
+    qDebug() << "activeRidersSort" << state;
+    if (state) {
+        activeRidersProxyModel->setDynamicSortFilter(true);
+        ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
+        ui->activeRidersTableView->setSortingEnabled(true);
+    }
+    else {
+        ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
+        activeRidersProxyModel->setDynamicSortFilter(false);
+        ui->activeRidersTableView->setSortingEnabled(false);
+    }
 }
 
 

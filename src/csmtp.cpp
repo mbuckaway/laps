@@ -19,7 +19,7 @@ CSmtp::CSmtp( const QString &user, const QString &pass, const QString &host, int
     connect(socket, SIGNAL(connected()), this, SLOT(connected() ) );
     connect(socket, SIGNAL(error(QAbstractSocket::SocketError)), this,SLOT(errorReceived(QAbstractSocket::SocketError)));
     connect(socket, SIGNAL(stateChanged(QAbstractSocket::SocketState)), this, SLOT(stateChanged(QAbstractSocket::SocketState)));
-    connect(socket, SIGNAL(disconnected()), this,SLOT(disconnected()));
+    connect(socket, SIGNAL(disconnected()), this, SLOT(disconnected()));
 
 
     this->user = user;
@@ -64,14 +64,14 @@ CSmtp::~CSmtp()
 
 void CSmtp::stateChanged(QAbstractSocket::SocketState socketState)
 {
-    qDebug() <<"StateChanged " << socketState;
+    qDebug() << "StateChanged" << socketState;
 }
 
 
 
 void CSmtp::errorReceived(QAbstractSocket::SocketError socketError)
 {
-    qDebug() << "Error " <<socketError;
+    qDebug() << "Error" << socketError;
 }
 
 
@@ -79,13 +79,14 @@ void CSmtp::errorReceived(QAbstractSocket::SocketError socketError)
 void CSmtp::disconnected()
 {
     qDebug() <<"Disconneted";
+    emit completed();
 }
 
 
 
 void CSmtp::connected()
 {
-    qDebug() << "Connected ";
+    qDebug() << "Connected";
 }
 
 
@@ -107,12 +108,12 @@ void CSmtp::readyRead()
     responseLine.truncate( 3 );
 
     qDebug() << "Server response code:" <<  responseLine;
-    qDebug() << "Server response: " << response;
+    qDebug() << "Server response:" << response;
 
     if ( state == Init && responseLine == "220" )
     {
         // banner was okay, let's go on
-        *t << "EHLO localhost" <<"\r\n";
+        *t << "EHLO localhost" << "\r\n";
         t->flush();
 
         state = HandShake;

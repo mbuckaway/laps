@@ -8,7 +8,7 @@
 // 3. Start this application and look for printed info on tags in antenna zone.
 // 4. Adjust antenna power and find minimum power that sees tags when held at waist height while standing on start line.
 
-bool setupMode = true;
+bool setupMode = false;//true;
 
 
 int main(int argc, char *argv[])
