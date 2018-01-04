@@ -33,7 +33,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         return 1;
     }
 
-    bool showContents = false;
+    bool showContents = true;//false;
 
     // Make sure table exists and create as necessary
 
@@ -41,7 +41,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
     if (!tableList.contains("membershipTable")) {
         QSqlQuery query(dBase);
         qDebug() << "Creating new membershipTable in" << filename;
-        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, caRegistration VARCHAR(20) UNIQUE, eMail VARCHAR(20))");
+        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, caRegistration VARCHAR(20) UNIQUE, eMail VARCHAR(20), sendReports INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << "Error creating new membershipTable:" << errorTextVal;
@@ -66,8 +66,9 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         int idMembership = query.record().indexOf("membershipNumber");
         int idcaRegistration = query.record().indexOf("caRegistration");
         int idEmail = query.record().indexOf("eMail");
+        int idSendReports = query.record().indexOf("sendReports");
         while (query.next()) {
-            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%s caRegistration=%s eMail=%s", query.value(id).toString().toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toString().toLatin1().data(), query.value(idcaRegistration).toString().toLatin1().data(), query.value(idEmail).toString().toLatin1().data());
+            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%s caRegistration=%s eMail=%s sendReports=%d", query.value(id).toString().toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toString().toLatin1().data(), query.value(idcaRegistration).toString().toLatin1().data(), query.value(idEmail).toString().toLatin1().data(), query.value(idSendReports).toInt());
         }
     }
 
@@ -451,7 +452,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         return errorVal;
     }
 
-    bool showContents = false;
+    bool showContents = true;//false;
 
     // Make sure table exists and create as necessary
 
@@ -459,7 +460,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
     if (!tableList.contains("lapsTable")) {
         QSqlQuery query(dBase);
         qDebug() << "Creating new lapsTable in " + filename;
-        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER(10), lapsec FLOAT(10), lapm FLOAT(10))");
+        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER(10), lapsec FLOAT(10), lapm FLOAT(10), reportStatus INTEGER(5))");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             errorVal = 2;
@@ -482,6 +483,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         int idDateTime = query.record().indexOf("dateTime");
         int idLapSec = query.record().indexOf("lapsec");
         int idLapM = query.record().indexOf("lapm");
+        int idReportStatus = query.record().indexOf("reportStatus");
         while (query.next()) {
             int year;
             int month;
@@ -493,7 +495,8 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
             int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
             float lapSec = query.value(idLapSec).toFloat();
             float lapM = query.value(idLapM).toFloat();
-            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM);
+            int reportStatus = query.value(idReportStatus).toInt();
+            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
         }
     }
 
