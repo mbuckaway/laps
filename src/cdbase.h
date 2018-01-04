@@ -10,21 +10,35 @@
 
 
 
+class CMembershipInfo {
+public:
+    QString tagId;
+    QString firstName;
+    QString lastName;
+    QString membershipNumber;
+    QString caRegistration;
+    QString eMail;
+    bool sendReports;
+};
+
+
+
 class CMembershipDbase
 {
 public:
     CMembershipDbase();
     int open(const QString &filename, const QString &username, const QString &password);
     void close(void);
-    int add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &email);
-    int update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &email);
+    int add(const CMembershipInfo &info);
+    int update(const CMembershipInfo &info);
     int removeTagId(const QString &tagId);
     int findNameFromTagId(const QString &tagId, QString *firstName, QString *lastName);
     int findTagIdFromName(const QString &firstName, const QString &lastName, QString *tagId);
     int getIdFromTagId(const QString &tagId);
     int getIdFromName(const QString &firstName, const QString &lastName);
     int getIdFromMembershipNumber(const QString &membershipNumber);
-    int getAllFromId(int id, QString *tagId, QString *firstName, QString *lastName, QString *membershipNumber, QString *caRegistration, QString *email);
+    int getAllFromId(int id, CMembershipInfo *info);
+    int getAllList(QList<CMembershipInfo> *infoList);
     int namesRowCount(void);
     int error(void);
     bool isOpen(void);
@@ -43,9 +57,10 @@ public:
     int open(const QString &filename, const QString &username, const QString &password);
     void close(void);
     int addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float sec, float lapm);
-    QList<float> getLapSec(const QString &tagId, int yearStart=0, int monthStart=0, int dayStart=0, int yearEnd=0, int monthEnd=0, int dayEnd=0);
+    int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
     int getStats(const QString &tagId, CRider *rider);
     int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats);
+    int getLapsNotReported(const QString &tagId, QList<int> *unreportedLapsList);
     unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
     void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);

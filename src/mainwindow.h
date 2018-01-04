@@ -34,18 +34,14 @@ class MainWindow;
 class MainWindow;
 
 
+
 class CMembershipTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     CMembershipTableModel(QObject *parent);
-    QStringList tagIdList;
-    QStringList firstNameList;
-    QStringList lastNameList;
-    QStringList membershipList;
-    QStringList caRegistrationList;
-    QStringList eMailList;
-    bool add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membership, const QString &caRegistration, const QString &email);
-    bool update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membership, const QString &caRegistration, const QString &email);
+    QList<CMembershipInfo> membershipInfoList;
+    bool add(const CMembershipInfo &info);
+    bool update(const CMembershipInfo &info);
     bool remove(const QString &tagId);
     int rowCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
     int columnCount(const QModelIndex &parent=QModelIndex()) const Q_DECL_OVERRIDE;
@@ -151,6 +147,7 @@ private:
     QSettings settings;
     void initializeSettingsPanel(void);
     bool tagInDbase;
+    void sendReports(void);
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:

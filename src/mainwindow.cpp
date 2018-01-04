@@ -108,12 +108,7 @@ int testMode = false;//true;
 //
 CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableModel(parent) {
     mainWindow = (MainWindow *)parent;
-    tagIdList.clear();
-    firstNameList.clear();
-    lastNameList.clear();
-    membershipList.clear();
-    caRegistrationList.clear();
-    eMailList.clear();
+    membershipInfoList.clear();
 
     QSqlQuery query(mainWindow->membershipDbase.dBase);
     query.prepare("select * from membershipTable");
@@ -126,30 +121,35 @@ CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableMo
     int idMembership = query.record().indexOf("membershipNumber");
     int idCaRegistration = query.record().indexOf("caRegistration");
     int idEmail = query.record().indexOf("eMail");
+    int idSendReports = query.record().indexOf("sendReports");
     while (query.next()) {
-        tagIdList.append(query.value(idTagId).toString());
-        firstNameList.append(query.value(idFirst).toString());
-        lastNameList.append(query.value(idLast).toString());
-        membershipList.append(query.value(idMembership).toString());
-        caRegistrationList.append(query.value(idCaRegistration).toString());
-        eMailList.append(query.value(idEmail).toString());
+        CMembershipInfo info;
+        info.tagId = query.value(idTagId).toString();
+        info.firstName = query.value(idFirst).toString();
+        info.lastName = query.value(idLast).toString();
+        info.membershipNumber = query.value(idMembership).toString();
+        info.caRegistration = query.value(idCaRegistration).toString();
+        info.eMail = query.value(idEmail).toString();
+        info.sendReports = query.value(idSendReports).toInt();
+        membershipInfoList.append(info);
     }
     QModelIndex topLeft = index(0, 0);
-    QModelIndex bottomRight = index(tagIdList.size() - 1, 0);
+    QModelIndex bottomRight = index(membershipInfoList.size() - 1, 0);
     emit dataChanged(topLeft, bottomRight);
 }
 
 
 
-bool CMembershipTableModel::add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
+bool CMembershipTableModel::add(const CMembershipInfo &info) {
     int row = rowCount();
     insertRows(row, 1);
-    setData(index(row, 0), tagId, Qt::EditRole);
-    setData(index(row, 1), firstName, Qt::EditRole);
-    setData(index(row, 2), lastName, Qt::EditRole);
-    setData(index(row, 3), membershipNumber, Qt::EditRole);
-    setData(index(row, 4), caRegistration.toUpper(), Qt::EditRole);
-    setData(index(row, 5), eMail, Qt::EditRole);
+    setData(index(row, 0), info.tagId, Qt::EditRole);
+    setData(index(row, 1), info.firstName, Qt::EditRole);
+    setData(index(row, 2), info.lastName, Qt::EditRole);
+    setData(index(row, 3), info.membershipNumber, Qt::EditRole);
+    setData(index(row, 4), info.caRegistration.toUpper(), Qt::EditRole);
+    setData(index(row, 5), info.eMail, Qt::EditRole);
+    setData(index(row, 6), info.sendReports, Qt::EditRole);
     QModelIndex topLeft = index(row, 0);
     QModelIndex bottomRight = index(row, 5);
     emit dataChanged(topLeft, bottomRight);
@@ -158,14 +158,25 @@ bool CMembershipTableModel::add(const QString &tagId, const QString &firstName, 
 
 
 
-bool CMembershipTableModel::update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
-    int row = tagIdList.indexOf(tagId);
-    setData(index(row, 0), tagId, Qt::EditRole);
-    setData(index(row, 1), firstName, Qt::EditRole);
-    setData(index(row, 2), lastName, Qt::EditRole);
-    setData(index(row, 3), membershipNumber, Qt::EditRole);
-    setData(index(row, 4), caRegistration.toUpper(), Qt::EditRole);
-    setData(index(row, 5), eMail, Qt::EditRole);
+bool CMembershipTableModel::update(const CMembershipInfo &info) {
+    int row = -1;
+    for (int i=0; i<membershipInfoList.size(); i++) {
+        if (membershipInfoList[i].tagId == info.tagId) {
+            row = i;
+            break;
+        }
+    }
+    if (row < 0) {
+        mainWindow->guiCritical("Could not find tagId in CMembershipInfoList in CMembershipTableModel::update");
+        return false;
+    }
+    setData(index(row, 0), info.tagId, Qt::EditRole);
+    setData(index(row, 1), info.firstName, Qt::EditRole);
+    setData(index(row, 2), info.lastName, Qt::EditRole);
+    setData(index(row, 3), info.membershipNumber, Qt::EditRole);
+    setData(index(row, 4), info.caRegistration.toUpper(), Qt::EditRole);
+    setData(index(row, 5), info.eMail, Qt::EditRole);
+    setData(index(row, 6), info.sendReports, Qt::EditRole);
     QModelIndex topLeft = index(row, 0);
     QModelIndex bottomRight = index(row, 5);
     emit dataChanged(topLeft, bottomRight);
@@ -175,7 +186,17 @@ bool CMembershipTableModel::update(const QString &tagId, const QString &firstNam
 
 
 bool CMembershipTableModel::remove(const QString &tagId) {
-    int row = tagIdList.indexOf(tagId);
+    int row = -1;
+    for (int i=0; i<membershipInfoList.size(); i++) {
+        if (membershipInfoList[i].tagId == tagId) {
+            row = i;
+            break;
+        }
+    }
+    if (row < 0) {
+        mainWindow->guiCritical("Could not find tagId in CMembershipInfoList in CMembershipTableModel::remove");
+        return false;
+    }
     if (!removeRows(row, 1))
         return false;
     QModelIndex topLeft = index(row, 0);
@@ -189,12 +210,7 @@ bool CMembershipTableModel::remove(const QString &tagId) {
 bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
     beginInsertRows(QModelIndex(), position, position + rows - 1);
     for (int row = 0; row < rows; ++row) {
-        tagIdList.insert(position, QString());
-        firstNameList.insert(position, QString());
-        lastNameList.insert(position, QString());
-        membershipList.insert(position, QString());
-        caRegistrationList.insert(position, QString());
-        eMailList.insert(position, QString());
+        membershipInfoList.insert(position, CMembershipInfo());
     }
     endInsertRows();
     QModelIndex topLeft = index(position, 0);
@@ -208,12 +224,7 @@ bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex
 bool CMembershipTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
     beginRemoveRows(QModelIndex(), position, position + rows - 1);
     for (int row = 0; row < rows; ++row) {
-        tagIdList.removeAt(position);
-        firstNameList.removeAt(position);
-        lastNameList.removeAt(position);
-        membershipList.removeAt(position);
-        caRegistrationList.removeAt(position);
-        eMailList.removeAt(position);
+        membershipInfoList.removeAt(position);
     }
     endRemoveRows();
     return true;
@@ -222,14 +233,13 @@ bool CMembershipTableModel::removeRows(int position, int rows, const QModelIndex
 
 
 int CMembershipTableModel::rowCount(const QModelIndex &/*parent*/) const {
-    return tagIdList.size();
-
+    return membershipInfoList.size();
 }
 
 
 
 int CMembershipTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 6;
+    return 7;
 }
 
 
@@ -242,17 +252,19 @@ QVariant CMembershipTableModel::data(const QModelIndex &index, int role) const {
     case Qt::DisplayRole:
         switch (col) {
         case 0:
-            return tagIdList[row];
+            return membershipInfoList[row].tagId;
         case 1:
-            return firstNameList[row];
+            return membershipInfoList[row].firstName;
         case 2:
-            return lastNameList[row];
+            return membershipInfoList[row].lastName;
         case 3:
-            return membershipList[row];
+            return membershipInfoList[row].membershipNumber;
         case 4:
-            return caRegistrationList[row];
+            return membershipInfoList[row].caRegistration;
         case 5:
-            return eMailList[row];
+            return membershipInfoList[row].eMail;
+        case 6:
+            return membershipInfoList[row].sendReports;
         }
         break;
     case Qt::FontRole:
@@ -285,6 +297,8 @@ QVariant CMembershipTableModel::headerData(int section, Qt::Orientation orientat
                 return QString("CA Registration");
             case 5:
                 return QString("eMail");
+            case 6:
+                return QString("SendReports");
             }
         }
     }
@@ -299,22 +313,25 @@ bool CMembershipTableModel::setData(const QModelIndex &index, const QVariant &va
     if (role == Qt::EditRole) {
         switch (col) {
         case 0:
-            tagIdList[row] = value.toString();
+            membershipInfoList[row].tagId = value.toString();
             return true;
         case 1:
-            firstNameList[row] = value.toString();
+            membershipInfoList[row].firstName = value.toString();
             return true;
         case 2:
-            lastNameList[row] = value.toString();
+            membershipInfoList[row].lastName = value.toString();
             return true;
         case 3:
-            membershipList[row] = value.toString();
+            membershipInfoList[row].membershipNumber = value.toString();
             return true;
         case 4:
-            caRegistrationList[row] = value.toString();
+            membershipInfoList[row].caRegistration = value.toString();
             return true;
         case 5:
-            eMailList[row] = value.toString();
+            membershipInfoList[row].eMail = value.toString();
+            return true;
+        case 6:
+            membershipInfoList[row].sendReports = value.toBool();
             return true;
         }
     }
@@ -773,16 +790,11 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             QString name;
             if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
-                QString tagId;
-                QString firstName;
-                QString lastName;
-                QString membershipNumber;
-                QString caRegistration;
-                QString email;
+                CMembershipInfo info;
                 int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
                 if (id > 0) {
-                    mainWindow->membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &email);
-                    name = firstName + " " + lastName;
+                    mainWindow->membershipDbase.getAllFromId(id, &info);
+                    name = info.firstName + " " + info.lastName;
                 }
                 else {
                     name = tagInfo.tagId;
@@ -914,7 +926,7 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     for (int i=activeRidersList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
         if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
-            purgedRiders.append(activeRidersList[i]);
+//            purgedRiders.append(activeRidersList[i]);
             removeRows(i, 1);
         }
     }
@@ -1084,6 +1096,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->namesTableView->setColumnWidth(2, 200);
     ui->namesTableView->setColumnWidth(3, 200);
     ui->namesTableView->setColumnWidth(4, 200);
+    ui->namesTableView->setColumnWidth(5, 200);
 
     ui->namesTableView->setAlternatingRowColors(true);
     ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
@@ -1194,7 +1207,7 @@ MainWindow::MainWindow(QWidget *parent) :
         deskReaderThread->start();
     }
 
-
+    sendReports();
 }
 
 
@@ -1337,6 +1350,49 @@ void MainWindow::onClockTimerTimeout(void) {
 
 
 
+
+// *********************************************************************************************
+//
+// sendReports()
+// Look through lapsDbase for laps that should be reported but have not been
+
+void MainWindow::sendReports(void) {
+
+    // Get a copy of membershipDbase
+
+    QList<CMembershipInfo> infoList;
+    membershipDbase.getAllList(&infoList);
+
+    // Loop through members and make a list of laps that have not been reported but should be
+
+    for (int i=0; i<infoList.size(); i++) {
+        qDebug() << infoList[i].tagId << infoList[i].sendReports;
+        if (infoList[i].sendReports && !infoList[i].eMail.isEmpty()) {
+            QList<int> lapsNotReportedList;
+            int rc = lapsDbase.getLapsNotReported(infoList[i].tagId, &lapsNotReportedList);
+            qDebug() << "  " << lapsNotReportedList;
+
+            // For each lap in list, check date and calculate stats for selected periods
+
+            QString tagId;
+            unsigned int dateTime;
+            float lapSec;
+            float lapM;
+            int reportStatus;
+            for (int j=0; j<lapsNotReportedList.size(); j++) {
+                lapsDbase.getLap(lapsNotReportedList[j], &tagId, &dateTime, &lapSec, &lapM, &reportStatus);
+                qDebug() << "  " << lapsNotReportedList[j] << tagId << dateTime << reportStatus;
+
+                // Get a list of lap ids
+            }
+        }
+    }
+
+}
+
+
+
+
 // *********************************************************************************************
 // Member functions related to processing tags received
 //
@@ -1356,7 +1412,7 @@ void MainWindow::onPurgeActiveRidersList(void) {
 
     // Send first message here, subsequent messages sent from onMailSent
 
-    emit onMailSent(QString());
+    //emit onMailSent(QString());
 }
 
 
@@ -1380,21 +1436,13 @@ void MainWindow::onMailSent(QString s) {
     // If email is in database, compose message and send
 
     if (ui->emailSendReportsCheckBox->isChecked() && (rider->lapCount > 0)) {
+        CMembershipInfo info;
         int id = membershipDbase.getIdFromTagId(rider->tagId);
-        QString tagId;
-        QString firstName;
-        QString lastName;
-        QString membershipNumber;
-        QString caRegistration;
-        QString eMail;
-
-        // Get email address
-
         if (id > 0) {
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
+            membershipDbase.getAllFromId(id, &info);
         }
 
-        if (!eMail.isEmpty()) {
+        if (!info.eMail.isEmpty()) {
 
             // Create smtp client
 
@@ -1402,11 +1450,10 @@ void MainWindow::onMailSent(QString s) {
             connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
 
             QString s;
-            QString to(eMail);
             QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
-            body.append("Name: " + firstName + " " + lastName + "\n");
-            body.append("TagId: " + tagId + "\n");
-            body.append("MembershipNumber: " + membershipNumber + "\n");
+            body.append("Name: " + info.firstName + " " + info.lastName + "\n");
+            body.append("TagId: " + info.tagId + "\n");
+            body.append("MembershipNumber: " + info.membershipNumber + "\n");
             body.append("Date: " + QDate::currentDate().toString() + "\n");
             body.append("Laps: " + s.setNum(rider->lapCount) + "\n");
             body.append("Distance: " + s.setNum(rider->totalM / 1000.) + " km\n");
@@ -1419,10 +1466,9 @@ void MainWindow::onMailSent(QString s) {
 
             //    QString to("mark.buckaway@forestcityvelodrome.ca");
 
-            qDebug() << ui->emailFromLineEdit->text() << to << ui->emailSubjectLineEdit->text() << body;
+            qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
-            smtp->sendMail(ui->emailFromLineEdit->text(), to, ui->emailSubjectLineEdit->text(), body);
-//            qDebug() << "sent";
+            smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
         }
 
     }
@@ -1589,16 +1635,19 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     // If tagId contains entry, search based on only that.
     // If found, update fields.  Otherwise clear fields.
 
+    CMembershipInfo info;
+
     if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && membershipNumber.isEmpty()) {
         int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
         if (id > 0) {
             tagInDbase = true;
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
-            ui->deskFirstNameLineEdit->setText(firstName);
-            ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(caRegistration);
-            ui->deskEMailLineEdit->setText(eMail);
+            membershipDbase.getAllFromId(id, &info);
+            ui->deskFirstNameLineEdit->setText(info.firstName);
+            ui->deskLastNameLineEdit->setText(info.lastName);
+            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
+            ui->deskEMailLineEdit->setText(info.eMail);
+            ui->sendReportsCheckBox->setChecked(info.sendReports);
         }
         else {
             tagInDbase = false;
@@ -1607,6 +1656,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
             ui->deskMembershipNumberLineEdit->clear();
             ui->deskCaRegistrationLineEdit->clear();
             ui->deskEMailLineEdit->clear();
+            ui->sendReportsCheckBox->setChecked(false);
         }
     }
 
@@ -1616,13 +1666,14 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
         int id = membershipDbase.getIdFromName(firstName, lastName);
         if (id > 0) {
             tagInDbase = true;
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
-            ui->deskTagIdLineEdit->setText(tagId);
-            ui->deskFirstNameLineEdit->setText(firstName);
-            ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(caRegistration);
-            ui->deskEMailLineEdit->setText(eMail);
+            membershipDbase.getAllFromId(id, &info);
+            ui->deskTagIdLineEdit->setText(info.tagId);
+            ui->deskFirstNameLineEdit->setText(info.firstName);
+            ui->deskLastNameLineEdit->setText(info.lastName);
+            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
+            ui->deskEMailLineEdit->setText(info.eMail);
+            ui->sendReportsCheckBox->setChecked(info.sendReports);
         }
         else {
             tagInDbase = false;
@@ -1635,13 +1686,14 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
         int id = membershipDbase.getIdFromMembershipNumber(membershipNumber);
         if (id > 0) {
             tagInDbase = true;
-            membershipDbase.getAllFromId(id, &tagId, &firstName, &lastName, &membershipNumber, &caRegistration, &eMail);
-            ui->deskTagIdLineEdit->setText(tagId);
-            ui->deskFirstNameLineEdit->setText(firstName);
-            ui->deskLastNameLineEdit->setText(lastName);
-            ui->deskMembershipNumberLineEdit->setText(membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(caRegistration);
-            ui->deskEMailLineEdit->setText(eMail);
+            membershipDbase.getAllFromId(id, &info);
+            ui->deskTagIdLineEdit->setText(info.tagId);
+            ui->deskFirstNameLineEdit->setText(info.firstName);
+            ui->deskLastNameLineEdit->setText(info.lastName);
+            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
+            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
+            ui->deskEMailLineEdit->setText(info.eMail);
+            ui->sendReportsCheckBox->setChecked(info.sendReports);
         }
         else {
             tagInDbase = false;
@@ -1656,23 +1708,31 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Check whether tagId is already in dbase
 
-    int rc = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
-    if (rc != 0) {
+    int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
+    if (id != 0) {
         guiCritical("Tag \"" + ui->deskTagIdLineEdit->text().toLatin1() + "\" already in database");
         return;
     }
 
     // Check whether first and last name is already in dbase
 
-    rc = membershipDbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
-    if (rc != 0) {
+    id = membershipDbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
+    if (id != 0) {
         guiCritical("Name \"" + ui->deskFirstNameLineEdit->text() + " " + ui->deskLastNameLineEdit->text() + "\" already in database");
         return;
     }
 
     // Add entry to database
 
-    rc = membershipDbase.add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text());
+    CMembershipInfo info;
+    info.tagId = ui->deskTagIdLineEdit->text();
+    info.firstName = ui->deskFirstNameLineEdit->text();
+    info.lastName = ui->deskLastNameLineEdit->text();
+    info.membershipNumber = ui->deskMembershipNumberLineEdit->text();
+    info.caRegistration = ui->deskCaRegistrationLineEdit->text();
+    info.eMail = ui->deskEMailLineEdit->text();
+    info.sendReports = ui->sendReportsCheckBox->isChecked();
+    int rc = membershipDbase.add(info);
     if (rc != 0) {
         guiCritical(membershipDbase.errorText());
         return;
@@ -1680,7 +1740,7 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     // Add to table
 
-    if (!membershipTableModel->add(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text())) {
+    if (!membershipTableModel->add(info)) {
         guiCritical("Could not add entry to membershipTable");
         return;
     }
@@ -1698,6 +1758,7 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
     ui->deskMembershipNumberLineEdit->clear();
     ui->deskCaRegistrationLineEdit->clear();
     ui->deskEMailLineEdit->clear();
+    ui->sendReportsCheckBox->setChecked(false);
     updateDbaseButtons();
 }
 
@@ -1728,9 +1789,18 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
     if (guiQuestion("You are about to modify an existing tag entry in the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort) != QMessageBox::Ok)
         return;
 
+    CMembershipInfo info;
+    info.tagId = ui->deskTagIdLineEdit->text();
+    info.firstName = ui->deskFirstNameLineEdit->text();
+    info.lastName = ui->deskLastNameLineEdit->text();
+    info.membershipNumber = ui->deskMembershipNumberLineEdit->text();
+    info.caRegistration = ui->deskCaRegistrationLineEdit->text();
+    info.eMail = ui->deskEMailLineEdit->text();
+    info.sendReports = ui->sendReportsCheckBox->isChecked();
+
     // Update entry in database
 
-    int rc = membershipDbase.update(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text());
+    int rc = membershipDbase.update(info);
     if (rc != 0) {
         guiCritical("Could not update database: " + membershipDbase.errorText());
         return;
@@ -1738,7 +1808,7 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
 
     // Add to table
 
-    if (!membershipTableModel->update(ui->deskTagIdLineEdit->text().toLatin1(), ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text(), ui->deskMembershipNumberLineEdit->text(), ui->deskCaRegistrationLineEdit->text(), ui->deskEMailLineEdit->text())) {
+    if (!membershipTableModel->update(info)) {
         guiCritical("Could not update membershipTable");
         return;
     }

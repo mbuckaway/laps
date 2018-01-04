@@ -107,18 +107,19 @@ void CMembershipDbase::close(void) {
 // add
 // Add entry to membership database.  TagId and first-last name must be unique.
 //
-int CMembershipDbase::add(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
+int CMembershipDbase::add(const CMembershipInfo &info) {
     if (!dBase.isOpen())
         return 1;
 
     QSqlQuery query(dBase);
-    query.prepare("INSERT INTO membershipTable (tagId, firstName, lastName, membershipNumber, caRegistration, eMail) VALUES (:tagId, :firstName, :lastName, :membershipNumber, :caRegistration, :eMail)");
-    query.bindValue(":tagId", tagId);
-    query.bindValue(":firstName", firstName);
-    query.bindValue(":lastName", lastName);
-    query.bindValue(":membershipNumber", membershipNumber);
-    query.bindValue(":caRegistration", caRegistration.toUpper());
-    query.bindValue(":eMail", eMail);
+    query.prepare("INSERT INTO membershipTable (tagId, firstName, lastName, membershipNumber, caRegistration, eMail, sendReports) VALUES (:tagId, :firstName, :lastName, :membershipNumber, :caRegistration, :eMail, :sendReports)");
+    query.bindValue(":tagId", info.tagId);
+    query.bindValue(":firstName", info.firstName);
+    query.bindValue(":lastName", info.lastName);
+    query.bindValue(":membershipNumber", info.membershipNumber);
+    query.bindValue(":caRegistration", info.caRegistration.toUpper());
+    query.bindValue(":eMail", info.eMail);
+    query.bindValue(":sendReports", info.sendReports);
     if (!query.exec()) {
         errorTextVal = "Could not add to database.  Check that tagId, name, track membership number anc cycling association registration number are unique.";
         return 2;
@@ -128,20 +129,21 @@ int CMembershipDbase::add(const QString &tagId, const QString &firstName, const 
 
 
 
-// updateTagId
+// update
 //
-int CMembershipDbase::update(const QString &tagId, const QString &firstName, const QString &lastName, const QString &membershipNumber, const QString &caRegistration, const QString &eMail) {
+int CMembershipDbase::update(const CMembershipInfo &info) {
     if (!dBase.isOpen())
         return 1;
 
     QSqlQuery query(dBase);
-    query.prepare("UPDATE membershipTable SET firstName = :firstName, lastName = :lastName, membershipNumber = :membershipNumber, caRegistration = :caRegistration, email = :eMail WHERE tagId = :tagId");
-    query.bindValue(":tagId", tagId);
-    query.bindValue(":firstName", firstName);
-    query.bindValue(":lastName", lastName);
-    query.bindValue(":membershipNumber", membershipNumber);
-    query.bindValue(":caRegistration", caRegistration.toUpper());
-    query.bindValue(":eMail", eMail);
+    query.prepare("UPDATE membershipTable SET firstName = :firstName, lastName = :lastName, membershipNumber = :membershipNumber, caRegistration = :caRegistration, email = :eMail, sendReports = :sendReports WHERE tagId = :tagId");
+    query.bindValue(":tagId", info.tagId);
+    query.bindValue(":firstName", info.firstName);
+    query.bindValue(":lastName", info.lastName);
+    query.bindValue(":membershipNumber", info.membershipNumber);
+    query.bindValue(":caRegistration", info.caRegistration.toUpper());
+    query.bindValue(":eMail", info.eMail);
+    query.bindValue(":sendReports", info.sendReports);
     if (!query.exec()) {
         errorTextVal = "Could not update database.  Check that tagId, name, track membership number and cycling association registration are unique.";
         return 2;
@@ -197,7 +199,7 @@ int CMembershipDbase::findTagIdFromName(const QString &firstName, const QString 
     }
 
     if (query.next()) {
-        *tagId = query.value(0).toString().toLatin1();
+        *tagId = query.value(0).toString();
         errorTextVal.clear();
         return 0;
     }
@@ -307,7 +309,7 @@ int CMembershipDbase::getIdFromMembershipNumber(const QString &membershipNumber)
 
 
 
-int CMembershipDbase::getAllFromId(int id, QString *tagId, QString *firstName, QString *lastName, QString *membershipNumber, QString *caRegistration, QString *eMail) {
+int CMembershipDbase::getAllFromId(int id, CMembershipInfo *info) {
     if (!dBase.isOpen())
         return 1;
 
@@ -326,24 +328,69 @@ int CMembershipDbase::getAllFromId(int id, QString *tagId, QString *firstName, Q
     int membershipNumberIndex = query.record().indexOf("membershipNumber");
     int caRegistrationIndex = query.record().indexOf("caRegistration");
     int eMailIndex = query.record().indexOf("eMail");
-    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0) || (caRegistrationIndex < 0) || (eMailIndex < 0)) {
+    int sendReportsIndex = query.record().indexOf("sendReports");
+    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0) || (caRegistrationIndex < 0) || (eMailIndex < 0) || (sendReportsIndex < 0)) {
         errorTextVal = "Could not find index";
         qDebug() << errorTextVal;
         return 3;
     }
 
     if (query.next()) {
-        *tagId = query.value(tagIdIndex).toString().toLatin1();
-        *firstName = query.value(firstNameIndex).toString();
-        *lastName = query.value(lastNameIndex).toString();
-        *membershipNumber = query.value(membershipNumberIndex).toString();
-        *caRegistration = query.value(caRegistrationIndex).toString();
-        *eMail = query.value(eMailIndex).toString();
+        info->tagId = query.value(tagIdIndex).toString();
+        info->firstName = query.value(firstNameIndex).toString();
+        info->lastName = query.value(lastNameIndex).toString();
+        info->membershipNumber = query.value(membershipNumberIndex).toString();
+        info->caRegistration = query.value(caRegistrationIndex).toString();
+        info->eMail = query.value(eMailIndex).toString();
+        info->sendReports = query.value(sendReportsIndex).toBool();
         errorTextVal.clear();
         return 0;
     }
     errorTextVal = "Id not found";
     return 4;
+}
+
+
+
+int CMembershipDbase::getAllList(QList<CMembershipInfo> *infoList) {
+    if (!dBase.isOpen())
+        return 1;
+
+    QSqlQuery query(dBase);
+    query.prepare("SELECT * FROM membershipTable");
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        qDebug() << errorTextVal;
+        return 2;
+    }
+
+    int tagIdIndex = query.record().indexOf("tagId");
+    int firstNameIndex = query.record().indexOf("firstName");
+    int lastNameIndex = query.record().indexOf("lastName");
+    int membershipNumberIndex = query.record().indexOf("membershipNumber");
+    int caRegistrationIndex = query.record().indexOf("caRegistration");
+    int eMailIndex = query.record().indexOf("eMail");
+    int sendReportsIndex = query.record().indexOf("sendReports");
+    if ((tagIdIndex < 0) || (firstNameIndex < 0) || (lastNameIndex < 0) || (membershipNumberIndex < 0) || (caRegistrationIndex < 0) || (eMailIndex < 0) || (sendReportsIndex < 0)) {
+        errorTextVal = "Could not find index";
+        qDebug() << errorTextVal;
+        return 3;
+    }
+
+    infoList->clear();
+
+    errorTextVal.clear();
+    while (query.next()) {
+        infoList->append(CMembershipInfo());
+        infoList->last().tagId = query.value(tagIdIndex).toString();
+        infoList->last().firstName = query.value(firstNameIndex).toString();
+        infoList->last().lastName = query.value(lastNameIndex).toString();
+        infoList->last().membershipNumber = query.value(membershipNumberIndex).toString();
+        infoList->last().caRegistration = query.value(caRegistrationIndex).toString();
+        infoList->last().eMail = query.value(eMailIndex).toString();
+        infoList->last().sendReports = query.value(sendReportsIndex).toBool();
+    }
+    return 0;
 }
 
 
@@ -528,11 +575,12 @@ int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int h
 
     unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
     QSqlQuery query(dBase);
-    query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm) VALUES (:tagId, :dateTime, :lapsec, :lapm)");
+    query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm, reportStatus) VALUES (:tagId, :dateTime, :lapsec, :lapm, :reportStatus)");
     query.bindValue(":tagId", tagId);
     query.bindValue(":dateTime", dateTime);
     query.bindValue(":lapsec", lapsec);
     query.bindValue(":lapm", lapm);
+    query.bindValue(":reportStatus", 0);
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
         errorVal = 2;
@@ -540,6 +588,99 @@ int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int h
     }
     return 0;
 }
+
+
+
+int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *lapSec, float *lapM, int *reportStatus) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 1;
+        return errorVal;
+    }
+
+    QSqlQuery query(dBase);
+    query.prepare("SELECT * FROM lapsTable WHERE id = :id");
+    query.bindValue(":id", id);
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        errorVal = 2;
+        return errorVal;
+    }
+
+    int tagIdIndex = query.record().indexOf("tagId");
+    if (tagIdIndex < 0) {
+        errorTextVal = "Could not find tagId index in getLap";
+        errorVal = 3;
+        return errorVal;
+    }
+
+    int dateTimeIndex = query.record().indexOf("dateTime");
+    if (dateTimeIndex < 0) {
+        errorTextVal = "Could not find dateTime index in getLap";
+        errorVal = 4;
+        return errorVal;
+    }
+
+    int lapsecIndex = query.record().indexOf("lapsec");
+    if (lapsecIndex < 0) {
+        errorTextVal = "Could not find lapsec index in getLap";
+        errorVal = 5;
+        return errorVal;
+    }
+
+    int lapmIndex = query.record().indexOf("lapm");
+    if (lapmIndex < 0) {
+        errorTextVal = "Could not find lapm index in getLap";
+        errorVal = 6;
+        return errorVal;
+    }
+
+    int reportStatusIndex = query.record().indexOf("reportStatus");
+    if (reportStatusIndex < 0) {
+        errorTextVal = "Could not find reportStatus index in getLap";
+        errorVal = 7;
+        return errorVal;
+    }
+
+    while (query.next()) {
+        *tagId = query.value(tagIdIndex).toString();
+        *dateTime = query.value(dateTimeIndex).toUInt();
+        *lapSec = query.value(lapsecIndex).toFloat();
+        *lapM = query.value(lapmIndex).toFloat();
+        *reportStatus = query.value(reportStatusIndex).toInt();
+    }
+
+    return 0;
+
+
+}
+
+
+// updateReportStatus
+//
+//int CLapsDbase::updateReportStatus(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float lapsec, float lapm, int reportStatus) {
+//    if (!dBase.isOpen())
+//        return 1;
+//
+//    QSqlQuery query(dBase);
+//    query.prepare("UPDATE lapsTable SET firstName = :firstName, lastName = :lastName, membershipNumber = :membershipNumber, caRegistration = :caRegistration, email = :eMail, sendReports = :sendReports WHERE tagId = :tagId");
+//    query.bindValue(":tagId", info.tagId);
+//    query.bindValue(":firstName", info.firstName);
+//    query.bindValue(":lastName", info.lastName);
+//    query.bindValue(":membershipNumber", info.membershipNumber);
+//    query.bindValue(":caRegistration", info.caRegistration.toUpper());
+//    query.bindValue(":eMail", info.eMail);
+//    query.bindValue(":sendReports", info.sendReports);
+//    if (!query.exec()) {
+//        errorTextVal = "Could not update database.  Check that tagId, name, track membership number and cycling association registration are unique.";
+//        return 2;
+//    }
+//
+//    return 0;
+//}
 
 
 
@@ -695,6 +836,38 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
 
 
 
+int CLapsDbase::getLapsNotReported(const QString &tagId, QList<int> *lapsNotReportedList) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 1;
+        return errorVal;
+    }
+    QSqlQuery query(dBase);
+    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = 0");
+    query.bindValue(":tagId", tagId);
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        errorVal = 2;
+        return errorVal;
+    }
+
+    int idIndex = query.record().indexOf("id");
+    if (idIndex < 0) {
+        errorTextVal = "Could not find id index in getLapsNotReported";
+        errorVal = 3;
+        return errorVal;
+    }
+
+    while (query.next()) {
+        int id = query.value(idIndex).toInt();
+        lapsNotReportedList->append(id);
+    }
+
+    return 0;
+}
 
 
 // dateTime2Int()
