@@ -870,6 +870,50 @@ int CLapsDbase::getLapsNotReported(const QString &tagId, QList<int> *lapsNotRepo
 }
 
 
+// Get stats for specified tagId and time period from dbase
+//
+int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<int> *lapsList) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 1;
+        return errorVal;
+    }
+
+    if (dateTimeStart > dateTimeEnd) {
+        errorTextVal = "dateTimeStart > dateTimeEnd in getLapsInPeriod";
+        errorVal = 2;
+        return errorVal;
+    }
+
+    QSqlQuery query(dBase);
+    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":dateTimeStart", dateTimeStart);
+    query.bindValue(":dateTimeEnd", dateTimeEnd);
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        errorVal = 3;
+        return errorVal;
+    }
+
+    int idIndex = query.record().indexOf("id");
+    if (idIndex < 0) {
+        errorTextVal = "Could not find id index in getLapsInPeriod";
+        errorVal = 4;
+        return errorVal;
+    }
+
+    while (query.next()) {
+        lapsList->append(query.value(idIndex).toInt());
+    }
+    return 0;
+}
+
+
+
 // dateTime2Int()
 // seconds (0 - 63) - 6 bits (0 - 5)
 // minutes (0 - 63) - 6 bits (6 - 11)

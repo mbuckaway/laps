@@ -148,6 +148,7 @@ private:
     void initializeSettingsPanel(void);
     bool tagInDbase;
     void sendReports(void);
+    void sendReport(const CMembershipInfo &info, QDate date, QList<int> lapsToReport);
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
