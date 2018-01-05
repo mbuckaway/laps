@@ -499,7 +499,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         return errorVal;
     }
 
-    bool showContents = true;//false;
+    bool showContents = false;
 
     // Make sure table exists and create as necessary
 
@@ -563,7 +563,7 @@ void CLapsDbase::close(void) {
 // addLap
 // Add entry to laps database
 //
-int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float lapsec, float lapm) {
+int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -573,14 +573,13 @@ int CLapsDbase::addLap(const QString &tagId, int year, int month, int day, int h
         return errorVal;
     }
 
-    unsigned int dateTime = dateTime2Int(year, month, day, hour, minute, second);
     QSqlQuery query(dBase);
     query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm, reportStatus) VALUES (:tagId, :dateTime, :lapsec, :lapm, :reportStatus)");
-    query.bindValue(":tagId", tagId);
+    query.bindValue(":tagId", rider.tagId);
     query.bindValue(":dateTime", dateTime);
-    query.bindValue(":lapsec", lapsec);
-    query.bindValue(":lapm", lapm);
-    query.bindValue(":reportStatus", 0);
+    query.bindValue(":lapsec", rider.lapSec);
+    query.bindValue(":lapm", rider.lapM);
+    query.bindValue(":reportStatus", rider.reportStatus);
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
         errorVal = 2;
@@ -654,37 +653,11 @@ int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *la
     }
 
     return 0;
-
-
 }
 
 
-// updateReportStatus
-//
-//int CLapsDbase::updateReportStatus(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float lapsec, float lapm, int reportStatus) {
-//    if (!dBase.isOpen())
-//        return 1;
-//
-//    QSqlQuery query(dBase);
-//    query.prepare("UPDATE lapsTable SET firstName = :firstName, lastName = :lastName, membershipNumber = :membershipNumber, caRegistration = :caRegistration, email = :eMail, sendReports = :sendReports WHERE tagId = :tagId");
-//    query.bindValue(":tagId", info.tagId);
-//    query.bindValue(":firstName", info.firstName);
-//    query.bindValue(":lastName", info.lastName);
-//    query.bindValue(":membershipNumber", info.membershipNumber);
-//    query.bindValue(":caRegistration", info.caRegistration.toUpper());
-//    query.bindValue(":eMail", info.eMail);
-//    query.bindValue(":sendReports", info.sendReports);
-//    if (!query.exec()) {
-//        errorTextVal = "Could not update database.  Check that tagId, name, track membership number and cycling association registration are unique.";
-//        return 2;
-//    }
-//
-//    return 0;
-//}
 
-
-
-// Calculate stats for specified rider (tagId) from dbase entries and populate CRider
+// Calculate stats for specified rider (tagId)
 //
 int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorTextVal.clear();
@@ -712,7 +685,7 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     unsigned int dateTimeStart = dateTime2Int(thisMonthYear, thisMonthMonth, 0, 0, 0, 0);
     unsigned int dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
-    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->thisMonth);
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->thisMonth);
     if (errorVal) return errorVal;
 
     // Get stats for last month
@@ -720,7 +693,7 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     dateTimeStart = dateTime2Int(lastMonthYear, lastMonthMonth, 0, 0, 0, 0);
     dateTimeEnd = dateTime2Int(lastMonthYear, lastMonthMonth, 31, 24, 0, 0);
 
-    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->lastMonth);
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->lastMonth);
     if (errorVal) return errorVal;
 
     // Get stats for all time
@@ -730,16 +703,17 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     dateTimeStart = dateTime2Int(allTimeYear, allTimeMonth, 0, 0, 0, 0);
     dateTimeEnd = dateTime2Int(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
-    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, &rider->allTime);
+    errorVal = getStatsForPeriod(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->allTime);
     if (errorVal) return errorVal;
 
     return 0;
 }
 
 
+
 // Get stats for specified tagId and time period from dbase
 //
-int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats) {
+int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -760,8 +734,14 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
     unsigned int workoutDateTimeSeparation = dateTime2Int(2000, 0, 0, 12, 0, 0) - dateTime2Int(2000, 0, 0, 0, 0, 0);
 
     QSqlQuery query(dBase);
-    query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    if (reportStatus == reportPending) {
+        query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    }
+    else {
+        query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    }
     query.bindValue(":tagId", tagId);
+    query.bindValue(":reportStatus", CLapsDbase::reportPending);
     query.bindValue(":dateTimeStart", dateTimeStart);
     query.bindValue(":dateTimeEnd", dateTimeEnd);
     if (!query.exec()) {
@@ -835,6 +815,39 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
 
 
 
+// Set reportStatus for specified tagId and time period
+//
+int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 1;
+        return errorVal;
+    }
+
+    if (dateTimeStart > dateTimeEnd) {
+        errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
+        errorVal = 2;
+        return errorVal;
+    }
+
+    QSqlQuery query(dBase);
+    query.prepare("UPDATE lapsTable SET reportStatus = :reportStatus WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":reportStatus", reportStatus);
+    query.bindValue(":dateTimeStart", dateTimeStart);
+    query.bindValue(":dateTimeEnd", dateTimeEnd);
+    if (!query.exec()) {
+        errorTextVal = "Could not update database.";
+        return 3;
+    }
+
+    return 0;
+}
+
+
 
 int CLapsDbase::getLapsNotReported(const QString &tagId, QList<int> *lapsNotReportedList) {
     errorTextVal.clear();
@@ -846,8 +859,9 @@ int CLapsDbase::getLapsNotReported(const QString &tagId, QList<int> *lapsNotRepo
         return errorVal;
     }
     QSqlQuery query(dBase);
-    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = 0");
+    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus");
     query.bindValue(":tagId", tagId);
+    query.bindValue(":reportStatus", reportPending);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
         errorVal = 2;

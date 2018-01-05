@@ -44,6 +44,7 @@ public:
     bool firstLap;
     bool firstLapAfterBreak;
     bool onBreak;
+    int reportStatus;       // 0 if lap should not be included in email report, 1 if it should
 };
 
 

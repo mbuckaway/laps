@@ -53,17 +53,19 @@ private:
 class CLapsDbase
 {
 public:
+    enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
     CLapsDbase();
     int open(const QString &filename, const QString &username, const QString &password);
     void close(void);
-    int addLap(const QString &tagId, int year, int month, int day, int hour, int minute, int second, float sec, float lapm);
+    int addLap(const CRider &rider, unsigned int dateTime);
     int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
     int getStats(const QString &tagId, CRider *rider);
-    int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CStats *stats);
+    int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
+    int setReportStatus(reportStatus_t reportStatus, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd);
     int getLapsNotReported(const QString &tagId, QList<int> *unreportedLapsList);
     int getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<int> *lapsList);
-    unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
-    void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
+    static unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
+    static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);
     bool isOpen(void);
     QString errorText(void);

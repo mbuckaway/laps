@@ -148,7 +148,10 @@ private:
     void initializeSettingsPanel(void);
     bool tagInDbase;
     void sendReports(void);
-    void sendReport(const CMembershipInfo &info, QDate date, QList<int> lapsToReport);
+    void sendReport(const CMembershipInfo &info, const QString &body);
+    QList<CMembershipInfo> membershipInfoNotReported;
+    QList<unsigned int> dateTimeNotReported;
+    void sendNextReport(void);
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
@@ -178,7 +181,7 @@ private slots:
     void onApplySettingsPushButtonClicked(void);
     void onSaveSettingsPushButtonClicked(void);
     void onTrackAntenna1PowerComboBoxActivated(int);
-    void onMailSent(QString);
+    void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
 };

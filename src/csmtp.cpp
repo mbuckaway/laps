@@ -28,12 +28,14 @@ CSmtp::CSmtp( const QString &user, const QString &pass, const QString &host, int
     this->host = host;
     this->port = port;
     this->timeout = timeout;
+    error = 0;
 }
 
 
 
 void CSmtp::sendMail(const QString &from, const QString &to, const QString &subject, const QString &body)
 {
+    error = 0;
     message = "To: " + to + "\n";
     message.append("From: " + from + "\n");
     message.append("Subject: " + subject + "\n");
@@ -64,36 +66,37 @@ CSmtp::~CSmtp()
 
 void CSmtp::stateChanged(QAbstractSocket::SocketState socketState)
 {
-    qDebug() << "StateChanged" << socketState;
+//    qDebug() << "StateChanged" << socketState;
 }
 
 
 
 void CSmtp::errorReceived(QAbstractSocket::SocketError socketError)
 {
-    qDebug() << "Error" << socketError;
+//    qDebug() << "Error" << socketError;
+    error = 1;
 }
 
 
 
 void CSmtp::disconnected()
 {
-    qDebug() <<"Disconneted";
-    emit completed();
+//    qDebug() << "Disconneted error=" << error;
+    emit completed(error);
 }
 
 
 
 void CSmtp::connected()
 {
-    qDebug() << "Connected";
+//    qDebug() << "Connected";
 }
 
 
 
 void CSmtp::readyRead()
 {
-     qDebug() << "ReadyRead";
+//     qDebug() << "ReadyRead";
 
      // SMTP is line-oriented
 
@@ -107,8 +110,8 @@ void CSmtp::readyRead()
 
     responseLine.truncate( 3 );
 
-    qDebug() << "Server response code:" <<  responseLine;
-    qDebug() << "Server response:" << response;
+//    qDebug() << "Server response code:" <<  responseLine;
+//    qDebug() << "Server response:" << response;
 
     if ( state == Init && responseLine == "220" )
     {
@@ -132,7 +135,7 @@ void CSmtp::readyRead()
         socket->startClientEncryption();
         if(!socket->waitForEncrypted(timeout))
         {
-            qDebug() << socket->errorString();
+//            qDebug() << socket->errorString();
             state = Close;
         }
 
@@ -146,7 +149,7 @@ void CSmtp::readyRead()
     else if (state == Auth && responseLine == "250")
     {
         // Trying AUTH
-        qDebug() << "Auth";
+//        qDebug() << "Auth";
         *t << "AUTH LOGIN" << "\r\n";
         t->flush();
         state = User;
@@ -154,7 +157,7 @@ void CSmtp::readyRead()
     else if (state == User && responseLine == "334")
     {
         //Trying User
-        qDebug() << "Username";
+//        qDebug() << "Username";
         //GMAIL is using XOAUTH2 protocol, which basically means that password and username has to be sent in base64 coding
         //https://developers.google.com/gmail/xoauth2_protocol
         *t << QByteArray().append(user).toBase64()  << "\r\n";
@@ -165,7 +168,7 @@ void CSmtp::readyRead()
     else if (state == Pass && responseLine == "334")
     {
         //Trying pass
-        qDebug() << "Pass";
+//        qDebug() << "Pass";
         *t << QByteArray().append(pass).toBase64() << "\r\n";
         t->flush();
 
@@ -176,7 +179,7 @@ void CSmtp::readyRead()
         // HELO response was okay (well, it has to be)
 
         //Apperantly for Google it is mandatory to have MAIL FROM and RCPT email formated the following way -> <email@gmail.com>
-        qDebug() << "MAIL FROM:<" << from << ">";
+//        qDebug() << "MAIL FROM:<" << from << ">";
         *t << "MAIL FROM:<" << from << ">\r\n";
         t->flush();
         state = Rcpt;

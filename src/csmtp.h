@@ -32,7 +32,7 @@ public:
     void sendMail(const QString &from, const QString &to, const QString &subject, const QString &body);
 signals:
     void status(const QString &);
-    void completed(void);
+    void completed(int error);
 private slots:
     void stateChanged(QAbstractSocket::SocketState socketState);
     void errorReceived(QAbstractSocket::SocketError socketError);
@@ -40,6 +40,7 @@ private slots:
     void connected();
     void readyRead();
 private:
+    int error;
     int timeout;
     QString message;
     QTextStream *t;

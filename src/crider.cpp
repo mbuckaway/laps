@@ -48,6 +48,7 @@ void CRider::clear(void) {
     firstLap = false;
     firstLapAfterBreak = false;
     onBreak = false;
+    reportStatus = 0;
 }
 
 

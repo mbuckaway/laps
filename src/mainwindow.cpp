@@ -96,7 +96,7 @@
 // - alltime best 40k
 
 
-int testMode = false;//true;
+int testMode = false;
 
 
 
@@ -761,11 +761,6 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                     break;
                 }
             }
-        }
-
-        // Process tag if not nullTag
-
-        if (!nullTag) {
 
             // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
 
@@ -786,7 +781,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             }
 
 
-            // If this is first lap, try getting name from dbase or default to tagId provided on tag
+            // If this is first lap, try getting name and sendReports value from dbase or default to tagId provided on tag
 
             QString name;
             if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
@@ -795,6 +790,8 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 if (id > 0) {
                     mainWindow->membershipDbase.getAllFromId(id, &info);
                     name = info.firstName + " " + info.lastName;
+                    if (info.sendReports && !info.eMail.isEmpty())
+                        rider->reportStatus = 1;
                 }
                 else {
                     name = tagInfo.tagId;
@@ -871,8 +868,9 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             // Add lap to database if not firstLap or firstLapAfterBreak
 
             if (!rider->firstLap && !rider->firstLapAfterBreak) {
-                QDateTime dateTime(QDateTime::currentDateTime());
-                mainWindow->lapsDbase.addLap(rider->tagId, dateTime.date().year(), dateTime.date().month(), dateTime.date().day(), dateTime.time().hour(), dateTime.time().minute(), dateTime.time().second(), rider->lapSec, rider->lapM);
+                QDateTime currentDateTime(QDateTime::currentDateTime());
+                unsigned int dateTime = CLapsDbase::dateTime2Int(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
+                mainWindow->lapsDbase.addLap(*rider, dateTime);
             }
 
 
@@ -926,7 +924,6 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     for (int i=activeRidersList.size()-1; i>=0; i--) {
         float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
         if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
-//            purgedRiders.append(activeRidersList[i]);
             removeRows(i, 1);
         }
     }
@@ -1206,26 +1203,11 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
         deskReaderThread->start();
     }
-
-    sendReports();
 }
 
 
 
 MainWindow::~MainWindow() {
-
-    // Make sure pending emails have been sent
-
-    if (purgedRiders.size() > 0) {
-        qDebug() << "Sending remaining emails...";
-        emit onMailSent(QString());
-        while (purgedRiders.size() > 0) {
-            sleep(1);
-        }
-        qDebug() << "  done";
-    }
-
-
     membershipDbase.close();
     lapsDbase.close();
     for (int i=0; i<readerThreadList.size(); i++) {
@@ -1321,11 +1303,10 @@ void MainWindow::onApplySettingsPushButtonClicked(void) {
 
 
 void MainWindow::onEMailTestPushButtonClicked(void) {
-    qDebug() << "Sending a test email message to" << ui->emailTestToLineEdit->text();
+//    qDebug() << "Sending a test email message to" << ui->emailTestToLineEdit->text();
 
     CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
 
-//    connect(smtp, SIGNAL(status(QString)), this, SLOT(onTestMailSent(QString)));
     connect(smtp, SIGNAL(completed()), this, SLOT(onTestMailSent()));
 
     QString body("This is test email message.");
@@ -1346,6 +1327,17 @@ void MainWindow::onTestMailSent(void) {
 
 void MainWindow::onClockTimerTimeout(void) {
     ui->rightTitleLabel->setText(QDateTime::currentDateTime().toString("ddd MMMM d yyyy  hh:mm:ss"));
+
+    // Check to see if this is the first timeout after a specified time (midnight) and send email reports
+
+    int secTo = QTime::currentTime().secsTo(QTime(00, 00, 00));
+    static int previousSecTo = secTo;
+    if (secTo > previousSecTo) {
+//        qDebug() << "send now";
+        sendReports();
+        previousSecTo = secTo;
+    }
+//    qDebug() << previousSecTo << secTo;
 }
 
 
@@ -1354,93 +1346,155 @@ void MainWindow::onClockTimerTimeout(void) {
 // *********************************************************************************************
 //
 // sendReports()
-// Look through lapsDbase for laps that should be reported but have not been
+// Look through lapsDbase for laps with pending reports
 
 void MainWindow::sendReports(void) {
+    if (!ui->emailSendReportsCheckBox->isChecked())
+        return;
 
     // Get a copy of membershipDbase
 
     QList<CMembershipInfo> infoList;
     membershipDbase.getAllList(&infoList);
 
-    // Loop through members and make a list of laps that have not been reported but should be
+    // Create lists of tagId and dateTime of all laps that have not been reported but should be
+
+    membershipInfoNotReported.clear();
+    dateTimeNotReported.clear();
 
     for (int i=0; i<infoList.size(); i++) {
-        qDebug() << infoList[i].tagId << infoList[i].sendReports;
+//        qDebug() << infoList[i].tagId << infoList[i].sendReports << infoList[i].eMail;
         if (infoList[i].sendReports && !infoList[i].eMail.isEmpty()) {
-            QList<int> lapsNotReportedList;
-            int rc = lapsDbase.getLapsNotReported(infoList[i].tagId, &lapsNotReportedList);
-            qDebug() << "  " << lapsNotReportedList;
-
-            // For the first lap in the list, check date and calculate stats for selected periods
-
-            QString tagId;
-            unsigned int dateTime;
-            float lapSec;
-            float lapM;
-            int reportStatus;
-            lapsDbase.getLap(lapsNotReportedList[0], &tagId, &dateTime, &lapSec, &lapM, &reportStatus);
-            qDebug() << "  " << lapsNotReportedList[0] << tagId << dateTime << reportStatus;
-
-            // Based on the lap dateTime, find all laps that are in same day.
-
-            int year;
-            int month;
-            int day;
-            int hour;
-            int min;
-            int sec;
-            lapsDbase.int2DateTime(dateTime, &year, &month, &day, &hour, &min, &sec);
-            unsigned int dateTimeStart = lapsDbase.dateTime2Int(year, month, day, 0, 0, 0);
-            unsigned int dateTimeEnd = lapsDbase.dateTime2Int(year, month, day, 24, 0, 0);
-            QList<int> lapsToReport;
-            for (int i=0; i<lapsNotReportedList.size(); i++) {
-                lapsDbase.getLap(lapsNotReportedList[i], &tagId, &dateTime, &lapSec, &lapM, &reportStatus);
-                qDebug() << "  " << lapsNotReportedList[i] << dateTime << dateTimeStart << dateTimeEnd;
-                if ((dateTime >= dateTimeStart) && (dateTime <= dateTimeEnd)) {
-                    lapsToReport.append(lapsNotReportedList[i]);
-                }
+            QList<int> lapsNotReported;
+            int rc = lapsDbase.getLapsNotReported(infoList[i].tagId, &lapsNotReported);
+            if (rc != 0) {
+                qDebug() << "Error from lapsDbase.getLapsNotReported";
+                return;
             }
-            qDebug() << lapsToReport << QDate(year, month, day);
+//            qDebug() << lapsNotReported << lapsNotReported.size();
+            for (int j=0; j<lapsNotReported.size(); j++) {
 
-            sendReport(infoList[i], QDate(year, month, day), lapsToReport);
+                // Get dateTime for lap and append to tagIdNotReported and dateTimeNotReported
+
+                QString tagId;
+                unsigned int dateTime;
+                float lapSec;
+                float lapM;
+                int reportStatus;
+                rc = lapsDbase.getLap(lapsNotReported[j], &tagId, &dateTime, &lapSec, &lapM, &reportStatus);
+                if (rc != 0) {
+                    qDebug() << "Error from lapsDbase.getLap";
+                    return;
+                }
+                membershipInfoNotReported.append(infoList[i]);
+                dateTimeNotReported.append(dateTime);
+            }
+        }
+    }
+//    qDebug() << dateTimeNotReported;
+
+    sendNextReport();
+}
+
+
+
+// sendNextReport()
+// Sends report for day associated with next day on dateTimeNotReported/tagIdNotReported lists.
+// Removes all laps from lists for the day reported and sets reportStatus flag in lapsDbase.
+//
+void MainWindow::sendNextReport(void) {
+//    qDebug() << "sendNextReport";
+    if (membershipInfoNotReported.isEmpty())
+        return;
+    if (dateTimeNotReported.isEmpty())
+        return;
+
+
+    QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
+    body.append("Name: " + membershipInfoNotReported[0].firstName + " " + membershipInfoNotReported[0].lastName + "\n");
+    body.append("TagId: " + membershipInfoNotReported[0].tagId + "\n");
+    body.append("MembershipNumber: " + membershipInfoNotReported[0].membershipNumber + "\n");
+    body.append("Date             Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
+
+    // loop through notReported lists and compile stats for this rider
+
+    unsigned int date = 0;
+    for (int i=0; i<dateTimeNotReported.size(); i++) {
+        int year;
+        int month;
+        int day;
+        int hour;
+        int min;
+        int sec;
+
+        CLapsDbase::int2DateTime(dateTimeNotReported[i], &year, &month, &day, &hour, &min, &sec);
+        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(year, month, day, 0, 0, 0);
+        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(year, month, day, 24, 0, 0);
+
+        if ((membershipInfoNotReported[i].tagId == membershipInfoNotReported[0].tagId) && (dateTimeStart != date)) {
+            CStats stats;
+            int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportPending, &stats);
+            if (rc != 0) {
+                qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
+                return;
+            }
+            QString s;
+            body.append(s.sprintf("%-16s %3d  %7.3f  %6.2f      %6.2f      %6.2f      %7.3f\n", QDate(year, month, day).toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., stats.totalSec, stats.totalM/stats.totalSec/1000.*3600., stats.bestLapSec, stats.bestLapM/stats.bestLapSec/1000.*3600.));
+            date = dateTimeStart;
+        }
+    }
+    body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
+
+    sendReport(membershipInfoNotReported[0], body);
+}
+
+
+
+void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
+    emit onNewLogMessage("Sending email report to " + info.eMail);
+
+//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+
+    // Create smtp client
+
+    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
+
+//    //    QString to("mark.buckaway@forestcityvelodrome.ca");
+
+    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
+}
+
+
+
+void MainWindow::onMailSent(int error) {
+    qDebug() << "onMailSent" << error;
+
+    // Remove all entries from notReported lists for first rider on list
+
+    if (error != 0) {
+        return;
+    }
+
+    for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
+        if (membershipInfoNotReported[i].tagId == membershipInfoNotReported[0].tagId) {
+            membershipInfoNotReported.removeAt(i);
+            dateTimeNotReported.removeAt(i);
+
+            unsigned int dateTimeStart = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
+            unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(2100, 0, 0, 0, 0, 0);
+            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd);
+            if (rc != 0) {
+                qDebug() << "Error from lapsDbase.setReported";
+                return;
+            }
+
         }
     }
 
+    sendNextReport();
+    return;
 }
-
-
-
-void MainWindow::sendReport(const CMembershipInfo &info, QDate date, QList<int> lapsToReport) {
-    // Create smtp client
-
-    qDebug() << "reporting on" << info.tagId << lapsToReport;
-
-    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-    connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
-
-    QString s;
-    QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
-    body.append("Name: " + info.firstName + " " + info.lastName + "\n");
-    body.append("TagId: " + info.tagId + "\n");
-    body.append("MembershipNumber: " + info.membershipNumber + "\n");
-    body.append("Date: " + date.toString() + "\n");
-//    body.append("Laps: " + s.setNum(rider->lapCount) + "\n");
-//    body.append("Distance: " + s.setNum(rider->totalM / 1000.) + " km\n");
-//    body.append("Average lap time: " + s.setNum(rider->totalSec) + " sec\n");
-//    body.append("Average lap speed: " + s.setNum(rider->totalM / rider->totalSec / 1000. * 3600.) + " km/h\n");
-//    body.append("Best lap time: " + s.setNum(rider->bestLapSec) + " sec\n");
-//    body.append("Best lap speed: " + s.setNum(rider->bestLapM / rider->bestLapSec / 1000. * 3600.) + " km/h\n");
-
-    body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
-
-    //    QString to("mark.buckaway@forestcityvelodrome.ca");
-
-    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
-
-    //        smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
-}
-
 
 
 // *********************************************************************************************
@@ -1465,71 +1519,6 @@ void MainWindow::onPurgeActiveRidersList(void) {
     //emit onMailSent(QString());
 }
 
-
-
-void MainWindow::onMailSent(QString s) {
-    ui->reportsPendingLineEdit->setText(s.setNum(purgedRiders.size()));
-
-    if (purgedRiders.size() == 0) return;
-
-    CRider *rider = &purgedRiders[0];
-
-    if (rider->lapCount == 0) {
-        purgedRiders.removeAt(0);
-        if (purgedRiders.size() > 0) {
-            emit onMailSent(QString());
-        }
-        return;
-    }
-
-
-    // If email is in database, compose message and send
-
-    if (ui->emailSendReportsCheckBox->isChecked() && (rider->lapCount > 0)) {
-        CMembershipInfo info;
-        int id = membershipDbase.getIdFromTagId(rider->tagId);
-        if (id > 0) {
-            membershipDbase.getAllFromId(id, &info);
-        }
-
-        if (!info.eMail.isEmpty()) {
-
-            // Create smtp client
-
-            smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-            connect(smtp, SIGNAL(status(QString)), this, SLOT(onMailSent(QString)));
-
-            QString s;
-            QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
-            body.append("Name: " + info.firstName + " " + info.lastName + "\n");
-            body.append("TagId: " + info.tagId + "\n");
-            body.append("MembershipNumber: " + info.membershipNumber + "\n");
-            body.append("Date: " + QDate::currentDate().toString() + "\n");
-            body.append("Laps: " + s.setNum(rider->lapCount) + "\n");
-            body.append("Distance: " + s.setNum(rider->totalM / 1000.) + " km\n");
-            body.append("Average lap time: " + s.setNum(rider->totalSec) + " sec\n");
-            body.append("Average lap speed: " + s.setNum(rider->totalM / rider->totalSec / 1000. * 3600.) + " km/h\n");
-            body.append("Best lap time: " + s.setNum(rider->bestLapSec) + " sec\n");
-            body.append("Best lap speed: " + s.setNum(rider->bestLapM / rider->bestLapSec / 1000. * 3600.) + " km/h\n");
-
-            body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
-
-            //    QString to("mark.buckaway@forestcityvelodrome.ca");
-
-            qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
-
-            smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
-        }
-
-    }
-
-    purgedRiders.removeAt(0);
-
-    if (purgedRiders.size() > 0) {
-        emit onMailSent(QString());
-    }
-    ui->reportsPendingLineEdit->setText(s.setNum(purgedRiders.size()));
-}
 
 
 
@@ -1636,6 +1625,8 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
 // Process new tag
 //
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
+//    qDebug() << tagInfo.tagId;
+
     static int tagCount = 0;
 
     if (!tagInfo.tagId.isEmpty())
