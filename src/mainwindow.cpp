@@ -1330,14 +1330,19 @@ void MainWindow::onClockTimerTimeout(void) {
 
     // Check to see if this is the first timeout after a specified time (midnight) and send email reports
 
-    int secTo = QTime::currentTime().secsTo(QTime(00, 00, 00));
-    static int previousSecTo = secTo;
-    if (secTo > previousSecTo) {
-//        qDebug() << "send now";
-        sendReports();
-        previousSecTo = secTo;
+    QDateTime currentDateTime(QDateTime::currentDateTime());
+
+    static bool sentInThisInterval = false;
+    if ((currentDateTime.time().second() % 10) == 0) {
+        if (!sentInThisInterval) {
+//            qDebug() << "sendReports";
+            sendReports();
+            sentInThisInterval = true;
+        }
     }
-//    qDebug() << previousSecTo << secTo;
+    else {
+        sentInThisInterval = false;
+    }
 }
 
 
@@ -1357,21 +1362,28 @@ void MainWindow::sendReports(void) {
     QList<CMembershipInfo> infoList;
     membershipDbase.getAllList(&infoList);
 
-    // Create lists of tagId and dateTime of all laps that have not been reported but should be
+    // Create lists of tagId and dateTime of all laps that have not been reported but should be.
+    // Do not report active riders.
 
     membershipInfoNotReported.clear();
     dateTimeNotReported.clear();
 
     for (int i=0; i<infoList.size(); i++) {
-//        qDebug() << infoList[i].tagId << infoList[i].sendReports << infoList[i].eMail;
-        if (infoList[i].sendReports && !infoList[i].eMail.isEmpty()) {
+        bool tagInActiveRidersList = false;
+        for (int j=0; j<activeRidersTableModel->activeRidersList.size(); j++) {
+            if (infoList[i].tagId == activeRidersTableModel->activeRidersList[j].tagId) {
+                tagInActiveRidersList = true;
+                break;
+            }
+        }
+
+        if (infoList[i].sendReports && !infoList[i].eMail.isEmpty() && !tagInActiveRidersList) {
             QList<int> lapsNotReported;
             int rc = lapsDbase.getLapsNotReported(infoList[i].tagId, &lapsNotReported);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.getLapsNotReported";
                 return;
             }
-//            qDebug() << lapsNotReported << lapsNotReported.size();
             for (int j=0; j<lapsNotReported.size(); j++) {
 
                 // Get dateTime for lap and append to tagIdNotReported and dateTimeNotReported
@@ -1391,7 +1403,6 @@ void MainWindow::sendReports(void) {
             }
         }
     }
-//    qDebug() << dateTimeNotReported;
 
     sendNextReport();
 }
@@ -1404,8 +1415,14 @@ void MainWindow::sendReports(void) {
 //
 void MainWindow::sendNextReport(void) {
 //    qDebug() << "sendNextReport";
+    for (int i=0; i<membershipInfoNotReported.size(); i++) {
+        qDebug() << membershipInfoNotReported[i].tagId << dateTimeNotReported[i];
+    }
+return;
+
     if (membershipInfoNotReported.isEmpty())
         return;
+
     if (dateTimeNotReported.isEmpty())
         return;
 
@@ -1419,27 +1436,47 @@ void MainWindow::sendNextReport(void) {
     // loop through notReported lists and compile stats for this rider
 
     unsigned int date = 0;
-    for (int i=0; i<dateTimeNotReported.size(); i++) {
-        int year;
-        int month;
-        int day;
-        int hour;
-        int min;
-        int sec;
+//    for (int i=0; i<dateTimeNotReported.size(); i++) {
+    for (int i=6; i>=0; i--) {
+//        int year;
+//        int month;
+//        int day;
+//        int hour;
+//        int min;
+//        int sec;
 
-        CLapsDbase::int2DateTime(dateTimeNotReported[i], &year, &month, &day, &hour, &min, &sec);
-        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(year, month, day, 0, 0, 0);
-        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(year, month, day, 24, 0, 0);
+        QDate currentDate(QDate::currentDate());
+        QDate reportDate = currentDate.addDays(-i);
+        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
+        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
+
+//        CLapsDbase::int2DateTime(dateTimeNotReported[i], &year, &month, &day, &hour, &min, &sec);
+
+//        QDate dateEnd(year, month, day);
+//        QDate dateStart = dateEnd.addDays(-7);
+//        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
+//        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(dateEnd.year(), dateEnd.month(), dateEnd.day(), 24, 0, 0);
+
+//        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
+//        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(dateEnd.year(), dateEnd.month(), dateEnd.day(), 24, 0, 0);
 
         if ((membershipInfoNotReported[i].tagId == membershipInfoNotReported[0].tagId) && (dateTimeStart != date)) {
             CStats stats;
-            int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportPending, &stats);
+            int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
                 return;
             }
             QString s;
-            body.append(s.sprintf("%-16s %3d  %7.3f  %6.2f      %6.2f      %6.2f      %7.3f\n", QDate(year, month, day).toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., stats.totalSec, stats.totalM/stats.totalSec/1000.*3600., stats.bestLapSec, stats.bestLapM/stats.bestLapSec/1000.*3600.));
+            float averageLapSec = 0.;
+            float speed = 0.;
+            float bestSpeed = 0.;
+            float bestLapSec = 0.;
+            if (stats.lapCount > 0.) averageLapSec = stats.totalSec / (float)stats.lapCount;
+            if (stats.totalSec > 0.) speed = stats.totalM / stats.totalSec / 1000. * 3600.;
+            if (stats.bestLapSec > 0.) bestSpeed = stats.bestLapM / stats.bestLapSec / 1000. * 3600.;
+            if (stats.bestLapSec > 0.) bestLapSec = stats.bestLapSec;
+            body.append(s.sprintf("%-16s %3d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
             date = dateTimeStart;
         }
     }
@@ -1453,16 +1490,13 @@ void MainWindow::sendNextReport(void) {
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
     emit onNewLogMessage("Sending email report to " + info.eMail);
 
-//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
     // Create smtp client
 
-    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
-
-//    //    QString to("mark.buckaway@forestcityvelodrome.ca");
-
-    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
+//    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+//    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
+//    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
 }
 
 
@@ -1476,14 +1510,15 @@ void MainWindow::onMailSent(int error) {
         return;
     }
 
+    QString tagIdBeingRemoved = membershipInfoNotReported[0].tagId;
     for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
-        if (membershipInfoNotReported[i].tagId == membershipInfoNotReported[0].tagId) {
+        if (membershipInfoNotReported[i].tagId == tagIdBeingRemoved) {
             membershipInfoNotReported.removeAt(i);
             dateTimeNotReported.removeAt(i);
 
             unsigned int dateTimeStart = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
             unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(2100, 0, 0, 0, 0, 0);
-            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd);
+            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeStart, dateTimeEnd);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.setReported";
                 return;
@@ -1493,7 +1528,6 @@ void MainWindow::onMailSent(int error) {
     }
 
     sendNextReport();
-    return;
 }
 
 
@@ -1509,7 +1543,8 @@ void MainWindow::onMailSent(int error) {
 //
 void MainWindow::onPurgeActiveRidersList(void) {
     if (activeRidersTableModel)
-        purgedRiders.append(activeRidersTableModel->purgeTable());
+//        purgedRiders.append(activeRidersTableModel->purgeTable());
+        activeRidersTableModel->purgeTable();
 
     if (lapsTableModel)
         lapsTableModel->purgeTable();

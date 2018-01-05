@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 CSmtp::CSmtp( const QString &user, const QString &pass, const QString &host, int port, int timeout)
 {
+    t = NULL;
     socket = new QSslSocket(this);
 
     connect(socket, SIGNAL(readyRead()), this, SLOT(readyRead()));
@@ -89,7 +90,12 @@ void CSmtp::disconnected()
 
 void CSmtp::connected()
 {
-//    qDebug() << "Connected";
+    qDebug() << "Connected";
+//    if (!socket->waitForConnected(timeout)) {
+//         qDebug() << socket->errorString();
+//     }
+
+//    t = new QTextStream( socket );
 }
 
 
@@ -115,6 +121,10 @@ void CSmtp::readyRead()
 
     if ( state == Init && responseLine == "220" )
     {
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         // banner was okay, let's go on
         *t << "EHLO localhost" << "\r\n";
         t->flush();
@@ -142,6 +152,10 @@ void CSmtp::readyRead()
 
         //Send EHLO once again but now encrypted
 
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << "EHLO localhost" << "\r\n";
         t->flush();
         state = Auth;
@@ -150,6 +164,10 @@ void CSmtp::readyRead()
     {
         // Trying AUTH
 //        qDebug() << "Auth";
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << "AUTH LOGIN" << "\r\n";
         t->flush();
         state = User;
@@ -160,6 +178,10 @@ void CSmtp::readyRead()
 //        qDebug() << "Username";
         //GMAIL is using XOAUTH2 protocol, which basically means that password and username has to be sent in base64 coding
         //https://developers.google.com/gmail/xoauth2_protocol
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << QByteArray().append(user).toBase64()  << "\r\n";
         t->flush();
 
@@ -169,6 +191,10 @@ void CSmtp::readyRead()
     {
         //Trying pass
 //        qDebug() << "Pass";
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << QByteArray().append(pass).toBase64() << "\r\n";
         t->flush();
 
@@ -180,6 +206,10 @@ void CSmtp::readyRead()
 
         //Apperantly for Google it is mandatory to have MAIL FROM and RCPT email formated the following way -> <email@gmail.com>
 //        qDebug() << "MAIL FROM:<" << from << ">";
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << "MAIL FROM:<" << from << ">\r\n";
         t->flush();
         state = Rcpt;
@@ -187,12 +217,20 @@ void CSmtp::readyRead()
     else if ( state == Rcpt && responseLine == "250" )
     {
         //Apperantly for Google it is mandatory to have MAIL FROM and RCPT email formated the following way -> <email@gmail.com>
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
         *t << "RCPT TO:<" << rcpt << ">\r\n"; //r
         t->flush();
         state = Data;
     }
     else if ( state == Data && responseLine == "250" )
     {
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
 
         *t << "DATA\r\n";
         t->flush();
@@ -200,6 +238,10 @@ void CSmtp::readyRead()
     }
     else if ( state == Body && responseLine == "354" )
     {
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
 
         *t << message << "\r\n.\r\n";
         t->flush();
@@ -207,6 +249,10 @@ void CSmtp::readyRead()
     }
     else if ( state == Quit && responseLine == "250" )
     {
+        if (!t) {
+            qDebug() << "t is undefined";
+            return;
+        }
 
         *t << "QUIT\r\n";
         t->flush();
@@ -216,6 +262,7 @@ void CSmtp::readyRead()
     }
     else if ( state == Close )
     {
+        qDebug() << "Close";
         deleteLater();
         return;
     }

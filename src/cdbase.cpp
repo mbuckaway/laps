@@ -33,7 +33,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         return 1;
     }
 
-    bool showContents = true;//false;
+    bool showContents = false;
 
     // Make sure table exists and create as necessary
 

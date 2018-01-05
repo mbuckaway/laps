@@ -113,19 +113,6 @@
         </property>
        </widget>
       </item>
-      <item>
-       <widget class="QLineEdit" name="reportsPendingLineEdit">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-          <horstretch>5</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignCenter</set>
-        </property>
-       </widget>
-      </item>
      </layout>
     </item>
     <item row="2" column="0" colspan="3">
