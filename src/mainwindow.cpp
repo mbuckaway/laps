@@ -207,11 +207,10 @@ bool CMembershipTableModel::remove(const QString &tagId) {
 
 
 
-bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
-    beginInsertRows(QModelIndex(), position, position + rows - 1);
-    for (int row = 0; row < rows; ++row) {
+bool CMembershipTableModel::insertRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginInsertRows(QModelIndex(), position, position + count - 1);
+    for (int row=0; row<count; row++)
         membershipInfoList.insert(position, CMembershipInfo());
-    }
     endInsertRows();
     QModelIndex topLeft = index(position, 0);
     QModelIndex bottomRight = index(position, 0);
@@ -221,9 +220,9 @@ bool CMembershipTableModel::insertRows(int position, int rows, const QModelIndex
 
 
 
-bool CMembershipTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
-    beginRemoveRows(QModelIndex(), position, position + rows - 1);
-    for (int row = 0; row < rows; ++row) {
+bool CMembershipTableModel::removeRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginRemoveRows(QModelIndex(), position, position + count - 1);
+    for (int row = 0; row < count; row++) {
         membershipInfoList.removeAt(position);
     }
     endRemoveRows();
@@ -369,14 +368,9 @@ int CLapsTableModel::columnCount(const QModelIndex &/*parent*/) const {
 
 
 
-bool CLapsTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
-    if (rows != 1) {
-        mainWindow->guiCritical("Trying to insert more than one row in CLapsTable");
-        return false;
-    }
-
-    beginInsertRows(QModelIndex(), position, position + rows - 1);
-    for (int row = 0; row < rows; ++row) {
+bool CLapsTableModel::insertRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginInsertRows(QModelIndex(), position, position + count - 1);
+    for (int row=0; row<count; row++) {
         nameList.insert(position, QString());
         lapList.insert(position, 0);
         timeList.insert(position, QString());
@@ -391,9 +385,9 @@ bool CLapsTableModel::insertRows(int position, int rows, const QModelIndex &/*pa
 
 
 
-bool CLapsTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
-    beginRemoveRows(QModelIndex(), position, position + rows - 1);
-    for (int i=0; i<rows; i++) {
+bool CLapsTableModel::removeRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginRemoveRows(QModelIndex(), position, position + count - 1);
+    for (int i=0; i<count; i++) {
         nameList.removeAt(position);
         lapList.removeAt(position);
         timeList.removeAt(position);
@@ -566,24 +560,20 @@ int CActiveRidersTableModel::columnCount(const QModelIndex &/*parent*/) const {
 
 
 
-bool CActiveRidersTableModel::insertRows(int position, int rows, const QModelIndex &/*parent*/) {
-    if (rows != 1) {
-        mainWindow->guiCritical("Trying to insert more than one row in CActiveRidersTable");
-        return false;
-    }
-    beginInsertRows(QModelIndex(), position, position + rows - 1);
-    activeRidersList.append(CRider());
+bool CActiveRidersTableModel::insertRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginInsertRows(QModelIndex(), position, position + count - 1);
+    for (int i=0; i<count; i++)
+        activeRidersList.append(CRider());
     endInsertRows();
     return true;
 }
 
 
 
-bool CActiveRidersTableModel::removeRows(int position, int rows, const QModelIndex &/*parent*/) {
-    beginRemoveRows(QModelIndex(), position, position + rows - 1);
-    for (int i=0; i<rows; i++) {
+bool CActiveRidersTableModel::removeRows(int position, int count, const QModelIndex &/*parent*/) {
+    beginRemoveRows(QModelIndex(), position, position + count - 1);
+    for (int i=0; i<count; i++)
         activeRidersList.removeAt(position);
-    }
     endRemoveRows();
     return true;
 }
@@ -740,7 +730,7 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
-
+//    qDebug() << "activeRidersTableModel::newTrackTag" << tagInfo.tagId;
     try {
 
         // If there is no tagId this is a nullTag which is used just to update table display
@@ -764,11 +754,12 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
 
+//            qDebug() << "Index=" << activeRiderIndex << "rider=" << rider;
             if (!rider) {
                 bool scrollToBottomRequired = false;
                 if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
                     scrollToBottomRequired = true;
-                insertRows(activeRidersList.size()-1, 1);
+                insertRows(activeRidersList.size(), 1);
                 if (scrollToBottomRequired)
                     mainWindow->ui->activeRidersTableView->scrollToBottom();
 
@@ -881,7 +872,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             // lapCount is total laps all riders
 
             QString s;
-            mainWindow->ui->riderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+            mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
         }
 
         // else process nullTag
@@ -918,6 +909,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 // Return a list of riders removed.
 //
 QList<CRider> CActiveRidersTableModel::purgeTable(void) {
+    QString s;
     unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
 
     QList<CRider> purgedRiders;
@@ -927,6 +919,7 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
             removeRows(i, 1);
         }
     }
+    mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
     return purgedRiders;
 }
 
@@ -973,7 +966,6 @@ MainWindow::MainWindow(QWidget *parent) :
     trackLengthM.append(settings.value("trackLength4M").toFloat());
 
 
-
     // Get tablePurgeIntervalSec, the interval on which tables are purged of inactive riders
 
     tablePurgeIntervalHours = settings.value("tablePurgeIntervalHours").toFloat();
@@ -990,7 +982,6 @@ MainWindow::MainWindow(QWidget *parent) :
     int readerCounter = 0;
     if (initialized) {
         trackReader = new CReader(ui->trackReaderIpLineEdit->text(), readerCounter++, CReader::track);
-        qDebug() << ui->trackReaderIpLineEdit->text();
         deskReader = new CReader(ui->deskReaderIpLineEdit->text(), readerCounter++, CReader::desk);
     }
 
@@ -1203,6 +1194,8 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
         deskReaderThread->start();
     }
+
+    ui->applySettingsPushButton->hide();
 }
 
 
@@ -1303,8 +1296,6 @@ void MainWindow::onApplySettingsPushButtonClicked(void) {
 
 
 void MainWindow::onEMailTestPushButtonClicked(void) {
-//    qDebug() << "Sending a test email message to" << ui->emailTestToLineEdit->text();
-
     CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
 
     connect(smtp, SIGNAL(completed()), this, SLOT(onTestMailSent()));
@@ -1319,7 +1310,6 @@ void MainWindow::onEMailTestPushButtonClicked(void) {
 
 
 void MainWindow::onTestMailSent(void) {
-    qDebug() << "testmailsent";
     QMessageBox::information(this, "EMail Test", "Email message sent");
 }
 
@@ -1333,9 +1323,8 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
 
     static bool sentInThisInterval = false;
-    if ((currentDateTime.time().second() % 10) == 0) {
+    if ((currentDateTime.time().hour() % 2) == 0) {
         if (!sentInThisInterval) {
-//            qDebug() << "sendReports";
             sendReports();
             sentInThisInterval = true;
         }
@@ -1351,7 +1340,7 @@ void MainWindow::onClockTimerTimeout(void) {
 // *********************************************************************************************
 //
 // sendReports()
-// Look through lapsDbase for laps with pending reports
+// Look through lapsDbase for laps within the last week with pending reports
 
 void MainWindow::sendReports(void) {
     if (!ui->emailSendReportsCheckBox->isChecked())
@@ -1362,11 +1351,13 @@ void MainWindow::sendReports(void) {
     QList<CMembershipInfo> infoList;
     membershipDbase.getAllList(&infoList);
 
-    // Create lists of tagId and dateTime of all laps that have not been reported but should be.
-    // Do not report active riders.
+    // Create a list of membershipInfo of riders who have unreported laps in the past week
 
     membershipInfoNotReported.clear();
-    dateTimeNotReported.clear();
+    QDate currentDate(QDate::currentDate());
+    QDate dateStart = currentDate.addDays(-7);
+    dateTimeOfReportStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
+    dateTimeOfReportEnd = CLapsDbase::dateTime2Int(currentDate.year(), currentDate.month(), currentDate.day(), 24, 0, 0);
 
     for (int i=0; i<infoList.size(); i++) {
         bool tagInActiveRidersList = false;
@@ -1379,7 +1370,7 @@ void MainWindow::sendReports(void) {
 
         if (infoList[i].sendReports && !infoList[i].eMail.isEmpty() && !tagInActiveRidersList) {
             QList<int> lapsNotReported;
-            int rc = lapsDbase.getLapsNotReported(infoList[i].tagId, &lapsNotReported);
+            int rc = lapsDbase.getLapsInPeriod(infoList[i].tagId, dateTimeOfReportStart, dateTimeOfReportEnd, CLapsDbase::reportPending, &lapsNotReported);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.getLapsNotReported";
                 return;
@@ -1398,13 +1389,20 @@ void MainWindow::sendReports(void) {
                     qDebug() << "Error from lapsDbase.getLap";
                     return;
                 }
-                membershipInfoNotReported.append(infoList[i]);
-                dateTimeNotReported.append(dateTime);
+                bool inList = false;
+                for (int k=0; k<membershipInfoNotReported.size(); k++) {
+                    if (membershipInfoNotReported[k].tagId == tagId) {
+                        inList = true;
+                        break;
+                    }
+                }
+                if (!inList)
+                    membershipInfoNotReported.append(infoList[i]);
             }
         }
     }
 
-    sendNextReport();
+    emit sendNextReport();
 }
 
 
@@ -1414,71 +1412,44 @@ void MainWindow::sendReports(void) {
 // Removes all laps from lists for the day reported and sets reportStatus flag in lapsDbase.
 //
 void MainWindow::sendNextReport(void) {
-//    qDebug() << "sendNextReport";
-    for (int i=0; i<membershipInfoNotReported.size(); i++) {
-        qDebug() << membershipInfoNotReported[i].tagId << dateTimeNotReported[i];
-    }
-return;
-
+//    for (int i=0; i<membershipInfoNotReported.size(); i++) {
+//        qDebug() << membershipInfoNotReported[i].tagId;
+//    }
     if (membershipInfoNotReported.isEmpty())
         return;
-
-    if (dateTimeNotReported.isEmpty())
-        return;
-
 
     QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
     body.append("Name: " + membershipInfoNotReported[0].firstName + " " + membershipInfoNotReported[0].lastName + "\n");
     body.append("TagId: " + membershipInfoNotReported[0].tagId + "\n");
     body.append("MembershipNumber: " + membershipInfoNotReported[0].membershipNumber + "\n");
-    body.append("Date             Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
+    body.append("Date              Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
 
-    // loop through notReported lists and compile stats for this rider
+    // Get stats for each day in past week for this rider
 
-    unsigned int date = 0;
-//    for (int i=0; i<dateTimeNotReported.size(); i++) {
+//    unsigned int date = 0;
     for (int i=6; i>=0; i--) {
-//        int year;
-//        int month;
-//        int day;
-//        int hour;
-//        int min;
-//        int sec;
-
         QDate currentDate(QDate::currentDate());
         QDate reportDate = currentDate.addDays(-i);
         unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
         unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
 
-//        CLapsDbase::int2DateTime(dateTimeNotReported[i], &year, &month, &day, &hour, &min, &sec);
-
-//        QDate dateEnd(year, month, day);
-//        QDate dateStart = dateEnd.addDays(-7);
-//        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
-//        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(dateEnd.year(), dateEnd.month(), dateEnd.day(), 24, 0, 0);
-
-//        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
-//        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(dateEnd.year(), dateEnd.month(), dateEnd.day(), 24, 0, 0);
-
-        if ((membershipInfoNotReported[i].tagId == membershipInfoNotReported[0].tagId) && (dateTimeStart != date)) {
-            CStats stats;
-            int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
-            if (rc != 0) {
-                qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
-                return;
-            }
-            QString s;
-            float averageLapSec = 0.;
-            float speed = 0.;
-            float bestSpeed = 0.;
-            float bestLapSec = 0.;
-            if (stats.lapCount > 0.) averageLapSec = stats.totalSec / (float)stats.lapCount;
-            if (stats.totalSec > 0.) speed = stats.totalM / stats.totalSec / 1000. * 3600.;
-            if (stats.bestLapSec > 0.) bestSpeed = stats.bestLapM / stats.bestLapSec / 1000. * 3600.;
-            if (stats.bestLapSec > 0.) bestLapSec = stats.bestLapSec;
-            body.append(s.sprintf("%-16s %3d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
-            date = dateTimeStart;
+        CStats stats;
+        int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
+        if (rc != 0) {
+            qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
+            return;
         }
+        QString s;
+        float averageLapSec = 0.;
+        float speed = 0.;
+        float bestSpeed = 0.;
+        float bestLapSec = 0.;
+        if (stats.lapCount > 0.) averageLapSec = stats.totalSec / (float)stats.lapCount;
+        if (stats.totalSec > 0.) speed = stats.totalM / stats.totalSec / 1000. * 3600.;
+        if (stats.bestLapSec > 0.) bestSpeed = stats.bestLapM / stats.bestLapSec / 1000. * 3600.;
+        if (stats.bestLapSec > 0.) bestLapSec = stats.bestLapSec;
+        body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
+//        date = dateTimeStart;
     }
     body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
 
@@ -1490,19 +1461,19 @@ return;
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
     emit onNewLogMessage("Sending email report to " + info.eMail);
 
-    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
     // Create smtp client
 
-//    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-//    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
-//    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
+    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
+    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
 }
 
 
 
 void MainWindow::onMailSent(int error) {
-    qDebug() << "onMailSent" << error;
+//    qDebug() << "onMailSent" << error;
 
     // Remove all entries from notReported lists for first rider on list
 
@@ -1514,11 +1485,8 @@ void MainWindow::onMailSent(int error) {
     for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
         if (membershipInfoNotReported[i].tagId == tagIdBeingRemoved) {
             membershipInfoNotReported.removeAt(i);
-            dateTimeNotReported.removeAt(i);
 
-            unsigned int dateTimeStart = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
-            unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(2100, 0, 0, 0, 0, 0);
-            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeStart, dateTimeEnd);
+            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeOfReportStart, dateTimeOfReportEnd);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.setReported";
                 return;
@@ -1527,7 +1495,7 @@ void MainWindow::onMailSent(int error) {
         }
     }
 
-    sendNextReport();
+    emit sendNextReport();
 }
 
 
@@ -1543,15 +1511,10 @@ void MainWindow::onMailSent(int error) {
 //
 void MainWindow::onPurgeActiveRidersList(void) {
     if (activeRidersTableModel)
-//        purgedRiders.append(activeRidersTableModel->purgeTable());
         activeRidersTableModel->purgeTable();
 
     if (lapsTableModel)
         lapsTableModel->purgeTable();
-
-    // Send first message here, subsequent messages sent from onMailSent
-
-    //emit onMailSent(QString());
 }
 
 
@@ -1642,14 +1605,13 @@ void MainWindow::onLapsTableSortEnableCheckBoxClicked(bool state) {
 
 
 void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
-    qDebug() << "activeRidersSort" << state;
     if (state) {
         activeRidersProxyModel->setDynamicSortFilter(true);
         ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
         ui->activeRidersTableView->setSortingEnabled(true);
     }
     else {
-        ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
+//        ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
         activeRidersProxyModel->setDynamicSortFilter(false);
         ui->activeRidersTableView->setSortingEnabled(false);
     }
@@ -1660,7 +1622,7 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
 // Process new tag
 //
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
-//    qDebug() << tagInfo.tagId;
+//    qDebug() << "onNewTracKTag" << tagInfo.tagId;
 
     static int tagCount = 0;
 
@@ -1677,8 +1639,11 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     ui->lapCountLineEdit->setText(s.setNum(tagCount));
 
-    if (activeRidersTableModel)
-        activeRidersTableModel->newTrackTag(tagInfo);
+    if (!activeRidersTableModel) {
+        qDebug() << "No activeRidersTableModel";
+        return;
+    }
+    activeRidersTableModel->newTrackTag(tagInfo);
 }
 
 
@@ -1705,8 +1670,9 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     QString firstName = ui->deskFirstNameLineEdit->text();
     QString lastName = ui->deskLastNameLineEdit->text();
     QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
-    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
-    QString eMail = ui->deskEMailLineEdit->text();
+//    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
+//    QString eMail = ui->deskEMailLineEdit->text();
+//    bool sendReports = ui->sendReportsCheckBox->isChecked();
 
     // If tagId contains entry, search based on only that.
     // If found, update fields.  Otherwise clear fields.

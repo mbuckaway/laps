@@ -150,7 +150,8 @@ private:
     void sendReports(void);
     void sendReport(const CMembershipInfo &info, const QString &body);
     QList<CMembershipInfo> membershipInfoNotReported;
-    QList<unsigned int> dateTimeNotReported;
+    unsigned int dateTimeOfReportStart;
+    unsigned int dateTimeOfReportEnd;
     void sendNextReport(void);
 signals:
     void newTrackTag(CTagInfo tagInfo);

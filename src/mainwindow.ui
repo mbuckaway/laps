@@ -72,7 +72,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="riderCountLineEdit">
+       <widget class="QLineEdit" name="activeRiderCountLineEdit">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
           <horstretch>5</horstretch>
@@ -127,7 +127,7 @@
        <enum>Qt::NoFocus</enum>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="ridersTab">
        <attribute name="title">
@@ -448,7 +448,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Do not change these settings unless you know what you are doing.  Incorrect settings will prevent proper operation.</string>
+         <string>Do not change these settings unless you know what you are doing.  Incorrect settings will prevent proper operation.  Application must be restarted for some changes to be implemented.</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
@@ -966,7 +966,7 @@ Leave blank for simulator.</string>
           <rect>
            <x>10</x>
            <y>120</y>
-           <width>931</width>
+           <width>1191</width>
            <height>46</height>
           </rect>
          </property>
@@ -1110,7 +1110,7 @@ Leave blank for simulator.</string>
           <rect>
            <x>10</x>
            <y>30</y>
-           <width>921</width>
+           <width>1191</width>
            <height>46</height>
           </rect>
          </property>
@@ -1191,24 +1191,38 @@ Leave blank for simulator.</string>
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="">
          <property name="geometry">
           <rect>
-           <x>12</x>
+           <x>11</x>
            <y>190</y>
-           <width>931</width>
+           <width>1191</width>
            <height>48</height>
           </rect>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QLabel" name="label_2">
-            <property name="text">
-             <string>Email test:</string>
-            </property>
-           </widget>
+         <layout class="QGridLayout" name="gridLayout_16">
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout_10">
+            <item>
+             <widget class="QLabel" name="label_5">
+              <property name="text">
+               <string/>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>Email test:</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
-          <item>
+          <item row="0" column="1">
            <layout class="QVBoxLayout" name="verticalLayout_7">
             <item>
              <widget class="QLabel" name="label_3">
@@ -1235,7 +1249,7 @@ Leave blank for simulator.</string>
             </item>
            </layout>
           </item>
-          <item>
+          <item row="0" column="2">
            <layout class="QVBoxLayout" name="verticalLayout_8">
             <item>
              <widget class="QLabel" name="label_4">
@@ -1262,12 +1276,26 @@ Leave blank for simulator.</string>
             </item>
            </layout>
           </item>
-          <item>
-           <widget class="QPushButton" name="eMailTestPushButton">
-            <property name="text">
-             <string>Send</string>
-            </property>
-           </widget>
+          <item row="0" column="3">
+           <layout class="QVBoxLayout" name="verticalLayout_9">
+            <item>
+             <widget class="QLabel" name="label_6">
+              <property name="text">
+               <string/>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="eMailTestPushButton">
+              <property name="text">
+               <string>Send</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>

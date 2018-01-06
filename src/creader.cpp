@@ -129,7 +129,13 @@ void CReader::onStarted(void) {
                     return;
                 }
             }
-            sleep(3);
+            for (int i=0; i<10; i++) {
+                sleep(1);
+                if (thread && thread->isInterruptionRequested()) {
+                    thread->quit();
+                    return;
+                }
+            }
 
             // emit null tag to update tables
 

@@ -90,7 +90,7 @@ void CSmtp::disconnected()
 
 void CSmtp::connected()
 {
-    qDebug() << "Connected";
+//    qDebug() << "Connected";
 //    if (!socket->waitForConnected(timeout)) {
 //         qDebug() << socket->errorString();
 //     }
@@ -262,7 +262,7 @@ void CSmtp::readyRead()
     }
     else if ( state == Close )
     {
-        qDebug() << "Close";
+//        qDebug() << "Close";
         deleteLater();
         return;
     }
