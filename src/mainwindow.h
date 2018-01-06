@@ -107,6 +107,20 @@ signals:
 };
 
 
+
+
+class CScheduleItem {
+public:
+    CScheduleItem(void);
+    QString day;
+    QString activity;
+    QString startTime;
+    QString endTime;
+};
+
+
+
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -126,6 +140,8 @@ public:
     float tablePurgeIntervalHours;
     CLapsTableModel *lapsTableModel;
     QSortFilterProxyModel *lapsProxyModel;
+    QFile *logFile;
+    QTextStream *logTextStream;
 private:
     CSmtp *smtp;
     QList<CRider> purgedRiders;
@@ -153,6 +169,7 @@ private:
     unsigned int dateTimeOfReportStart;
     unsigned int dateTimeOfReportEnd;
     void sendNextReport(void);
+//    QList<CScheduleItem> scheduleList;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
@@ -185,6 +202,7 @@ private slots:
     void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
+    void onCellChanged(int, int);
 };
 
 #endif // MAINWINDOW_H

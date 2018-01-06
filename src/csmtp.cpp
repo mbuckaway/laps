@@ -10,10 +10,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 #include "csmtp.h"
+#include "mainwindow.h"
 
-CSmtp::CSmtp( const QString &user, const QString &pass, const QString &host, int port, int timeout)
-{
+
+
+CSmtp::CSmtp(const QString &user, const QString &pass, const QString &host, int port, int timeout) {
     t = NULL;
+    this->user = user;
+    this->pass = pass;
+    this->host = host;
+    this->port = port;
+    this->timeout = timeout;
+    error = 0;
     socket = new QSslSocket(this);
 
     connect(socket, SIGNAL(readyRead()), this, SLOT(readyRead()));
@@ -21,21 +29,11 @@ CSmtp::CSmtp( const QString &user, const QString &pass, const QString &host, int
     connect(socket, SIGNAL(error(QAbstractSocket::SocketError)), this,SLOT(errorReceived(QAbstractSocket::SocketError)));
     connect(socket, SIGNAL(stateChanged(QAbstractSocket::SocketState)), this, SLOT(stateChanged(QAbstractSocket::SocketState)));
     connect(socket, SIGNAL(disconnected()), this, SLOT(disconnected()));
-
-
-    this->user = user;
-    this->pass = pass;
-
-    this->host = host;
-    this->port = port;
-    this->timeout = timeout;
-    error = 0;
 }
 
 
 
-void CSmtp::sendMail(const QString &from, const QString &to, const QString &subject, const QString &body)
-{
+void CSmtp::sendMail(const QString &from, const QString &to, const QString &subject, const QString &body) {
     error = 0;
     message = "To: " + to + "\n";
     message.append("From: " + from + "\n");
@@ -49,7 +47,7 @@ void CSmtp::sendMail(const QString &from, const QString &to, const QString &subj
     state = Init;
     socket->connectToHostEncrypted(host, port); //"smtp.gmail.com" and 465 for gmail TLS
     if (!socket->waitForConnected(timeout)) {
-         qDebug() << socket->errorString();
+         emit newLogMessage(socket->errorString());
      }
 
     t = new QTextStream( socket );
@@ -57,40 +55,64 @@ void CSmtp::sendMail(const QString &from, const QString &to, const QString &subj
 
 
 
-CSmtp::~CSmtp()
-{
+CSmtp::~CSmtp() {
     delete t;
     delete socket;
 }
 
 
 
-void CSmtp::stateChanged(QAbstractSocket::SocketState socketState)
-{
-//    qDebug() << "StateChanged" << socketState;
+void CSmtp::stateChanged(QAbstractSocket::SocketState socketState) {
+//    qDebug() << "stateChanged" << socketState;
+    QString stateName;
+    switch (socketState) {
+    case QAbstractSocket::UnconnectedState:
+        stateName = "UnconnectedState";
+        break;
+    case QAbstractSocket::HostLookupState:
+        stateName = "HostLookupState";
+        break;
+    case QAbstractSocket::ConnectingState:
+        stateName = "ConnectingState";
+        break;
+    case QAbstractSocket::ConnectedState:
+        stateName = "ConnectedState";
+        break;
+    case QAbstractSocket::BoundState:
+        stateName = "BoundState";
+        break;
+    case QAbstractSocket::ClosingState:
+        stateName = "Closingtate";
+        break;
+    case QAbstractSocket::ListeningState:
+        stateName = "ListeningState";
+        break;
+    }
+
+    emit newLogMessage("  " + stateName);
 }
 
 
 
-void CSmtp::errorReceived(QAbstractSocket::SocketError socketError)
-{
-//    qDebug() << "Error" << socketError;
-    error = 1;
+void CSmtp::errorReceived(QAbstractSocket::SocketError socketError) {
+//    qDebug() << "errorReceived" << socketError;
+    error = socketError;
+    emit newLogMessage("errorReceived: " + socket->errorString());
 }
 
 
 
-void CSmtp::disconnected()
-{
+void CSmtp::disconnected() {
 //    qDebug() << "Disconneted error=" << error;
+//    emit newLogMessage("Disconnected");
     emit completed(error);
 }
 
 
 
-void CSmtp::connected()
-{
+void CSmtp::connected() {
 //    qDebug() << "Connected";
+//    emit newLogMessage("Connected");
 //    if (!socket->waitForConnected(timeout)) {
 //         qDebug() << socket->errorString();
 //     }
@@ -100,15 +122,13 @@ void CSmtp::connected()
 
 
 
-void CSmtp::readyRead()
-{
-//     qDebug() << "ReadyRead";
+void CSmtp::readyRead() {
+    //     qDebug() << "ReadyRead";
 
-     // SMTP is line-oriented
+    // SMTP is line-oriented
 
     QString responseLine;
-    do
-    {
+    do {
         responseLine = socket->readLine();
         response += responseLine;
     }
@@ -119,8 +139,7 @@ void CSmtp::readyRead()
 //    qDebug() << "Server response code:" <<  responseLine;
 //    qDebug() << "Server response:" << response;
 
-    if ( state == Init && responseLine == "220" )
-    {
+    if ( state == Init && responseLine == "220" ) {
         if (!t) {
             qDebug() << "t is undefined";
             return;
@@ -140,15 +159,12 @@ void CSmtp::readyRead()
         t->flush();
         state = HandShake;
     }*/
-    else if (state == HandShake && responseLine == "250")
-    {
+    else if (state == HandShake && responseLine == "250") {
         socket->startClientEncryption();
-        if(!socket->waitForEncrypted(timeout))
-        {
-//            qDebug() << socket->errorString();
+        if (!socket->waitForEncrypted(timeout)) {
             state = Close;
+            emit newLogMessage("  waitForEncryption timeout");
         }
-
 
         //Send EHLO once again but now encrypted
 
@@ -160,8 +176,7 @@ void CSmtp::readyRead()
         t->flush();
         state = Auth;
     }
-    else if (state == Auth && responseLine == "250")
-    {
+    else if (state == Auth && responseLine == "250") {
         // Trying AUTH
 //        qDebug() << "Auth";
         if (!t) {
@@ -172,8 +187,7 @@ void CSmtp::readyRead()
         t->flush();
         state = User;
     }
-    else if (state == User && responseLine == "334")
-    {
+    else if (state == User && responseLine == "334") {
         //Trying User
 //        qDebug() << "Username";
         //GMAIL is using XOAUTH2 protocol, which basically means that password and username has to be sent in base64 coding
@@ -184,11 +198,9 @@ void CSmtp::readyRead()
         }
         *t << QByteArray().append(user).toBase64()  << "\r\n";
         t->flush();
-
         state = Pass;
     }
-    else if (state == Pass && responseLine == "334")
-    {
+    else if (state == Pass && responseLine == "334") {
         //Trying pass
 //        qDebug() << "Pass";
         if (!t) {
@@ -200,8 +212,7 @@ void CSmtp::readyRead()
 
         state = Mail;
     }
-    else if ( state == Mail && responseLine == "235" )
-    {
+    else if ( state == Mail && responseLine == "235" ) {
         // HELO response was okay (well, it has to be)
 
         //Apperantly for Google it is mandatory to have MAIL FROM and RCPT email formated the following way -> <email@gmail.com>
@@ -214,8 +225,7 @@ void CSmtp::readyRead()
         t->flush();
         state = Rcpt;
     }
-    else if ( state == Rcpt && responseLine == "250" )
-    {
+    else if ( state == Rcpt && responseLine == "250" ) {
         //Apperantly for Google it is mandatory to have MAIL FROM and RCPT email formated the following way -> <email@gmail.com>
         if (!t) {
             qDebug() << "t is undefined";
@@ -225,8 +235,7 @@ void CSmtp::readyRead()
         t->flush();
         state = Data;
     }
-    else if ( state == Data && responseLine == "250" )
-    {
+    else if ( state == Data && responseLine == "250" ) {
         if (!t) {
             qDebug() << "t is undefined";
             return;
@@ -236,8 +245,7 @@ void CSmtp::readyRead()
         t->flush();
         state = Body;
     }
-    else if ( state == Body && responseLine == "354" )
-    {
+    else if ( state == Body && responseLine == "354" ) {
         if (!t) {
             qDebug() << "t is undefined";
             return;
@@ -247,8 +255,7 @@ void CSmtp::readyRead()
         t->flush();
         state = Quit;
     }
-    else if ( state == Quit && responseLine == "250" )
-    {
+    else if ( state == Quit && responseLine == "250" ) {
         if (!t) {
             qDebug() << "t is undefined";
             return;
@@ -260,14 +267,12 @@ void CSmtp::readyRead()
         state = Close;
         emit status( tr( "Message sent" ) );
     }
-    else if ( state == Close )
-    {
+    else if ( state == Close ) {
 //        qDebug() << "Close";
         deleteLater();
         return;
     }
-    else
-    {
+    else {
         // something broke.
         QMessageBox::warning( 0, tr( "Qt Simple SMTP client" ), tr( "Unexpected reply from SMTP server:\n\n" ) + response );
         state = Close;

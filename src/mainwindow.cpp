@@ -941,6 +941,7 @@ MainWindow::MainWindow(QWidget *parent) :
     lapsProxyModel = NULL;
     activeRidersTableModel = NULL;
     activeRidersProxyModel = NULL;
+    logFile = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
     if (testMode)
         QCoreApplication::setApplicationVersion("0.1-TestMode");
@@ -955,6 +956,22 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
     ui->rightTitleLabel->setText(QString());
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
+
+
+    // Open log file
+
+    logFile = new QFile;
+    if (!logFile)
+        qDebug() << "Error creating log QFile";
+    logFile->setFileName("llrplaps.log");
+    int rc = logFile->open(QIODevice::Append | QIODevice::Text);
+    if (!rc) {
+        qDebug() << "log file not opened";
+    }
+    logTextStream = new QTextStream(logFile);
+    if (!logTextStream)
+        qDebug() << "Error creating log QTextStream";
+    logTextStream->setCodec("UTF-8");
 
 
     // Get track length at position of each antenna.  Lap speed is estimated from
@@ -1055,7 +1072,6 @@ MainWindow::MainWindow(QWidget *parent) :
     else membershipDbaseFileName = "membership.db";
     QString membershipDbaseUserName = "fcv";
     QString membershipDbasePassword = "fcv";
-    int rc = 0;
     rc = membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
@@ -1196,6 +1212,42 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
     ui->applySettingsPushButton->hide();
+
+
+
+
+    // Schedule table
+
+//    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
+//        for (int col=0; col<ui->scheduleTableWidget->columnCount(); col++) {
+//            ui->scheduleTableWidget->setItem(row, col, new QTableWidgetItem());
+//        }
+//    }
+
+    connect(ui->scheduleTableWidget, SIGNAL(cellChanged(int,int)), this, SLOT(onCellChanged(int, int)));
+
+
+
+}
+
+
+
+void MainWindow::onCellChanged(int row, int col) {
+    qDebug() << row << col;
+//    if (row > scheduleList.size())
+//        guiCritical("Schedule table too large for list");
+    qDebug() << ui->scheduleTableWidget->item(row, col)->text();
+    QString cellText(ui->scheduleTableWidget->item(row, col)->text());
+    qDebug() << cellText;
+//    switch (col) {
+//    case 0:
+//        scheduleList[row].day = cellText;
+
+
+//    }
+//    for (int i=0; i<scheduleList.size(); i++) {
+//        qDebug() << i << scheduleList[i].day << scheduleList[i].activity << scheduleList[i].startTime << scheduleList[i].endTime;
+//    }
 }
 
 
@@ -1209,6 +1261,8 @@ MainWindow::~MainWindow() {
         delete readerThreadList[i];
     }
     readerThreadList.clear();
+    logFile->close();
+
     delete ui;
 }
 
@@ -1237,6 +1291,18 @@ void MainWindow::initializeSettingsPanel(void) {
     ui->emailSendReportsCheckBox->setChecked(settings.value("emailSendReports").toBool());
     ui->emailFromLineEdit->setText(settings.value("emailFrom").toString());
     ui->emailSubjectLineEdit->setText(settings.value("emailSubject").toString());
+
+    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
+        for (int col=0; col<ui->scheduleTableWidget->columnCount(); col++) {
+            ui->scheduleTableWidget->setItem(row, col, new QTableWidgetItem());
+        }
+        QString s;
+        ui->scheduleTableWidget->item(row, 0)->setText(settings.value(s.sprintf("scheduleItem%dDay", row)).toString());
+        ui->scheduleTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dActivity", row)).toString());
+        ui->scheduleTableWidget->item(row, 2)->setText(settings.value(s.sprintf("scheduleItem%dStartTime", row)).toString());
+        ui->scheduleTableWidget->item(row, 3)->setText(settings.value(s.sprintf("scheduleItem%dEndTime", row)).toString());
+    }
+
 }
 
 
@@ -1275,37 +1341,43 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("emailSendReports", ui->emailSendReportsCheckBox->isChecked());
     settings.setValue("emailFrom", ui->emailFromLineEdit->text());
     settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
+
+    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
+        QString s;
+        settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->scheduleTableWidget->item(row, 0)->text());
+        settings.setValue(s.sprintf("scheduleItem%dActivity", row), ui->scheduleTableWidget->item(row, 1)->text());
+        settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->scheduleTableWidget->item(row, 2)->text());
+        settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->scheduleTableWidget->item(row, 3)->text());
+    }
 }
 
 
 
 void MainWindow::onApplySettingsPushButtonClicked(void) {
-    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
-    trackLengthM.clear();
-    trackLengthM.append(ui->trackLength1LineEdit->text().toFloat());
-    trackLengthM.append(ui->trackLength2LineEdit->text().toFloat());
-    trackLengthM.append(ui->trackLength3LineEdit->text().toFloat());
-    trackLengthM.append(ui->trackLength4LineEdit->text().toFloat());
-    tablePurgeIntervalHours = ui->tablePurgeIntervalLineEdit->text().toFloat();
-    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
-    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
-    purgeActiveRidersListTimer.start();
-
+//    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
+//    trackLengthM.clear();
+//    trackLengthM.append(ui->trackLength1LineEdit->text().toFloat());
+//    trackLengthM.append(ui->trackLength2LineEdit->text().toFloat());
+//    trackLengthM.append(ui->trackLength3LineEdit->text().toFloat());
+//    trackLengthM.append(ui->trackLength4LineEdit->text().toFloat());
+//    tablePurgeIntervalHours = ui->tablePurgeIntervalLineEdit->text().toFloat();
+//    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
+//    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
+//    purgeActiveRidersListTimer.start();
 }
 
 
 
 void MainWindow::onEMailTestPushButtonClicked(void) {
     CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-
-    connect(smtp, SIGNAL(completed()), this, SLOT(onTestMailSent()));
+    connect(smtp, SIGNAL(completed(int)), this, SLOT(onTestMailSent(int)));
+    connect(smtp, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
 
     QString body("This is test email message.");
 
     body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
 
     smtp->sendMail(ui->emailFromLineEdit->text(), ui->emailTestToLineEdit->text(), ui->emailTestSubjectLineEdit->text(), body);
-
 }
 
 
@@ -1323,7 +1395,7 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
 
     static bool sentInThisInterval = false;
-    if ((currentDateTime.time().hour() % 2) == 0) {
+    if ((currentDateTime.time().second() % 10) == 0) {
         if (!sentInThisInterval) {
             sendReports();
             sentInThisInterval = true;
@@ -1332,6 +1404,35 @@ void MainWindow::onClockTimerTimeout(void) {
     else {
         sentInThisInterval = false;
     }
+
+    // Check which scheduled activity
+
+    QString activity;
+    for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
+        int dayOfWeek = 0;
+        if (ui->scheduleTableWidget->item(i, 0)->text() == "Monday")
+            dayOfWeek = 1;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Tuesday")
+            dayOfWeek = 2;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Wednesday")
+            dayOfWeek = 3;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Thursday")
+            dayOfWeek = 4;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Friday")
+            dayOfWeek = 5;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Saturday")
+            dayOfWeek = 6;
+        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Sunday")
+            dayOfWeek = 7;
+        QTime startTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
+        QTime endTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+
+        if ((currentDateTime.date().dayOfWeek() == dayOfWeek) && (currentDateTime.time() >= startTime) && (currentDateTime.time() < endTime)) {
+            activity = ui->scheduleTableWidget->item(i, 1)->text();
+            break;
+        }
+    }
+    ui->scheduledActivityLineEdit->setText(activity);
 }
 
 
@@ -1340,9 +1441,12 @@ void MainWindow::onClockTimerTimeout(void) {
 // *********************************************************************************************
 //
 // sendReports()
+// This routing is called on a regular basis whether previous attempts to send reports were
+// successful or not.
 // Look through lapsDbase for laps within the last week with pending reports
 
 void MainWindow::sendReports(void) {
+//    qDebug() << "sendReports";
     if (!ui->emailSendReportsCheckBox->isChecked())
         return;
 
@@ -1426,7 +1530,6 @@ void MainWindow::sendNextReport(void) {
 
     // Get stats for each day in past week for this rider
 
-//    unsigned int date = 0;
     for (int i=6; i>=0; i--) {
         QDate currentDate(QDate::currentDate());
         QDate reportDate = currentDate.addDays(-i);
@@ -1439,6 +1542,43 @@ void MainWindow::sendNextReport(void) {
             qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
             return;
         }
+
+//        // Check which scheduled activity
+
+//        QString scheduledActivity;
+//        for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
+//            int dayOfWeek = 0;
+//            if (ui->scheduleTableWidget->item(i, 0)->text() == "Monday")
+//                dayOfWeek = 1;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Tuesday")
+//                dayOfWeek = 2;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Wednesday")
+//                dayOfWeek = 3;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Thursday")
+//                dayOfWeek = 4;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Friday")
+//                dayOfWeek = 5;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Saturday")
+//                dayOfWeek = 6;
+//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Sunday")
+//                dayOfWeek = 7;
+//            QTime startTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
+//            QTime endTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+
+//            if ((reportDate.dayOfWeek() == dayOfWeek) && (DateTime.time() >= startTime) && (currentDateTime.time() < endTime)) {
+//                scheduledActivity = ui->scheduleTableWidget->item(i, 1)->text();
+//                break;
+//            }
+//        }
+
+
+
+
+
+
+
+
+
         QString s;
         float averageLapSec = 0.;
         float speed = 0.;
@@ -1449,7 +1589,6 @@ void MainWindow::sendNextReport(void) {
         if (stats.bestLapSec > 0.) bestSpeed = stats.bestLapM / stats.bestLapSec / 1000. * 3600.;
         if (stats.bestLapSec > 0.) bestLapSec = stats.bestLapSec;
         body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
-//        date = dateTimeStart;
     }
     body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
 
@@ -1459,7 +1598,7 @@ void MainWindow::sendNextReport(void) {
 
 
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
-    emit onNewLogMessage("Sending email report to " + info.eMail);
+    emit onNewLogMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
 
 //    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
@@ -1467,6 +1606,7 @@ void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
 
     smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
     connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
+    connect(smtp, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
     smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body);
 }
 
@@ -1475,11 +1615,15 @@ void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
 void MainWindow::onMailSent(int error) {
 //    qDebug() << "onMailSent" << error;
 
-    // Remove all entries from notReported lists for first rider on list
+    // If there was an error sending reports, do not clear list or update reportStatus in dbase
 
     if (error != 0) {
+        emit onNewLogMessage("  Email report not sent");
         return;
     }
+
+
+    // Remove all entries from notReported lists for first rider on list
 
     QString tagIdBeingRemoved = membershipInfoNotReported[0].tagId;
     for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
@@ -1487,6 +1631,7 @@ void MainWindow::onMailSent(int error) {
             membershipInfoNotReported.removeAt(i);
 
             int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeOfReportStart, dateTimeOfReportEnd);
+            emit onNewLogMessage("  Email report sent");
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.setReported";
                 return;
@@ -1622,14 +1767,11 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
 // Process new tag
 //
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
-//    qDebug() << "onNewTracKTag" << tagInfo.tagId;
-
+    QString s;
     static int tagCount = 0;
 
     if (!tagInfo.tagId.isEmpty())
         tagCount++;
-
-    QString s;
 
     // Add string to messages window
 
@@ -1658,7 +1800,12 @@ float MainWindow::lapSpeed(float lapSec, float lapM) {
 
 
 void MainWindow::onNewLogMessage(QString s) {
-    ui->messagesPlainTextEdit->appendPlainText(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh:mm:ss ") + s);
+    QString text(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh:mm:ss ") + s);
+    ui->messagesPlainTextEdit->appendPlainText(text);
+
+   if (logFile && logTextStream)
+        *logTextStream << text << "\n";
+
 }
 
 
@@ -1994,6 +2141,8 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskUpdatePushButton->setEnabled(false);
 
 }
+
+
 
 
 
