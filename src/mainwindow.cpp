@@ -297,7 +297,7 @@ QVariant CMembershipTableModel::headerData(int section, Qt::Orientation orientat
             case 5:
                 return QString("eMail");
             case 6:
-                return QString("SendReports");
+                return QString("EmailReports");
             }
         }
     }
@@ -1395,7 +1395,7 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
 
     static bool sentInThisInterval = false;
-    if ((currentDateTime.time().second() % 10) == 0) {
+    if ((currentDateTime.time().minute() % 30) == 0) {
         if (!sentInThisInterval) {
             sendReports();
             sentInThisInterval = true;
@@ -1900,14 +1900,6 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
     int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
     if (id != 0) {
         guiCritical("Tag \"" + ui->deskTagIdLineEdit->text().toLatin1() + "\" already in database");
-        return;
-    }
-
-    // Check whether first and last name is already in dbase
-
-    id = membershipDbase.getIdFromName(ui->deskFirstNameLineEdit->text(), ui->deskLastNameLineEdit->text());
-    if (id != 0) {
-        guiCritical("Name \"" + ui->deskFirstNameLineEdit->text() + " " + ui->deskLastNameLineEdit->text() + "\" already in database");
         return;
     }
 

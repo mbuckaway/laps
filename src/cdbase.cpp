@@ -41,7 +41,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
     if (!tableList.contains("membershipTable")) {
         QSqlQuery query(dBase);
         qDebug() << "Creating new membershipTable in" << filename;
-        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER UNIQUE, caRegistration VARCHAR(20) UNIQUE, eMail VARCHAR(20), sendReports INTEGER)");
+        query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER, caRegistration VARCHAR(20), eMail VARCHAR(20), sendReports INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             qDebug() << "Error creating new membershipTable:" << errorTextVal;
@@ -72,26 +72,6 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
         }
     }
 
-//    {
-//        QSqlQuery query(dBase);
-//        qDebug() << "Integrity check of membershipTable...";
-//        query.prepare("PRAGMA integrity_check");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            qDebug() << errorTextVal;
-//            return 4;
-//        }
-//        int id = query.record().indexOf("id");
-//        int idTagId = query.record().indexOf("tagId");
-//        int idFirst = query.record().indexOf("firstName");
-//        int idLast = query.record().indexOf("lastName");
-//        int idMembership = query.record().indexOf("membershipNumber");
-//        int idcaRegistration = query.record().indexOf("caRegistration");
-//        int idEmail = query.record().indexOf("eMail");
-//        while (query.next()) {
-//            qDebug("id=%d tagId=%s name=%s %s membershipNumber=%s caRegistration=%s eMail=%s", query.value(id).toString().toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idFirst).toString().toLatin1().data(), query.value(idLast).toString().toLatin1().data(), query.value(idMembership).toString().toLatin1().data(), query.value(idcaRegistration).toString().toLatin1().data(), query.value(idEmail).toString().toLatin1().data());
-//        }
-//    }
     return 0;
 }
 

@@ -89,7 +89,7 @@
      <enum>Qt::NoFocus</enum>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="ridersTab">
      <attribute name="title">
@@ -305,7 +305,7 @@
         <item>
          <widget class="QCheckBox" name="sendReportsCheckBox">
           <property name="text">
-           <string>SendReports</string>
+           <string>EmailReports</string>
           </property>
          </widget>
         </item>
@@ -1399,7 +1399,7 @@ Leave blank for simulator.</string>
      </widget>
     </widget>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>10</x>
