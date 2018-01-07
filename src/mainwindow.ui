@@ -89,11 +89,11 @@
      <enum>Qt::NoFocus</enum>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>5</number>
     </property>
     <widget class="QWidget" name="ridersTab">
      <attribute name="title">
-      <string>Riders</string>
+      <string>Active Riders</string>
      </attribute>
      <layout class="QGridLayout" name="gridLayout_3">
       <item row="0" column="0">
@@ -1265,7 +1265,7 @@ Leave blank for simulator.</string>
     </widget>
     <widget class="QWidget" name="tab">
      <attribute name="title">
-      <string>Schedule</string>
+      <string>Sessions</string>
      </attribute>
      <widget class="QTableWidget" name="scheduleTableWidget">
       <property name="geometry">
@@ -1383,17 +1383,17 @@ Leave blank for simulator.</string>
       </column>
       <column>
        <property name="text">
-        <string>Activity</string>
+        <string>Session</string>
        </property>
       </column>
       <column>
        <property name="text">
-        <string>Start Time</string>
+        <string>Start Time (hh:mm)</string>
        </property>
       </column>
       <column>
        <property name="text">
-        <string>End Time</string>
+        <string>End Time (hh:mm)</string>
        </property>
       </column>
      </widget>
@@ -1468,7 +1468,7 @@ Leave blank for simulator.</string>
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="scheduledActivityLabel">
+      <widget class="QLabel" name="scheduledSessionLabel">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
          <horstretch>10</horstretch>
@@ -1476,7 +1476,7 @@ Leave blank for simulator.</string>
         </sizepolicy>
        </property>
        <property name="text">
-        <string>Scheduled Activity</string>
+        <string>Scheduled Session</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1484,10 +1484,10 @@ Leave blank for simulator.</string>
       </widget>
      </item>
      <item>
-      <widget class="QLineEdit" name="scheduledActivityLineEdit">
+      <widget class="QLineEdit" name="scheduledSessionLineEdit">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>5</horstretch>
+         <horstretch>15</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>

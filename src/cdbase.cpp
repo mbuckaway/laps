@@ -829,41 +829,6 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
 
 
 
-//int CLapsDbase::getLapsNotReported(const QString &tagId, QList<int> *lapsNotReportedList) {
-//    errorTextVal.clear();
-//    errorVal = 0;
-
-//    if (!dBase.isOpen()) {
-//        errorTextVal = "CLapsDbase closed";
-//        errorVal = 1;
-//        return errorVal;
-//    }
-//    QSqlQuery query(dBase);
-//    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus");
-//    query.bindValue(":tagId", tagId);
-//    query.bindValue(":reportStatus", reportPending);
-//    if (!query.exec()) {
-//        errorTextVal = query.lastError().text();
-//        errorVal = 2;
-//        return errorVal;
-//    }
-
-//    int idIndex = query.record().indexOf("id");
-//    if (idIndex < 0) {
-//        errorTextVal = "Could not find id index in getLapsNotReported";
-//        errorVal = 3;
-//        return errorVal;
-//    }
-
-//    while (query.next()) {
-//        int id = query.value(idIndex).toInt();
-//        lapsNotReportedList->append(id);
-//    }
-
-//    return 0;
-//}
-
-
 // Get stats for specified tagId and time period from dbase
 //
 int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {

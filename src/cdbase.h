@@ -62,7 +62,6 @@ public:
     int getStats(const QString &tagId, CRider *rider);
     int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int setReportStatus(reportStatus_t reportStatus, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd);
-//    int getLapsNotReported(const QString &tagId, QList<int> *unreportedLapsList);
     int getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, QList<int> *lapsList);
     static unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);

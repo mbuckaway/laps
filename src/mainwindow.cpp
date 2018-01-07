@@ -1298,7 +1298,7 @@ void MainWindow::initializeSettingsPanel(void) {
         }
         QString s;
         ui->scheduleTableWidget->item(row, 0)->setText(settings.value(s.sprintf("scheduleItem%dDay", row)).toString());
-        ui->scheduleTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dActivity", row)).toString());
+        ui->scheduleTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dSession", row)).toString());
         ui->scheduleTableWidget->item(row, 2)->setText(settings.value(s.sprintf("scheduleItem%dStartTime", row)).toString());
         ui->scheduleTableWidget->item(row, 3)->setText(settings.value(s.sprintf("scheduleItem%dEndTime", row)).toString());
     }
@@ -1345,7 +1345,7 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
         QString s;
         settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->scheduleTableWidget->item(row, 0)->text());
-        settings.setValue(s.sprintf("scheduleItem%dActivity", row), ui->scheduleTableWidget->item(row, 1)->text());
+        settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->scheduleTableWidget->item(row, 1)->text());
         settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->scheduleTableWidget->item(row, 2)->text());
         settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->scheduleTableWidget->item(row, 3)->text());
     }
@@ -1395,7 +1395,7 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
 
     static bool sentInThisInterval = false;
-    if ((currentDateTime.time().minute() % 30) == 0) {
+    if ((currentDateTime.time().second() % 10) == 0) {
         if (!sentInThisInterval) {
             sendReports();
             sentInThisInterval = true;
@@ -1405,34 +1405,29 @@ void MainWindow::onClockTimerTimeout(void) {
         sentInThisInterval = false;
     }
 
-    // Check which scheduled activity
+    QString session = getSession(currentDateTime);
+    if (ui->scheduledSessionLineEdit->text() != session)
+        ui->scheduledSessionLineEdit->setText(session);
 
-    QString activity;
+}
+
+
+
+// get session for specified dateTime
+
+QString MainWindow::getSession(const QDateTime &dateTime) {
+    QString session;
+    QString day = QDate::longDayName(dateTime.date().dayOfWeek());
     for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
-        int dayOfWeek = 0;
-        if (ui->scheduleTableWidget->item(i, 0)->text() == "Monday")
-            dayOfWeek = 1;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Tuesday")
-            dayOfWeek = 2;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Wednesday")
-            dayOfWeek = 3;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Thursday")
-            dayOfWeek = 4;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Friday")
-            dayOfWeek = 5;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Saturday")
-            dayOfWeek = 6;
-        else if (ui->scheduleTableWidget->item(i, 0)->text() == "Sunday")
-            dayOfWeek = 7;
-        QTime startTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
-        QTime endTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
-
-        if ((currentDateTime.date().dayOfWeek() == dayOfWeek) && (currentDateTime.time() >= startTime) && (currentDateTime.time() < endTime)) {
-            activity = ui->scheduleTableWidget->item(i, 1)->text();
+        QString sessionDay = ui->scheduleTableWidget->item(i, 0)->text();
+        QTime sessionStartTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
+        QTime sessionEndTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+        if ((day == sessionDay) && (dateTime.time() >= sessionStartTime) && (dateTime.time() < sessionEndTime)) {
+            session = ui->scheduleTableWidget->item(i, 1)->text();
             break;
         }
     }
-    ui->scheduledActivityLineEdit->setText(activity);
+    return session;
 }
 
 
@@ -1446,7 +1441,6 @@ void MainWindow::onClockTimerTimeout(void) {
 // Look through lapsDbase for laps within the last week with pending reports
 
 void MainWindow::sendReports(void) {
-//    qDebug() << "sendReports";
     if (!ui->emailSendReportsCheckBox->isChecked())
         return;
 
@@ -1516,19 +1510,18 @@ void MainWindow::sendReports(void) {
 // Removes all laps from lists for the day reported and sets reportStatus flag in lapsDbase.
 //
 void MainWindow::sendNextReport(void) {
-//    for (int i=0; i<membershipInfoNotReported.size(); i++) {
-//        qDebug() << membershipInfoNotReported[i].tagId;
-//    }
     if (membershipInfoNotReported.isEmpty())
         return;
 
+    CMembershipInfo *membershipInfoToReport = &membershipInfoNotReported[0];
+
     QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
-    body.append("Name: " + membershipInfoNotReported[0].firstName + " " + membershipInfoNotReported[0].lastName + "\n");
-    body.append("TagId: " + membershipInfoNotReported[0].tagId + "\n");
-    body.append("MembershipNumber: " + membershipInfoNotReported[0].membershipNumber + "\n");
+    body.append("Name: " + membershipInfoToReport->firstName + " " + membershipInfoToReport->lastName + "\n");
+    body.append("TagId: " + membershipInfoToReport->tagId + "\n");
+    body.append("MembershipNumber: " + membershipInfoToReport->membershipNumber + "\n");
     body.append("Date              Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
 
-    // Get stats for each day in past week for this rider
+    // Get stats for each session and each day in past week for this rider
 
     for (int i=6; i>=0; i--) {
         QDate currentDate(QDate::currentDate());
@@ -1536,43 +1529,50 @@ void MainWindow::sendNextReport(void) {
         unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
         unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
 
-        CStats stats;
-        int rc = lapsDbase.getStatsForPeriod(membershipInfoNotReported[0].tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
+        // Stats for entire day
+
+        CStats statsForDay;
+        int rc = lapsDbase.getStatsForPeriod(membershipInfoToReport->tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
             qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
             return;
         }
 
-//        // Check which scheduled activity
+        // Stats for each session in day
 
-//        QString scheduledActivity;
-//        for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
-//            int dayOfWeek = 0;
-//            if (ui->scheduleTableWidget->item(i, 0)->text() == "Monday")
-//                dayOfWeek = 1;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Tuesday")
-//                dayOfWeek = 2;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Wednesday")
-//                dayOfWeek = 3;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Thursday")
-//                dayOfWeek = 4;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Friday")
-//                dayOfWeek = 5;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Saturday")
-//                dayOfWeek = 6;
-//            else if (ui->scheduleTableWidget->item(i, 0)->text() == "Sunday")
-//                dayOfWeek = 7;
-//            QTime startTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
-//            QTime endTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+        QList<CStats> statsForSession;
+        if (statsForDay.lapCount > 0) {
+            QString day = QDate::longDayName(reportDate.dayOfWeek());
 
-//            if ((reportDate.dayOfWeek() == dayOfWeek) && (DateTime.time() >= startTime) && (currentDateTime.time() < endTime)) {
-//                scheduledActivity = ui->scheduleTableWidget->item(i, 1)->text();
-//                break;
-//            }
-//        }
+            for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
+                QString sessionDay = ui->scheduleTableWidget->item(i, 0)->text();
+                if (QDate::longDayName(reportDate.day()) == sessionDay) {
+                    QTime sessionStartTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
+                    QTime sessionEndTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+                    sessionEndTime.addMSecs(-1);
+                    unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
+                    unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
+                    CStats stats;
+                    rc = lapsDbase.getStatsForPeriod(membershipInfoToReport->tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
+                    statsForSession.append(stats);
+                }
+            }
+        }
 
+        for (int i=0; i<statsForSession.size(); i++) {
+//            qDebug() << i << statsForSession[i].lapCount;
+            QString s;
+            float averageLapSec = 0.;
+            float speed = 0.;
+            float bestSpeed = 0.;
+            float bestLapSec = 0.;
+            if (statsForSession[i].lapCount > 0.) averageLapSec = statsForSession[i].totalSec / (float)statsForSession[i].lapCount;
+            if (statsForSession[i].totalSec > 0.) speed = statsForSession[i].totalM / statsForSession[i].totalSec / 1000. * 3600.;
+            if (statsForSession[i].bestLapSec > 0.) bestSpeed = statsForSession[i].bestLapM / statsForSession[i].bestLapSec / 1000. * 3600.;
+            if (statsForSession[i].bestLapSec > 0.) bestLapSec = statsForSession[i].bestLapSec;
+            body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), statsForSession[i].lapCount, statsForSession[i].totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
 
-
+        }
 
 
 
@@ -1584,15 +1584,15 @@ void MainWindow::sendNextReport(void) {
         float speed = 0.;
         float bestSpeed = 0.;
         float bestLapSec = 0.;
-        if (stats.lapCount > 0.) averageLapSec = stats.totalSec / (float)stats.lapCount;
-        if (stats.totalSec > 0.) speed = stats.totalM / stats.totalSec / 1000. * 3600.;
-        if (stats.bestLapSec > 0.) bestSpeed = stats.bestLapM / stats.bestLapSec / 1000. * 3600.;
-        if (stats.bestLapSec > 0.) bestLapSec = stats.bestLapSec;
-        body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), stats.lapCount, stats.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
+        if (statsForDay.lapCount > 0.) averageLapSec = statsForDay.totalSec / (float)statsForDay.lapCount;
+        if (statsForDay.totalSec > 0.) speed = statsForDay.totalM / statsForDay.totalSec / 1000. * 3600.;
+        if (statsForDay.bestLapSec > 0.) bestSpeed = statsForDay.bestLapM / statsForDay.bestLapSec / 1000. * 3600.;
+        if (statsForDay.bestLapSec > 0.) bestLapSec = statsForDay.bestLapSec;
+        body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), statsForDay.lapCount, statsForDay.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
     }
     body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
 
-    sendReport(membershipInfoNotReported[0], body);
+    sendReport(*membershipInfoToReport, body);
 }
 
 
@@ -1600,7 +1600,7 @@ void MainWindow::sendNextReport(void) {
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
     emit onNewLogMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
 
-//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
     // Create smtp client
 

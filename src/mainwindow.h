@@ -169,7 +169,7 @@ private:
     unsigned int dateTimeOfReportStart;
     unsigned int dateTimeOfReportEnd;
     void sendNextReport(void);
-//    QList<CScheduleItem> scheduleList;
+    QString getSession(const QDateTime &);
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
