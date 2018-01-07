@@ -410,7 +410,7 @@
        </font>
       </property>
       <property name="text">
-       <string>Do not change these settings unless you know what you are doing.  Incorrect settings will prevent proper operation.  Application must be restarted for some changes to be implemented.</string>
+       <string>Do not change these settings unless you know what you are doing.  Incorrect settings will prevent proper operation.  Application must be restarted for some changes to take place.</string>
       </property>
       <property name="wordWrap">
        <bool>true</bool>
@@ -990,7 +990,7 @@ Leave blank for simulator.</string>
            </sizepolicy>
           </property>
           <property name="text">
-           <string>Port</string>
+           <string>Port (eg 465)</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -1511,6 +1511,24 @@ Leave blank for simulator.</string>
      <height>20</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>Settings</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuSettings"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -1521,17 +1539,6 @@ Leave blank for simulator.</string>
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
-  <widget class="QToolBar" name="toolBar">
-   <property name="windowTitle">
-    <string>toolBar</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-  </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources/>

@@ -730,7 +730,6 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
-//    qDebug() << "activeRidersTableModel::newTrackTag" << tagInfo.tagId;
     try {
 
         // If there is no tagId this is a nullTag which is used just to update table display
@@ -754,7 +753,6 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
 
-//            qDebug() << "Index=" << activeRiderIndex << "rider=" << rider;
             if (!rider) {
                 bool scrollToBottomRequired = false;
                 if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
@@ -1513,26 +1511,28 @@ void MainWindow::sendNextReport(void) {
     if (membershipInfoNotReported.isEmpty())
         return;
 
-    CMembershipInfo *membershipInfoToReport = &membershipInfoNotReported[0];
+    // Point to member to report on
+
+    CMembershipInfo *memberToReport = &membershipInfoNotReported[0];
 
     QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
-    body.append("Name: " + membershipInfoToReport->firstName + " " + membershipInfoToReport->lastName + "\n");
-    body.append("TagId: " + membershipInfoToReport->tagId + "\n");
-    body.append("MembershipNumber: " + membershipInfoToReport->membershipNumber + "\n");
+    body.append("Name: " + memberToReport->firstName + " " + memberToReport->lastName + "\n");
+    body.append("TagId: " + memberToReport->tagId + "\n");
+    body.append("MembershipNumber: " + memberToReport->membershipNumber + "\n");
     body.append("Date              Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
 
     // Get stats for each session and each day in past week for this rider
 
+    QDate currentDate(QDate::currentDate());
     for (int i=6; i>=0; i--) {
-        QDate currentDate(QDate::currentDate());
         QDate reportDate = currentDate.addDays(-i);
-        unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
-        unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
 
         // Stats for entire day
 
+        unsigned int reportPeriodStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
+        unsigned int reportPeriodEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
         CStats statsForDay;
-        int rc = lapsDbase.getStatsForPeriod(membershipInfoToReport->tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &statsForDay);
+        int rc = lapsDbase.getStatsForPeriod(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
             qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
             return;
@@ -1541,43 +1541,39 @@ void MainWindow::sendNextReport(void) {
         // Stats for each session in day
 
         QList<CStats> statsForSession;
+        QStringList sessionList;    // must correspond to elements in statsForSession
         if (statsForDay.lapCount > 0) {
-            QString day = QDate::longDayName(reportDate.dayOfWeek());
-
+            QString reportDay = QDate::longDayName(reportDate.dayOfWeek());
             for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
                 QString sessionDay = ui->scheduleTableWidget->item(i, 0)->text();
-                if (QDate::longDayName(reportDate.day()) == sessionDay) {
+                if (sessionDay == reportDay) {
                     QTime sessionStartTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
                     QTime sessionEndTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
-                    sessionEndTime.addMSecs(-1);
-                    unsigned int dateTimeStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
-                    unsigned int dateTimeEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
+                    sessionEndTime.addSecs(-1);
+                    unsigned int sessionStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
+                    unsigned int sessionEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
                     CStats stats;
-                    rc = lapsDbase.getStatsForPeriod(membershipInfoToReport->tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &stats);
+                    rc = lapsDbase.getStatsForPeriod(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
                     statsForSession.append(stats);
+                    sessionList.append(ui->scheduleTableWidget->item(i, 1)->text());
                 }
             }
         }
 
         for (int i=0; i<statsForSession.size(); i++) {
-//            qDebug() << i << statsForSession[i].lapCount;
-            QString s;
-            float averageLapSec = 0.;
-            float speed = 0.;
-            float bestSpeed = 0.;
-            float bestLapSec = 0.;
-            if (statsForSession[i].lapCount > 0.) averageLapSec = statsForSession[i].totalSec / (float)statsForSession[i].lapCount;
-            if (statsForSession[i].totalSec > 0.) speed = statsForSession[i].totalM / statsForSession[i].totalSec / 1000. * 3600.;
-            if (statsForSession[i].bestLapSec > 0.) bestSpeed = statsForSession[i].bestLapM / statsForSession[i].bestLapSec / 1000. * 3600.;
-            if (statsForSession[i].bestLapSec > 0.) bestLapSec = statsForSession[i].bestLapSec;
-            body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), statsForSession[i].lapCount, statsForSession[i].totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
-
+            if (statsForSession[i].lapCount > 0) {
+                QString s;
+                float averageLapSec = 0.;
+                float speed = 0.;
+                float bestSpeed = 0.;
+                float bestLapSec = 0.;
+                if (statsForSession[i].lapCount > 0.) averageLapSec = statsForSession[i].totalSec / (float)statsForSession[i].lapCount;
+                if (statsForSession[i].totalSec > 0.) speed = statsForSession[i].totalM / statsForSession[i].totalSec / 1000. * 3600.;
+                if (statsForSession[i].bestLapSec > 0.) bestSpeed = statsForSession[i].bestLapM / statsForSession[i].bestLapSec / 1000. * 3600.;
+                if (statsForSession[i].bestLapSec > 0.) bestLapSec = statsForSession[i].bestLapSec;
+                body.append(s.sprintf("%-16s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f  (%s session)\n", reportDate.toString().toLatin1().data(), statsForSession[i].lapCount, statsForSession[i].totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed, sessionList[i].toLatin1().data()));
+            }
         }
-
-
-
-
-
 
         QString s;
         float averageLapSec = 0.;
@@ -1592,7 +1588,7 @@ void MainWindow::sendNextReport(void) {
     }
     body.append("\n\nReport generated by llrpLaps " + QCoreApplication::applicationVersion());
 
-    sendReport(*membershipInfoToReport, body);
+    sendReport(*memberToReport, body);
 }
 
 
@@ -1600,7 +1596,7 @@ void MainWindow::sendNextReport(void) {
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
     emit onNewLogMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
 
-    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
     // Create smtp client
 
@@ -1613,7 +1609,6 @@ void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
 
 
 void MainWindow::onMailSent(int error) {
-//    qDebug() << "onMailSent" << error;
 
     // If there was an error sending reports, do not clear list or update reportStatus in dbase
 
