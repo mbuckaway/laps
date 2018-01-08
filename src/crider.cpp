@@ -49,6 +49,7 @@ void CRider::clear(void) {
     firstLapAfterBreak = false;
     onBreak = false;
     reportStatus = 0;
+    inDbase = false;
 }
 
 
