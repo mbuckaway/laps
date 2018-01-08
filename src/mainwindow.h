@@ -202,7 +202,7 @@ private slots:
     void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
-    void onCellChanged(int, int);
+//    void onCellChanged(int, int);
 };
 
 #endif // MAINWINDOW_H

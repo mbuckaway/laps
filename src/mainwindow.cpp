@@ -497,6 +497,9 @@ bool CLapsTableModel::addEntry(CRider rider) {
 
     int row = nameList.size();
     insertRows(row, 1);
+    if (scrollToBottomRequired)
+        mainWindow->ui->lapsTableView->scrollToBottom();
+
     nameList[row] = rider.name;
     if (!rider.firstLap && !rider.firstLapAfterBreak && !rider.onBreak) {
         lapList[row] = rider.lapCount;
@@ -514,8 +517,6 @@ bool CLapsTableModel::addEntry(CRider rider) {
     }
     commentList[row] = rider.comment;
 
-    if (scrollToBottomRequired)
-        mainWindow->ui->lapsTableView->scrollToBottom();
 
     return true;
 }
@@ -1216,13 +1217,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Schedule table
 
-//    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
-//        for (int col=0; col<ui->scheduleTableWidget->columnCount(); col++) {
-//            ui->scheduleTableWidget->setItem(row, col, new QTableWidgetItem());
+//    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
+//        for (int col=0; col<ui->sessionsTableWidget->columnCount(); col++) {
+//            ui->sessionsTableWidget->setItem(row, col, new QTableWidgetItem());
 //        }
 //    }
 
-    connect(ui->scheduleTableWidget, SIGNAL(cellChanged(int,int)), this, SLOT(onCellChanged(int, int)));
+//    connect(ui->sessionsTableWidget, SIGNAL(cellChanged(int,int)), this, SLOT(onCellChanged(int, int)));
 
 
 
@@ -1230,13 +1231,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 
-void MainWindow::onCellChanged(int row, int col) {
-    qDebug() << row << col;
+//void MainWindow::onCellChanged(int row, int col) {
+//    qDebug() << row << col;
 //    if (row > scheduleList.size())
 //        guiCritical("Schedule table too large for list");
-    qDebug() << ui->scheduleTableWidget->item(row, col)->text();
-    QString cellText(ui->scheduleTableWidget->item(row, col)->text());
-    qDebug() << cellText;
+//    qDebug() << ui->sessionsTableWidget->item(row, col)->text();
+//    QString cellText(ui->sessionsTableWidget->item(row, col)->text());
+//    qDebug() << cellText;
 //    switch (col) {
 //    case 0:
 //        scheduleList[row].day = cellText;
@@ -1246,7 +1247,7 @@ void MainWindow::onCellChanged(int row, int col) {
 //    for (int i=0; i<scheduleList.size(); i++) {
 //        qDebug() << i << scheduleList[i].day << scheduleList[i].activity << scheduleList[i].startTime << scheduleList[i].endTime;
 //    }
-}
+//}
 
 
 
@@ -1290,15 +1291,15 @@ void MainWindow::initializeSettingsPanel(void) {
     ui->emailFromLineEdit->setText(settings.value("emailFrom").toString());
     ui->emailSubjectLineEdit->setText(settings.value("emailSubject").toString());
 
-    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
-        for (int col=0; col<ui->scheduleTableWidget->columnCount(); col++) {
-            ui->scheduleTableWidget->setItem(row, col, new QTableWidgetItem());
+    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
+        for (int col=0; col<ui->sessionsTableWidget->columnCount(); col++) {
+            ui->sessionsTableWidget->setItem(row, col, new QTableWidgetItem());
         }
         QString s;
-        ui->scheduleTableWidget->item(row, 0)->setText(settings.value(s.sprintf("scheduleItem%dDay", row)).toString());
-        ui->scheduleTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dSession", row)).toString());
-        ui->scheduleTableWidget->item(row, 2)->setText(settings.value(s.sprintf("scheduleItem%dStartTime", row)).toString());
-        ui->scheduleTableWidget->item(row, 3)->setText(settings.value(s.sprintf("scheduleItem%dEndTime", row)).toString());
+        ui->sessionsTableWidget->item(row, 0)->setText(settings.value(s.sprintf("scheduleItem%dDay", row)).toString());
+        ui->sessionsTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dSession", row)).toString());
+        ui->sessionsTableWidget->item(row, 2)->setText(settings.value(s.sprintf("scheduleItem%dStartTime", row)).toString());
+        ui->sessionsTableWidget->item(row, 3)->setText(settings.value(s.sprintf("scheduleItem%dEndTime", row)).toString());
     }
 
 }
@@ -1340,28 +1341,18 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("emailFrom", ui->emailFromLineEdit->text());
     settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
 
-    for (int row=0; row<ui->scheduleTableWidget->rowCount(); row++) {
+    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
         QString s;
-        settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->scheduleTableWidget->item(row, 0)->text());
-        settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->scheduleTableWidget->item(row, 1)->text());
-        settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->scheduleTableWidget->item(row, 2)->text());
-        settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->scheduleTableWidget->item(row, 3)->text());
+        settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->sessionsTableWidget->item(row, 0)->text());
+        settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->sessionsTableWidget->item(row, 1)->text());
+        settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->sessionsTableWidget->item(row, 2)->text());
+        settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->sessionsTableWidget->item(row, 3)->text());
     }
 }
 
 
 
 void MainWindow::onApplySettingsPushButtonClicked(void) {
-//    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
-//    trackLengthM.clear();
-//    trackLengthM.append(ui->trackLength1LineEdit->text().toFloat());
-//    trackLengthM.append(ui->trackLength2LineEdit->text().toFloat());
-//    trackLengthM.append(ui->trackLength3LineEdit->text().toFloat());
-//    trackLengthM.append(ui->trackLength4LineEdit->text().toFloat());
-//    tablePurgeIntervalHours = ui->tablePurgeIntervalLineEdit->text().toFloat();
-//    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
-//    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.));
-//    purgeActiveRidersListTimer.start();
 }
 
 
@@ -1416,12 +1407,12 @@ void MainWindow::onClockTimerTimeout(void) {
 QString MainWindow::getSession(const QDateTime &dateTime) {
     QString session;
     QString day = QDate::longDayName(dateTime.date().dayOfWeek());
-    for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
-        QString sessionDay = ui->scheduleTableWidget->item(i, 0)->text();
-        QTime sessionStartTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
-        QTime sessionEndTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+    for (int i=0; i<ui->sessionsTableWidget->rowCount(); i++) {
+        QString sessionDay = ui->sessionsTableWidget->item(i, 0)->text();
+        QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
+        QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
         if ((day == sessionDay) && (dateTime.time() >= sessionStartTime) && (dateTime.time() < sessionEndTime)) {
-            session = ui->scheduleTableWidget->item(i, 1)->text();
+            session = ui->sessionsTableWidget->item(i, 1)->text();
             break;
         }
     }
@@ -1544,18 +1535,18 @@ void MainWindow::sendNextReport(void) {
         QStringList sessionList;    // must correspond to elements in statsForSession
         if (statsForDay.lapCount > 0) {
             QString reportDay = QDate::longDayName(reportDate.dayOfWeek());
-            for (int i=0; i<ui->scheduleTableWidget->rowCount(); i++) {
-                QString sessionDay = ui->scheduleTableWidget->item(i, 0)->text();
+            for (int i=0; i<ui->sessionsTableWidget->rowCount(); i++) {
+                QString sessionDay = ui->sessionsTableWidget->item(i, 0)->text();
                 if (sessionDay == reportDay) {
-                    QTime sessionStartTime(QTime::fromString(ui->scheduleTableWidget->item(i, 2)->text(), "hh:mm"));
-                    QTime sessionEndTime(QTime::fromString(ui->scheduleTableWidget->item(i, 3)->text(), "hh:mm"));
+                    QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
+                    QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
                     sessionEndTime.addSecs(-1);
                     unsigned int sessionStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
                     unsigned int sessionEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
                     CStats stats;
                     rc = lapsDbase.getStatsForPeriod(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
                     statsForSession.append(stats);
-                    sessionList.append(ui->scheduleTableWidget->item(i, 1)->text());
+                    sessionList.append(ui->sessionsTableWidget->item(i, 1)->text());
                 }
             }
         }
