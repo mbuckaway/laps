@@ -1535,6 +1535,10 @@ void MainWindow::prepareNextReport(void) {
     body.append("Name: " + memberToReport->firstName + " " + memberToReport->lastName + "\n");
     body.append("TagId: " + memberToReport->tagId + "\n");
     body.append("MembershipNumber: " + memberToReport->membershipNumber + "\n");
+
+
+    body.append(",html><body><table style=\"width:100%\"><tr><th>Firstname</th><th>Lastname</th><th>Age</th></tr><tr><td>Jill</td><td>Smith</td><td>50</td></tr><tr><td>Eve</td><td>Jackson</td><td>94</td></tr></table></body></html>");
+
     body.append("Date              Laps    km   AveLapSec  AveLapkm/hr  BestLapSec  BestLapkm/hr\n");
 
     // Get stats for each session and each day in past week for this rider
@@ -1612,7 +1616,7 @@ void MainWindow::prepareNextReport(void) {
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
     emit onNewLogMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
 
-//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
+    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body;
 
     // Create smtp client
 
