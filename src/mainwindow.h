@@ -84,7 +84,7 @@ class CLapsTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     CLapsTableModel(QObject *parent);
-    bool addEntry(CRider rider);
+    bool add(CRider rider);
     QStringList nameList;
     QList<int> lapList;
     QStringList timeList;
@@ -137,7 +137,6 @@ public:
     void guiCritical(QString);
     void guiInformation(QString);
     QMessageBox::StandardButtons guiQuestion(QString s, QMessageBox::StandardButtons b=QMessageBox::Ok);
-    float tablePurgeIntervalHours;
     CLapsTableModel *lapsTableModel;
     QSortFilterProxyModel *lapsProxyModel;
     QFile *logFile;

@@ -27,6 +27,7 @@ public:
     CRider(void);
     ~CRider(void);
     void clear();
+    int tagCount;
     QString tagId;          // from reader
     QString name;           // from dBase if available
     unsigned long long previousTimeStampUSec;   // timestamp from reader, updated with each lap

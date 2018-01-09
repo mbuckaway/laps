@@ -37,6 +37,7 @@ CRider::~CRider(void) {
 
 
 void CRider::clear(void) {
+    tagCount = 0;
     previousTimeStampUSec = 0;
     lapCount = 0;
     lapSec = 0.;

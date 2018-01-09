@@ -51,10 +51,10 @@
 
 // Columns in lap table (listing of all laps)
 
-#define LT_NAME             0
-#define LT_LAPCOUNT         1
+#define LT_TIMESTAMP        0
+#define LT_NAME             1
 #define LT_DATETIME         2
-#define LT_TIMESTAMP        3
+#define LT_LAPCOUNT         3
 #define LT_LAPTIME          4
 #define LT_LAPSPEED         5
 #define LT_COMMENT          6
@@ -72,7 +72,7 @@
 #define CW_MEMBERSHIPNUMBER 80
 #define CW_CAREGISTRATION   80
 #define CW_EMAIL            80
-
+#define CW_INDEX            50
 
 
 // Personal records to note (?):
@@ -82,9 +82,9 @@
 // - personal best 10k
 // - personal best 20k
 // - personal best 40k
-// - evening best lap
-// - evening best 10 laps
-// - evening best 1k
+// - session best lap
+// - session best 10 laps
+// - session best 1k
 // - month best lap
 // - month best 10 laps
 // - month best 1k
@@ -370,6 +370,7 @@ int CLapsTableModel::columnCount(const QModelIndex &/*parent*/) const {
 
 bool CLapsTableModel::insertRows(int position, int count, const QModelIndex &/*parent*/) {
     beginInsertRows(QModelIndex(), position, position + count - 1);
+
     for (int row=0; row<count; row++) {
         nameList.insert(position, QString());
         lapList.insert(position, 0);
@@ -379,6 +380,7 @@ bool CLapsTableModel::insertRows(int position, int count, const QModelIndex &/*p
         lapSpeedList.insert(position, 0.);
         commentList.insert(position, QString());
     }
+
     endInsertRows();
     return true;
 }
@@ -387,6 +389,7 @@ bool CLapsTableModel::insertRows(int position, int count, const QModelIndex &/*p
 
 bool CLapsTableModel::removeRows(int position, int count, const QModelIndex &/*parent*/) {
     beginRemoveRows(QModelIndex(), position, position + count - 1);
+
     for (int i=0; i<count; i++) {
         nameList.removeAt(position);
         lapList.removeAt(position);
@@ -396,6 +399,7 @@ bool CLapsTableModel::removeRows(int position, int count, const QModelIndex &/*p
         lapSpeedList.removeAt(position);
         commentList.removeAt(position);
     }
+
     endRemoveRows();
     return true;
 }
@@ -414,14 +418,14 @@ QVariant CLapsTableModel::data(const QModelIndex &index, int role) const {
     switch (role) {
     case Qt::DisplayRole:
         switch (col) {
-        case LT_NAME:
-            return nameList[row];
-        case LT_LAPCOUNT:
-            return lapList[row];
-        case LT_DATETIME:
-            return timeList[row];
         case LT_TIMESTAMP:
             return timeStampList[row];
+        case LT_NAME:
+            return nameList[row];
+        case LT_DATETIME:
+            return timeList[row];
+        case LT_LAPCOUNT:
+            return lapList[row];
         case LT_LAPTIME:
             if (lapSecList[row] == 0.) return QString();
             else return lapSecList[row];
@@ -456,14 +460,14 @@ QVariant CLapsTableModel::headerData(int section, Qt::Orientation orientation, i
     case Qt::DisplayRole:
         if (orientation == Qt::Horizontal) {
             switch (section) {
-            case LT_NAME:
-                return QString("Name");
-            case LT_LAPCOUNT:
-                return QString("Lap");
-            case LT_DATETIME:
-                return QString("Time");
             case LT_TIMESTAMP:
                 return QString("TimeStamp");
+            case LT_NAME:
+                return QString("Name");
+            case LT_DATETIME:
+                return QString("Time");
+            case LT_LAPCOUNT:
+                return QString("Lap");
             case LT_LAPTIME:
                 return QString("Lap Sec");
             case LT_LAPSPEED:
@@ -486,7 +490,7 @@ Qt::ItemFlags CLapsTableModel::flags(const QModelIndex &index) const {
 
 
 
-bool CLapsTableModel::addEntry(CRider rider) {
+bool CLapsTableModel::add(CRider rider) {
     QString time = QTime::currentTime().toString();
     float speed = 0.;
     if (rider.lapSec > 0.) speed = rider.lapM / rider.lapSec / 1000. * 3600.;
@@ -497,11 +501,12 @@ bool CLapsTableModel::addEntry(CRider rider) {
 
     int row = nameList.size();
     insertRows(row, 1);
+
     if (scrollToBottomRequired)
         mainWindow->ui->lapsTableView->scrollToBottom();
 
     nameList[row] = rider.name;
-    if (!rider.firstLap && !rider.firstLapAfterBreak && !rider.onBreak) {
+    if (rider.lapType == CRider::ridingLap) {
         lapList[row] = rider.lapCount;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
@@ -515,8 +520,27 @@ bool CLapsTableModel::addEntry(CRider rider) {
         lapSecList[row] = 0.;
         lapSpeedList[row] = 0.;
     }
-    commentList[row] = rider.comment;
 
+    // Assign a comment - this is just a duplicate of what is shown in activeRidersTable at this point, but could be
+    // used to identify other conditions for debugging
+
+    switch (rider.lapType) {
+    case CRider::firstLap:
+        commentList[row] = QString("first lap");
+        break;
+    case CRider::ridingLap:
+        commentList[row].clear();
+        break;
+    case CRider::onBreak:
+        commentList[row] = QString("on break");
+        break;
+    case CRider::firstLapAfterBreak:
+        commentList[row] = QString("first lap after break");
+        break;
+    case CRider::unknown:
+        commentList[row] = QString("unknown lap type");
+        break;
+    }
 
     return true;
 }
@@ -529,12 +553,19 @@ bool CLapsTableModel::addEntry(CRider rider) {
 void CLapsTableModel::purgeTable(void) {
     unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
 
+    bool scrollToBottomRequired = false;
+    if (mainWindow->ui->lapsTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->lapsTableView->verticalScrollBar()->maximum())
+        scrollToBottomRequired = true;
+
     for (int i=timeStampList.size()-1; i>=0; i--) {
-        float inactiveHours = (float)((currentTimeUSec - timeStampList[i]) / 1000000) / 3600.;
-        if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
+        float inactiveHours = (float)(currentTimeUSec - timeStampList[i]) / 1000000. / 3600.;
+        if (inactiveHours >= mainWindow->ui->tablePurgeIntervalDoubleSpinBox->value()) {
             removeRows(i, 1);
         }
     }
+
+    if (scrollToBottomRequired)
+        mainWindow->ui->lapsTableView->scrollToBottom();
 }
 
 
@@ -821,7 +852,6 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             else {
                 rider->inDbase = false;
                 rider->name = "???";
-//                rider->comment = QString("tag not in membership database");
             }
             rider->tagId = tagInfo.tagId;
             rider->nextLapType = CRider::ridingLap;
@@ -905,7 +935,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         // Add to lapsTableView
 
-        mainWindow->lapsTableModel->addEntry(*rider);
+        mainWindow->lapsTableModel->add(*rider);
 
         // lapCount is total laps all riders
 
@@ -931,13 +961,21 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     QString s;
     unsigned long long currentTimeUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
 
+    bool scrollToBottomRequired = false;
+    if (mainWindow->ui->activeRidersTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->activeRidersTableView->verticalScrollBar()->maximum())
+        scrollToBottomRequired = true;
+
     QList<CRider> purgedRiders;
     for (int i=activeRidersList.size()-1; i>=0; i--) {
-        float inactiveHours = (float)((currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000) / 3600.;
-        if (inactiveHours >= mainWindow->tablePurgeIntervalHours) {
+        float inactiveHours = (float)(currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000. / 3600.;
+        if (inactiveHours >= mainWindow->ui->tablePurgeIntervalDoubleSpinBox->value()) {
             removeRows(i, 1);
         }
     }
+
+    if (scrollToBottomRequired)
+        mainWindow->ui->activeRidersTableView->scrollToBottom();
+
     mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
     return purgedRiders;
 }
@@ -1002,12 +1040,12 @@ MainWindow::MainWindow(QWidget *parent) :
     trackLengthM.append(settings.value("trackLength4M").toFloat());
 
 
-    // Get tablePurgeIntervalSec, the interval on which tables are purged of inactive riders
+    // tablePurgeInterval is the interval on which tables are purged of inactive riders
+    // emailReportLatency is the time after being purged before an email report is sent
 
-    tablePurgeIntervalHours = settings.value("tablePurgeIntervalHours").toFloat();
-    if (tablePurgeIntervalHours < 0.001) tablePurgeIntervalHours = 0.001;
-    ui->tablePurgeIntervalLineEdit->setText(s.setNum(tablePurgeIntervalHours));
-
+    ui->tablePurgeIntervalDoubleSpinBox->setMinimum(0.01);
+    ui->tablePurgeIntervalDoubleSpinBox->setValue(settings.value("tablePurgeIntervalHours").toFloat());
+    ui->emailReportLatencySpinBox->setMinimum(1);
 
     if (!initialized)
         guiCritical("Track configuration must be initialized (\"Settings\" tab) before application will work");
@@ -1139,19 +1177,23 @@ MainWindow::MainWindow(QWidget *parent) :
     lapsProxyModel = new QSortFilterProxyModel;
     lapsProxyModel->setSourceModel(lapsTableModel);
     lapsProxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+//    lapsProxyModel->setDynamicSortFilter(true);
 
     ui->lapsTableView->setModel(lapsProxyModel);
+    ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
     ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
     ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
     ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
-    ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
     ui->lapsTableView->setColumnWidth(LT_LAPTIME, CW_SPEED);
     ui->lapsTableView->setColumnWidth(LT_LAPSPEED, CW_SPEED);
+
+    ui->lapsTableView->hideColumn(LT_TIMESTAMP);
 
     ui->lapsTableView->setAlternatingRowColors(true);
     ui->lapsTableView->horizontalHeader()->setStretchLastSection(true);
     ui->lapsTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-//    ui->lapsTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
+//    ui->lapsTableView->sortByColumn(LT_TIMESTAMP, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
+//    ui->lapsTableView->setSortingEnabled(true);
     ui->lapsTableView->setEnabled(false);   // will be enabled when connected to reader
 
     ui->lapsTableSortEnableCheckBox->hide();
@@ -1192,11 +1234,10 @@ MainWindow::MainWindow(QWidget *parent) :
     // Start timer that will purge old riders from activeRidersTable
 
     connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
-    purgeActiveRidersListTimer.setInterval((int)(tablePurgeIntervalHours * 3600. * 1000.) / 4);
+    purgeActiveRidersListTimer.setInterval((int)(ui->tablePurgeIntervalDoubleSpinBox->value() * 3600. * 1000. / 4.));
     purgeActiveRidersListTimer.start();
 
 
-    connect(ui->applySettingsPushButton, SIGNAL(clicked()), this, SLOT(onApplySettingsPushButtonClicked()));
     connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
 
     connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
@@ -1230,7 +1271,6 @@ MainWindow::MainWindow(QWidget *parent) :
         deskReaderThread->start();
     }
 
-    ui->applySettingsPushButton->hide();
 }
 
 
@@ -1275,6 +1315,7 @@ void MainWindow::initializeSettingsPanel(void) {
     ui->emailSendReportsCheckBox->setChecked(settings.value("emailSendReports").toBool());
     ui->emailFromLineEdit->setText(settings.value("emailFrom").toString());
     ui->emailSubjectLineEdit->setText(settings.value("emailSubject").toString());
+    ui->emailReportLatencySpinBox->setValue(settings.value("emailReportLatency").toInt());
 
     for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
         for (int col=0; col<ui->sessionsTableWidget->columnCount(); col++) {
@@ -1298,14 +1339,12 @@ void MainWindow::onTrackAntenna1PowerComboBoxActivated(int antennaIndex) {
 
 
 void MainWindow::onSaveSettingsPushButtonClicked(void) {
-    onApplySettingsPushButtonClicked();
-
     settings.setValue("trackName", ui->trackNameLineEdit->text());
     settings.setValue("trackLength1M", ui->trackLength1LineEdit->text());
     settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
     settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
     settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
-    settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalLineEdit->text());
+    settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalDoubleSpinBox->value());
     settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
     settings.setValue("trackTransmitPower1", ui->trackAntenna1PowerComboBox->currentText());
     settings.setValue("trackTransmitPower2", ui->trackAntenna2PowerComboBox->currentText());
@@ -1325,6 +1364,7 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("emailSendReports", ui->emailSendReportsCheckBox->isChecked());
     settings.setValue("emailFrom", ui->emailFromLineEdit->text());
     settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
+    settings.setValue("emailReportLatency", ui->emailReportLatencySpinBox->value());
 
     for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
         QString s;
@@ -1369,7 +1409,7 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
 
     static bool sentInThisInterval = false;
-    if ((currentDateTime.time().second() % 10) == 0) {
+    if ((currentDateTime.time().hour() % ui->emailReportLatencySpinBox->value()) == 0) {
         if (!sentInThisInterval) {
             sendReports();
             sentInThisInterval = true;
@@ -1985,6 +2025,7 @@ void MainWindow::onDbaseReadPushButtonClicked(bool state) {
 
     updateDbaseButtons();
 }
+
 
 
 void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
