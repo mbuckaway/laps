@@ -611,17 +611,17 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_LAPSPEED:
-            if ((rider->lapM > 0.) && (rider->lapSec > 0.))
+            if (rider->lapSec > 0.)
                 return rider->lapM / rider->lapSec * 3600. / 1000.;
             else
                 return QString();
         case AT_BESTLAPSPEED:
-            if ((rider->bestLapM > 0.) && (rider->bestLapSec > 0.))
+            if (rider->bestLapSec > 0.)
                 return rider->bestLapM / rider->bestLapSec * 3600. / 1000.;
             else
                 return QString();
         case AT_AVERAGESPEED:
-            if ((rider->totalM > 0.) && (rider->totalSec > 0.))
+            if (rider->totalSec > 0.)
                 return rider->totalM / rider->totalSec * 3600. / 1000.;
             else
                 return QString();
@@ -631,7 +631,7 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_AVERAGESPEEDTHISMONTH:
-            if ((rider->thisMonth.totalM > 0.) && (rider->thisMonth.totalSec > 0.))
+            if (rider->thisMonth.totalSec > 0.)
                 return rider->thisMonth.totalM / rider->thisMonth.totalSec * 3600. / 1000.;
             else
                 return QString();
@@ -641,7 +641,7 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_AVERAGESPEEDLASTMONTH:
-            if ((rider->lastMonth.totalM > 0.) && (rider->lastMonth.totalSec > 0.))
+            if (rider->lastMonth.totalSec > 0.)
                 return rider->lastMonth.totalM / rider->lastMonth.totalSec * 3600. / 1000.;
             else
                 return QString();
@@ -651,7 +651,18 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_COMMENT:
-            return rider->comment;
+            switch (rider->lapType) {
+            case CRider::firstLap:
+                return QString("first lap");
+            case CRider::ridingLap:
+                return rider->comment;
+            case CRider::onBreak:
+                return QString("on break");
+            case CRider::firstLapAfterBreak:
+                return QString("first lap after break");
+            case CRider::unknown:
+                return QString("unknown lap status");
+            }
         }
         break;
     case Qt::FontRole:
@@ -737,6 +748,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
     try {
         bool nullTag = tagInfo.tagId.isEmpty();
 
+
         // Process nullTag, generated periodically to update table display
 
         if (nullTag) {
@@ -744,18 +756,13 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 CRider *rider = &activeRidersList[i];
                 float lapSec = (double)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
                 if (lapSec > mainWindow->maxAcceptableLapSec) {
-                    rider->onBreak = true;
-                    rider->firstLap = false;
-                    rider->firstLapAfterBreak = false;
-                    rider->comment = "On break";
-
-                    // Update activeRidersTableView
-
+                    rider->lapType = CRider::onBreak;
                     setData(createIndex(i, 0), 0, Qt::EditRole);
                 }
             }
             return;
         }
+
 
         // ActiveRidersList is the main list containing information of each active rider
         // Set rider to point to appropriate entry if in list
@@ -770,7 +777,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             }
         }
 
-        // If tagId is not empty and not in activeRidersList, insert new row in table which also adds blank entry to activeRidersList
+        // If new rider, append row to table which also adds blank entry to activeRidersList
 
         if (!rider) {
             bool scrollToBottomRequired = false;
@@ -782,63 +789,56 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             activeRiderIndex = activeRidersList.size() - 1;
             rider = &activeRidersList[activeRiderIndex];
-            rider->firstLap = true;
+            rider->lapType = CRider::firstLap;
         }
         else {
-            rider->firstLap = false;
+
+            // Init lapType to nextLapType from previous tag read
+
+            rider->lapType = rider->nextLapType;
         }
 
 
-        // If this is first lap, try getting name and sendReports value from dbase
+        CMembershipInfo info;
+        int id;
+        float lapSec;
 
-        if (rider->firstLap) {   // New rider, so get name from dBase and calculate best times in each category
-            CMembershipInfo info;
-            int id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
+        switch (rider->lapType) {
+
+        case CRider::firstLap:
+
+            // In first lap try getting name and prior stats from two dbases
+
+            id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
             if (id > 0) {
                 rider->inDbase = true;
                 mainWindow->membershipDbase.getAllFromId(id, &info);
                 rider->name = info.firstName + " " + info.lastName;
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
-                rider->tagId = tagInfo.tagId;
-                rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-
-                // Get prior stats for this rider
-
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
             }
             else {
                 rider->inDbase = false;
                 rider->name = "???";
-                rider->tagId = tagInfo.tagId;
-                rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+//                rider->comment = QString("tag not in membership database");
             }
+            rider->tagId = tagInfo.tagId;
+            rider->nextLapType = CRider::ridingLap;
+            break;
 
-        }
+        case CRider::ridingLap:
 
-        // else if was on break this is the first lap after a break
+            // In riding lap update lap stats and thisMonth stats
+            // If lap time is greater than maxAcceptableLapSec, rider must have taken a break
 
-        else if (rider->onBreak) {
-            rider->onBreak = false;
-            rider->firstLapAfterBreak = true;
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
-        }
-
-        // else update lap stats and thisMonth stats
-
-        else {
-
-            // Calculate lap time.  If lap time is greater than maxAcceptableLapSec, rider must have taken a break
-
-            float lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+            lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
             if (lapSec > mainWindow->maxAcceptableLapSec) {
-                rider->onBreak = true;
-                rider->firstLapAfterBreak = false;
                 rider->lapSec = 0.;
                 rider->lapM = 0.;
+                rider->nextLapType = CRider::firstLapAfterBreak;
             }
             else {
-                rider->firstLapAfterBreak = false;
                 rider->lapSec = lapSec;
                 rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
                 if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
@@ -859,22 +859,34 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                     rider->allTime.lapCount++;
                     rider->allTime.totalM += rider->lapM;
                 }
+                rider->nextLapType = CRider::ridingLap;
             }
-            rider->previousTimeStampUSec = tagInfo.timeStampUSec;
+            break;
+        case CRider::onBreak:
+
+            // Do nothing while on break
+
+            rider->nextLapType = CRider::onBreak;
+            break;
+
+        case CRider::firstLapAfterBreak:
+
+            // First lap after break
+
+            rider->lapSec = 0.;
+            rider->lapM = 0.;
+            rider->nextLapType = CRider::ridingLap;
+            break;
+
+        case CRider::unknown:
+
+            // Should never happen
+
+            rider->comment = "unknown";
+            break;
         }
 
-
-        // Add a comment
-
-        if (rider->firstLap)
-            rider->comment = "First crossing";
-        else if (rider->onBreak)
-            rider->comment = "On break";
-        else if (rider->firstLapAfterBreak)
-            rider->comment = "First crossing after break";
-        else {
-            rider->comment.clear();
-        }
+        rider->previousTimeStampUSec = tagInfo.timeStampUSec;
 
 
         // Populate activeRidersTableView entries
@@ -882,9 +894,9 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
         setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
 
 
-        // Add lap to dbase if rider is in dbase and not firstLap or firstLapAfterBreak
+        // Add lap to dbase if rider is in dbase and this is a regular ridingLap
 
-        if (rider->inDbase && !rider->firstLap && !rider->firstLapAfterBreak) {
+        if (rider->inDbase && (rider->lapType == CRider::ridingLap)) {
             QDateTime currentDateTime(QDateTime::currentDateTime());
             unsigned int dateTime = CLapsDbase::dateTime2Int(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
             mainWindow->lapsDbase.addLap(*rider, dateTime);
@@ -1219,43 +1231,8 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
     ui->applySettingsPushButton->hide();
-
-
-
-
-    // Schedule table
-
-//    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
-//        for (int col=0; col<ui->sessionsTableWidget->columnCount(); col++) {
-//            ui->sessionsTableWidget->setItem(row, col, new QTableWidgetItem());
-//        }
-//    }
-
-//    connect(ui->sessionsTableWidget, SIGNAL(cellChanged(int,int)), this, SLOT(onCellChanged(int, int)));
-
-
-
 }
 
-
-
-//void MainWindow::onCellChanged(int row, int col) {
-//    qDebug() << row << col;
-//    if (row > scheduleList.size())
-//        guiCritical("Schedule table too large for list");
-//    qDebug() << ui->sessionsTableWidget->item(row, col)->text();
-//    QString cellText(ui->sessionsTableWidget->item(row, col)->text());
-//    qDebug() << cellText;
-//    switch (col) {
-//    case 0:
-//        scheduleList[row].day = cellText;
-
-
-//    }
-//    for (int i=0; i<scheduleList.size(); i++) {
-//        qDebug() << i << scheduleList[i].day << scheduleList[i].activity << scheduleList[i].startTime << scheduleList[i].endTime;
-//    }
-//}
 
 
 
@@ -1328,7 +1305,7 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
     settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
     settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
-    settings.setValue("tablePurgeIntervalHours", tablePurgeIntervalHours);
+    settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalLineEdit->text());
     settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
     settings.setValue("trackTransmitPower1", ui->trackAntenna1PowerComboBox->currentText());
     settings.setValue("trackTransmitPower2", ui->trackAntenna2PowerComboBox->currentText());
@@ -1497,16 +1474,16 @@ void MainWindow::sendReports(void) {
         }
     }
 
-    emit sendNextReport();
+    emit prepareNextReport();
 }
 
 
 
-// sendNextReport()
+// prepareNextReport()
 // Sends report for day associated with next day on dateTimeNotReported/tagIdNotReported lists.
 // Removes all laps from lists for the day reported and sets reportStatus flag in lapsDbase.
 //
-void MainWindow::sendNextReport(void) {
+void MainWindow::prepareNextReport(void) {
     if (membershipInfoNotReported.isEmpty())
         return;
 
@@ -1634,7 +1611,7 @@ void MainWindow::onMailSent(int error) {
         }
     }
 
-    emit sendNextReport();
+    emit prepareNextReport();
 }
 
 

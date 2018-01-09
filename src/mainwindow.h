@@ -164,11 +164,11 @@ private:
     void initializeSettingsPanel(void);
     bool tagInDbase;
     void sendReports(void);
+    void prepareNextReport(void);
     void sendReport(const CMembershipInfo &info, const QString &body);
     QList<CMembershipInfo> membershipInfoNotReported;
     unsigned int dateTimeOfReportStart;
     unsigned int dateTimeOfReportEnd;
-    void sendNextReport(void);
     QString getSession(const QDateTime &);
 signals:
     void newTrackTag(CTagInfo tagInfo);
@@ -202,7 +202,6 @@ private slots:
     void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
-//    void onCellChanged(int, int);
 };
 
 #endif // MAINWINDOW_H

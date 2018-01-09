@@ -23,6 +23,7 @@ public:
 
 class CRider {//: public CStats {
 public:
+    enum lap_t {unknown=0, firstLap=1, ridingLap=2, onBreak=3, firstLapAfterBreak=4};
     CRider(void);
     ~CRider(void);
     void clear();
@@ -41,9 +42,8 @@ public:
     CStats lastMonth;
     CStats allTime;
     QString comment;
-    bool firstLap;
-    bool firstLapAfterBreak;
-    bool onBreak;
+    lap_t lapType;
+    lap_t nextLapType;
     int reportStatus;       // 0 if lap should not be included in email report, 1 if it should
     bool inDbase;
 };
