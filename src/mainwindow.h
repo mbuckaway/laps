@@ -130,6 +130,7 @@ public:
     ~MainWindow();
     CMembershipDbase membershipDbase;
     CLapsDbase lapsDbase;
+    //CLapsDbase lapsLastYearDbase;
     float maxAcceptableLapSec;        // max time allowable for lap.  If greater, rider must have left and return to track
     QList<float> trackLengthM;      // length of track (1 lap) at height of each antenna
     float blackLineDistancem;

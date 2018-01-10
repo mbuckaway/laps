@@ -455,6 +455,8 @@ bool CMembershipDbase::isOpen(void) {
 
 
 // ***************************************************************************************************
+// Database files are associated with one year of data, with names like laps2018.db etc.
+//
 
 CLapsDbase::CLapsDbase() {
     errorTextVal.clear();
@@ -487,7 +489,7 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
     if (!tableList.contains("lapsTable")) {
         QSqlQuery query(dBase);
         qDebug() << "Creating new lapsTable in " + filename;
-        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER(10), lapsec FLOAT(10), lapm FLOAT(10), reportStatus INTEGER(5))");
+        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
             errorVal = 2;

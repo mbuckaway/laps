@@ -28,7 +28,7 @@ class CSmtp : public QObject
 public:
     CSmtp(const QString &user, const QString &pass, const QString &host, int port = 465, int timeout = 30000);
     ~CSmtp();
-    void sendMail(const QString &from, const QString &to, const QString &subject, const QString &body);
+    void sendMail(const QString &from, const QString &to, const QString &subject, const char *body);
 signals:
     void status(QString);
     void completed(int error);

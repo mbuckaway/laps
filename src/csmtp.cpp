@@ -33,7 +33,7 @@ CSmtp::CSmtp(const QString &user, const QString &pass, const QString &host, int 
 
 
 
-void CSmtp::sendMail(const QString &from, const QString &to, const QString &subject, const QString &body) {
+void CSmtp::sendMail(const QString &from, const QString &to, const QString &subject, const char *body) {
     error = 0;
     message = "To: " + to + "\n";
     message.append("From: " + from + "\n");
