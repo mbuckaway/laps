@@ -461,10 +461,13 @@ bool CMembershipDbase::isOpen(void) {
 CLapsDbase::CLapsDbase() {
     errorTextVal.clear();
     errorVal = 0;
+    lapsPreviousTotal = 0;
+    kmPreviousTotal = 0.;
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
 
     dBase = QSqlDatabase::addDatabase("QSQLITE", "laps");
+    dBaseLastYear = QSqlDatabase::addDatabase("QSQLITE", "lapsLastYear");
 }
 
 
@@ -485,9 +488,10 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
 
     // Make sure table exists and create as necessary
 
+    QSqlQuery query(dBase);
+
     QStringList tableList = dBase.tables();
     if (!tableList.contains("lapsTable")) {
-        QSqlQuery query(dBase);
         qDebug() << "Creating new lapsTable in " + filename;
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
@@ -498,13 +502,26 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         qDebug() << "  Created new lapsTable";
     }
 
+    if (!tableList.contains("priorTotalsTable")) {
+        qDebug() << "Creating new priorTotalsTable in " + filename;
+        query.prepare("create table priorTotalsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
+        if (!query.exec()) {
+            errorTextVal = query.lastError().text();
+            errorVal = 3;
+            return errorVal;
+        }
+        qDebug() << "  Created new priorTotalsTable";
+    }
+
+    int idLapsTotal = 0;
+    int idkmTotal = 0;
+
     if (showContents) {
-        QSqlQuery query(dBase);
         qDebug() << "List of lapsTable...";
         query.prepare("select * from lapsTable");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            errorVal = 3;
+            errorVal = 4;
             return errorVal;
         }
         int id = query.record().indexOf("id");
@@ -527,8 +544,86 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
             int reportStatus = query.value(idReportStatus).toInt();
             qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
         }
+
+        qDebug() << "List of priorTotalsTable...";
+        query.prepare("select * from priorTotalsTable");
+        if (!query.exec()) {
+            errorTextVal = query.lastError().text();
+            errorVal = 5;
+            return errorVal;
+        }
+        id = query.record().indexOf("id");
+        idTagId = query.record().indexOf("tagId");
+        idLapsTotal = query.record().indexOf("lapsTotal");
+        idkmTotal = query.record().indexOf("kmTotal");
+        while (query.next()) {
+            int lapsTotal = query.value(idLapsTotal).toUInt();
+            float kmTotal = query.value(idkmTotal).toFloat();
+            qDebug("id=%d tagId=%s lapsTotal=%u kmTotal=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), lapsTotal, kmTotal);
+        }
     }
 
+
+
+//    // If month is January, open dbase with info from last year so we can retrieve lastMonth stats
+
+//    dBaseLastYear.setUserName(username);
+//    dBaseLastYear.setPassword(password);
+//    dBaseLastYear.setDatabaseName(filename);
+
+//    if (!dBase.open()) {
+//        errorTextVal = dBase.lastError().text();
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
+//    bool showContents = false;
+
+//    // Make sure table exists and create as necessary
+
+//    QStringList tableList = dBase.tables();
+//    if (!tableList.contains("lapsTable")) {
+//        QSqlQuery query(dBase);
+//        qDebug() << "Creating new lapsTable in " + filename;
+//        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
+//        if (!query.exec()) {
+//            errorTextVal = query.lastError().text();
+//            errorVal = 2;
+//            return errorVal;
+//        }
+//        qDebug() << "  Created new lapsTable";
+//    }
+
+//    if (showContents) {
+//        QSqlQuery query(dBase);
+//        qDebug() << "List of lapsTable...";
+//        query.prepare("select * from lapsTable");
+//        if (!query.exec()) {
+//            errorTextVal = query.lastError().text();
+//            errorVal = 3;
+//            return errorVal;
+//        }
+//        int id = query.record().indexOf("id");
+//        int idTagId = query.record().indexOf("tagId");
+//        int idDateTime = query.record().indexOf("dateTime");
+//        int idLapSec = query.record().indexOf("lapsec");
+//        int idLapM = query.record().indexOf("lapm");
+//        int idReportStatus = query.record().indexOf("reportStatus");
+//        while (query.next()) {
+//            int year;
+//            int month;
+//            int day;
+//            int hour;
+//            int minute;
+//            int second;
+//            unsigned int dateTime = query.value(idDateTime).toUInt();
+//            int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
+//            float lapSec = query.value(idLapSec).toFloat();
+//            float lapM = query.value(idLapM).toFloat();
+//            int reportStatus = query.value(idReportStatus).toInt();
+//            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
+//        }
+//    }
     return 0;
 }
 

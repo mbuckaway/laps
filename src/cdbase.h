@@ -69,9 +69,13 @@ public:
     bool isOpen(void);
     QString errorText(void);
     QSqlDatabase dBase;
+    QSqlDatabase dBaseLastYear;
 private:
     QString errorTextVal;
     int errorVal;
+    unsigned lapsPreviousTotal;
+    float kmPreviousTotal;
+    int getPriorTotal(const QString &tagId, unsigned int *lapsTotal, float *kmTotal);
 };
 
 #endif // CDBASE_H

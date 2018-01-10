@@ -142,6 +142,8 @@ public:
     QSortFilterProxyModel *lapsProxyModel;
     QFile *logFile;
     QTextStream *logTextStream;
+    unsigned int bestLapCountInSession;
+    float bestLapSpeedInSession;
 private:
     CSmtp *smtp;
     QList<CRider> purgedRiders;

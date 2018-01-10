@@ -23,7 +23,7 @@ public:
 
 class CRider {//: public CStats {
 public:
-    enum lap_t {unknown=0, firstLap=1, ridingLap=2, onBreak=3, firstLapAfterBreak=4};
+    enum lap_t {unknown=0, firstCrossing=1, regularCrossing=2, onBreak=3, firstCrossingAfterBreak=4};
     CRider(void);
     ~CRider(void);
     void clear();

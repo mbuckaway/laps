@@ -741,7 +741,7 @@ Leave blank for simulator.</string>
             <item row="2" column="1">
              <widget class="QLineEdit" name="trackLength1LineEdit">
               <property name="toolTip">
-               <string>Enter length of track (m) at antenna position - used to calculate lap speed</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter length of track (m) at antenna position - used to calculate lap speed.  If this antenna is not used, set length to -1.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignCenter</set>
@@ -1243,7 +1243,7 @@ Leave blank for simulator.</string>
          </layout>
         </widget>
        </widget>
-       <widget class="QWidget" name="">
+       <widget class="QWidget" name="layoutWidget">
         <property name="geometry">
          <rect>
           <x>261</x>

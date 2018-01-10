@@ -116,7 +116,7 @@ void CReader::onStarted(void) {
         forever {
             for (int i=0; i<50; i++) {
                 count++;
-                tag.antennaId = (rand() % 4) + 1;   // random antennaId between 1 and 4
+                tag.antennaId = (rand() % 4) + 1;   // random antennaId between 1 and 3
                 tag.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
                 int id = (rand() % 16) + 1;      // random number between 1 and 16
                 tag.tagId = s.sprintf("2016000000%02x", id).toLatin1();

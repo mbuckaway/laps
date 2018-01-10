@@ -506,7 +506,7 @@ bool CLapsTableModel::add(CRider rider) {
         mainWindow->ui->lapsTableView->scrollToBottom();
 
     nameList[row] = rider.name;
-    if (rider.lapType == CRider::ridingLap) {
+    if (rider.lapType == CRider::regularCrossing) {
         lapList[row] = rider.lapCount;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
@@ -525,16 +525,16 @@ bool CLapsTableModel::add(CRider rider) {
     // used to identify other conditions for debugging
 
     switch (rider.lapType) {
-    case CRider::firstLap:
+    case CRider::firstCrossing:
         commentList[row] = QString("first lap");
         break;
-    case CRider::ridingLap:
+    case CRider::regularCrossing:
         commentList[row].clear();
         break;
     case CRider::onBreak:
         commentList[row] = QString("on break");
         break;
-    case CRider::firstLapAfterBreak:
+    case CRider::firstCrossingAfterBreak:
         commentList[row] = QString("first lap after break");
         break;
     case CRider::unknown:
@@ -683,13 +683,15 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
                 return QString();
         case AT_COMMENT:
             switch (rider->lapType) {
-            case CRider::firstLap:
+            case CRider::firstCrossing:
                 return QString("first lap");
-            case CRider::ridingLap:
+            case CRider::regularCrossing:
+//                if (rider->lapCount >= mainWindow->bestLapCountInSession)
+//                    return QString("Best lap count in session");
                 return rider->comment;
             case CRider::onBreak:
                 return QString("on break");
-            case CRider::firstLapAfterBreak:
+            case CRider::firstCrossingAfterBreak:
                 return QString("first lap after break");
             case CRider::unknown:
                 return QString("unknown lap status");
@@ -775,6 +777,9 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 
 
+// newTrackTag()
+// This routine processes each tag as it arrives, calculating lap times, speed etc.
+
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
     try {
         bool nullTag = tagInfo.tagId.isEmpty();
@@ -820,7 +825,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
             activeRiderIndex = activeRidersList.size() - 1;
             rider = &activeRidersList[activeRiderIndex];
-            rider->lapType = CRider::firstLap;
+            rider->lapType = CRider::firstCrossing;
         }
         else {
 
@@ -831,12 +836,12 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
 
         CMembershipInfo info;
-        int id;
-        float lapSec;
+        int id = 0;
+        float lapSec = 0.;
 
         switch (rider->lapType) {
 
-        case CRider::firstLap:
+        case CRider::firstCrossing:
 
             // In first lap try getting name and prior stats from two dbases
 
@@ -853,20 +858,31 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 rider->inDbase = false;
                 rider->name = "???";
             }
+            rider->lapCount = 0;
+            rider->lapSec = 0.;
+            rider->lapM = 0.;
+            rider->bestLapSec = 0.;
+            rider->bestLapM = 0.;
+            rider->totalSec = 0.;
+            rider->totalM = 0.;
             rider->tagId = tagInfo.tagId;
-            rider->nextLapType = CRider::ridingLap;
+            rider->nextLapType = CRider::regularCrossing;
             break;
 
-        case CRider::ridingLap:
+        case CRider::regularCrossing:
 
             // In riding lap update lap stats and thisMonth stats
-            // If lap time is greater than maxAcceptableLapSec, rider must have taken a break
 
             lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
+
+            // If lap time is greater than maxAcceptableLapSec, rider must have stopped for a break and returned
+            // to track
+
             if (lapSec > mainWindow->maxAcceptableLapSec) {
                 rider->lapSec = 0.;
                 rider->lapM = 0.;
-                rider->nextLapType = CRider::firstLapAfterBreak;
+                rider->lapType = CRider::firstCrossingAfterBreak;
+                rider->nextLapType = CRider::regularCrossing;
             }
             else {
                 rider->lapSec = lapSec;
@@ -889,29 +905,39 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                     rider->allTime.lapCount++;
                     rider->allTime.totalM += rider->lapM;
                 }
-                rider->nextLapType = CRider::ridingLap;
+                rider->nextLapType = CRider::regularCrossing;
             }
+
+            // Check for session bests
+
+            if (rider->lapSec > 0.) {
+                float lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
+                if (lapSpeed > mainWindow->bestLapSpeedInSession)
+                    mainWindow->bestLapSpeedInSession = lapSpeed;
+            }
+            if (rider->lapCount > mainWindow->bestLapCountInSession)
+                mainWindow->bestLapCountInSession = rider->lapCount;
             break;
+
         case CRider::onBreak:
 
             // Do nothing while on break
 
-            rider->nextLapType = CRider::onBreak;
+            rider->nextLapType = CRider::firstCrossingAfterBreak;
             break;
 
-        case CRider::firstLapAfterBreak:
-
-            // First lap after break
+        case CRider::firstCrossingAfterBreak:
 
             rider->lapSec = 0.;
             rider->lapM = 0.;
-            rider->nextLapType = CRider::ridingLap;
+            rider->nextLapType = CRider::regularCrossing;
             break;
 
         case CRider::unknown:
 
             // Should never happen
 
+            rider->nextLapType = CRider::unknown;
             rider->comment = "unknown";
             break;
         }
@@ -926,7 +952,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         // Add lap to dbase if rider is in dbase and this is a regular ridingLap
 
-        if (rider->inDbase && (rider->lapType == CRider::ridingLap)) {
+        if (rider->inDbase && (rider->lapType == CRider::regularCrossing)) {
             QDateTime currentDateTime(QDateTime::currentDateTime());
             unsigned int dateTime = CLapsDbase::dateTime2Int(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
             mainWindow->lapsDbase.addLap(*rider, dateTime);
@@ -1008,6 +1034,8 @@ MainWindow::MainWindow(QWidget *parent) :
     initializeSettingsPanel();
     bool initialized = true;
     tagInDbase = false;
+    bestLapSpeedInSession = 0.;
+    bestLapCountInSession = 0;
 
     ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
@@ -1033,6 +1061,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Get track length at position of each antenna.  Lap speed is estimated from
     // these values assuming rider maintains same position on track for entire lap.
+    // If this value is not set correctly, speed and distance cycled will be in error.
 
     trackLengthM.append(settings.value("trackLength1M").toFloat());
     trackLengthM.append(settings.value("trackLength2M").toFloat());
@@ -1135,6 +1164,14 @@ MainWindow::MainWindow(QWidget *parent) :
     if ((rc != 0) || !lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
 
+    // If this is January, open dbase from previous year if it exists
+
+//    if (lapsDbase.isOpen() && (currentDate.month() == 1)) {
+//        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", currentDate.year() - 1);
+//        else lapsDbaseFileName = s.sprintf("laps%d.db", currentDate.year() - 1);
+//        rc = lapsDbase.openLastYear(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
+//        if ((rc != 0) || !lapsDbase.isOpen())
+//            guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
 
     // Initialize membership table
 
@@ -1215,8 +1252,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setAlternatingRowColors(true);
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
     ui->activeRidersTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    //ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
-    //ui->activeRidersTableView->setSortingEnabled(false);
+    ui->activeRidersTableView->sortByColumn(1, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
+    ui->activeRidersTableView->setSortingEnabled(true);
+    ui->activeRidersTableSortEnableCheckBox->setChecked(true);
     ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
 
 //    ui->activeRidersTableSortEnableCheckBox->hide();
@@ -1421,9 +1459,15 @@ void MainWindow::onClockTimerTimeout(void) {
         sentInThisInterval = false;
     }
 
+
+    // Update session.  If changed, clear session bests
+
     QString session = getSession(currentDateTime);
-    if (ui->scheduledSessionLineEdit->text() != session)
+    if (ui->scheduledSessionLineEdit->text() != session) {
         ui->scheduledSessionLineEdit->setText(session);
+        bestLapSpeedInSession = 0.;
+        bestLapCountInSession = 0;
+    }
 
 }
 
@@ -1794,21 +1838,34 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     QString s;
     static int tagCount = 0;
 
-    if (!tagInfo.tagId.isEmpty())
-        tagCount++;
-
     // Add string to messages window
 
     onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
+    // Tags from antennas with track length set to -1 are ignored
+
+    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == -1.))
+        return;
+
     // lapCount is total laps all riders
 
-    ui->lapCountLineEdit->setText(s.setNum(tagCount));
+    if (!tagInfo.tagId.isEmpty()) {
+        tagCount++;
+        ui->lapCountLineEdit->setText(s.setNum(tagCount));
+    }
 
     if (!activeRidersTableModel) {
         qDebug() << "No activeRidersTableModel";
         return;
     }
+
+    // Confirm there is a valid track length for the antenna triggering this read event.  Antennas not used should have a length value set to -1.
+
+    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == 0.))
+        guiCritical(s.sprintf("The track length value for the antenna triggering this event (%d) is zero.  Please set track length in Settings panel.", tagInfo.antennaId));
+
+    // Process tag
+
     activeRidersTableModel->newTrackTag(tagInfo);
 }
 
