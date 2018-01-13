@@ -1191,7 +1191,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->namesTableView->setAlternatingRowColors(true);
     ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
     ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->namesTableView->sortByColumn(3, Qt::DescendingOrder);     // must come before call to setSortingEnabled()
+    ui->namesTableView->sortByColumn(2, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
     ui->namesTableView->setSortingEnabled(true);
 
     // Disable membershipDbase tab if database not open
@@ -1269,8 +1269,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
-
     connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
+    connect(ui->saveSessionsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSessionsPushButtonClicked()));
 
 
     // Get tag reader information from settings.  Leave IP empty for simulation (test) mode.
@@ -1404,7 +1404,11 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("emailFrom", ui->emailFromLineEdit->text());
     settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
     settings.setValue("emailReportLatency", ui->emailReportLatencySpinBox->value());
+}
 
+
+
+void MainWindow::onSaveSessionsPushButtonClicked(void) {
     for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
         QString s;
         settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->sessionsTableWidget->item(row, 0)->text());

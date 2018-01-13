@@ -200,6 +200,7 @@ private slots:
 //    void onAntenna1ComboBoxActivated(int);
     void onApplySettingsPushButtonClicked(void);
     void onSaveSettingsPushButtonClicked(void);
+    void onSaveSessionsPushButtonClicked(void);
     void onTrackAntenna1PowerComboBoxActivated(int);
     void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
