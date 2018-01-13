@@ -142,7 +142,7 @@ public:
     QSortFilterProxyModel *lapsProxyModel;
     QFile *logFile;
     QTextStream *logTextStream;
-    unsigned int bestLapCountInSession;
+    int bestLapCountInSession;
     float bestLapSpeedInSession;
 private:
     CSmtp *smtp;
