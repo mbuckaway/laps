@@ -159,7 +159,7 @@
        <enum>Qt::NoFocus</enum>
       </property>
       <property name="currentIndex">
-       <number>5</number>
+       <number>4</number>
       </property>
       <widget class="QWidget" name="ridersTab">
        <attribute name="title">
@@ -480,7 +480,7 @@
          </font>
         </property>
         <property name="text">
-         <string>Do not change these settings unless you know what you are doing.  Incorrect settings will prevent proper operation.  Application must be restarted for some changes to take place.</string>
+         <string>Application must be restarted for some changes to take place.</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>

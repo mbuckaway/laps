@@ -505,7 +505,12 @@ bool CLapsTableModel::add(CRider rider) {
     if (scrollToBottomRequired)
         mainWindow->ui->lapsTableView->scrollToBottom();
 
-    nameList[row] = rider.name;
+
+    if (!rider.name.isEmpty())
+        nameList[row] = rider.name;
+    else
+        nameList[row] = rider.tagId;
+
     if (rider.lapType == CRider::regularCrossing) {
         lapList[row] = rider.lapCount;
         timeList[row] = time;
@@ -625,7 +630,10 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
     case Qt::DisplayRole:
         switch (col) {
         case AT_NAME:
-            return rider->name;
+            if (!rider->name.isEmpty())
+                return rider->name;
+            else
+                return "???";
         case AT_LAPCOUNT:
             if (rider->lapCount > 0)
                 return rider->lapCount;
@@ -856,7 +864,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             }
             else {
                 rider->inDbase = false;
-                rider->name = "???";
+                rider->name.clear();// = "???";
             }
             rider->lapCount = 0;
             rider->lapSec = 0.;
@@ -1033,6 +1041,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     initializeSettingsPanel();
     bool initialized = true;
+
     tagInDbase = false;
     bestLapSpeedInSession = 0.;
     bestLapCountInSession = 0;
@@ -1059,34 +1068,19 @@ MainWindow::MainWindow(QWidget *parent) :
     logTextStream->setCodec("UTF-8");
 
 
-    // Get track length at position of each antenna.  Lap speed is estimated from
-    // these values assuming rider maintains same position on track for entire lap.
-    // If this value is not set correctly, speed and distance cycled will be in error.
-
-    trackLengthM.append(settings.value("trackLength1M").toFloat());
-    trackLengthM.append(settings.value("trackLength2M").toFloat());
-    trackLengthM.append(settings.value("trackLength3M").toFloat());
-    trackLengthM.append(settings.value("trackLength4M").toFloat());
-
-
-    // tablePurgeInterval is the interval on which tables are purged of inactive riders
-    // emailReportLatency is the time after being purged before an email report is sent
+    // tablePurgeInterval is the interval (hours) on which tables are purged of inactive riders.
+    // emailReportLatency is the interval (hours) after a rider being purged before an email report is sent.
 
     ui->tablePurgeIntervalDoubleSpinBox->setMinimum(0.01);
     ui->tablePurgeIntervalDoubleSpinBox->setValue(settings.value("tablePurgeIntervalHours").toFloat());
     ui->emailReportLatencySpinBox->setMinimum(1);
-
-    if (!initialized)
-        guiCritical("Track configuration must be initialized (\"Settings\" tab) before application will work");
 
 
     // Initialize member variables
 
     activeRidersTableSortingEnabled = true;
     lapsTableSortingEnabled = true;
-    float nominalSpeedkmph = 32.0;              // Approximate, used to identified riders taking a break
-    float nominalLapSec = (trackLengthM[0] / 1000.) / nominalSpeedkmph * 3600.;
-    maxAcceptableLapSec = nominalLapSec * 2.;   // max acceptable time for lap.  If greater, rider must have left and returned to track
+    float nominalSpeedkmph = 30.0;              // Approximate, used to identified riders taking a break
 
 
     // Initialize 1-sec timer for panel dateTime and possibly other things
@@ -1273,13 +1267,49 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->saveSessionsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSessionsPushButtonClicked()));
 
 
-    // Get tag reader information from settings.  Leave IP empty for simulation (test) mode.
+    // Set track length at position of each track antenna.  Lap speed is estimated from
+    // these values assuming rider maintains same position on track for entire lap.
+    // If this value is not set correctly, speed and distance cycled will be in error.
+    // Set track length to -1 if antenna is not used (zero length will be tested on each new tag event and
+    // used to check for missing track length settings).
+
+    trackLengthM.append(settings.value("trackLength1M").toFloat());
+    trackLengthM.append(settings.value("trackLength2M").toFloat());
+    trackLengthM.append(settings.value("trackLength3M").toFloat());
+    trackLengthM.append(settings.value("trackLength4M").toFloat());
+
+    emit onNewLogMessage(s.sprintf("Track lengths for each antenna (m): %f %f %f %f", trackLengthM[0], trackLengthM[1], trackLengthM[2], trackLengthM[3]));
+
+
+    // Check that track length values are reasonable and warn user that application will not start functioning
+    // until configured
+
+    float maxTrackLength = 0.;
+    for (int i=0; i<trackLengthM.size(); i++) {
+        if (trackLengthM[i] == 0.)
+            initialized = false;
+
+        if (trackLengthM[i] > maxTrackLength)
+            maxTrackLength = trackLengthM[i];
+    }
+    if (maxTrackLength <= 0.)
+        initialized = false;
+
+    float nominalLapSec = maxTrackLength / 1000. / nominalSpeedkmph * 3600.;
+    maxAcceptableLapSec = nominalLapSec * 2.;   // max acceptable time for lap.  If greater, rider must have left and returned to track
+
+    if (!initialized)
+        guiCritical("One or more track-length values are not configured properly in Settings tab.  Set track length correctly or set to -1 if antenna is not used.  The application will not operate until properly configured.");
+
+
+
+    // Create CReader objects for each physical reader device.  At this point the code accepts only 1 track reader
+    // and 1 desk reader.
 
     int readerCounter = 0;
-    if (initialized) {
-        trackReader = new CReader(ui->trackReaderIpLineEdit->text(), readerCounter++, CReader::track);
-        deskReader = new CReader(ui->deskReaderIpLineEdit->text(), readerCounter++, CReader::desk);
-    }
+    trackReader = new CReader(ui->trackReaderIpLineEdit->text(), readerCounter++, CReader::track);
+
+    deskReader = new CReader(ui->deskReaderIpLineEdit->text(), readerCounter++, CReader::desk);
 
 
     // Move CReader objects to separate threads and start
@@ -1294,7 +1324,8 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(trackReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
         connect(trackReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
         connect(trackReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewTrackTag(CTagInfo)));
-        trackReaderThread->start();
+        if (initialized)
+            trackReaderThread->start();
     }
 
     if (deskReader) {
@@ -1337,15 +1368,13 @@ MainWindow::~MainWindow() {
 
 void MainWindow::initializeSettingsPanel(void) {
     ui->trackNameLineEdit->setText(settings.value("trackName").toString());
+    ui->trackReaderIpLineEdit->setText(settings.value("trackReaderIp").toString());
+    ui->deskReaderIpLineEdit->setText(settings.value("deskReaderIp").toString());
 
     ui->trackLength1LineEdit->setText(settings.value("trackLength1M").toString());
     ui->trackLength2LineEdit->setText(settings.value("trackLength2M").toString());
     ui->trackLength3LineEdit->setText(settings.value("trackLength3M").toString());
     ui->trackLength4LineEdit->setText(settings.value("trackLength4M").toString());
-
-    ui->trackReaderIpLineEdit->setText(settings.value("trackReaderIp").toString());
-
-    ui->deskReaderIpLineEdit->setText(settings.value("deskReaderIp").toString());
 
     ui->smtpUsernameLineEdit->setText(settings.value("smtpUsername").toString());
     ui->smtpPasswordLineEdit->setText(settings.value("smtpPassword").toString());
@@ -1379,10 +1408,12 @@ void MainWindow::onTrackAntenna1PowerComboBoxActivated(int antennaIndex) {
 
 void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("trackName", ui->trackNameLineEdit->text());
+
     settings.setValue("trackLength1M", ui->trackLength1LineEdit->text());
     settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
     settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
     settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
+
     settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalDoubleSpinBox->value());
     settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
     settings.setValue("trackTransmitPower1", ui->trackAntenna1PowerComboBox->currentText());
@@ -1851,9 +1882,9 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
-    // Tags from antennas with track length set to -1 are ignored
+    // Tags from antennas with track length < 0 are ignored
 
-    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == -1.))
+    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] < 0.))
         return;
 
     // lapCount is total laps all riders
@@ -1868,7 +1899,7 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
         return;
     }
 
-    // Confirm there is a valid track length for the antenna triggering this read event.  Antennas not used should have a length value set to -1.
+    // Confirm track length for the antenna triggering this read event is valid (> 0)
 
     if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == 0.))
         guiCritical(s.sprintf("The track length value for the antenna triggering this event (%d) is zero.  Please set track length in Settings panel.", tagInfo.antennaId));
@@ -2165,7 +2196,6 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskUpdatePushButton->setEnabled(false);
         return;
     }
-
 
     // Search is enabled when one of TagId, FirstName and/or LastName, or membershipNumber is filled
 
