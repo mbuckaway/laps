@@ -14,7 +14,6 @@
 
 #include "creader.h"
 
-extern bool setupMode;
 
 
 // **********************************************************************************************
@@ -1167,7 +1166,8 @@ void CReader::processTagList (LLRP::CRO_ACCESS_REPORT *pRO_ACCESS_REPORT) {
     // newTagsList is a list of tags currently in antenna zone
 
     count++;
-    if (setupMode) emit newLogMessage(s.sprintf("%d: Processing %d tags\n", count, newTagsList.size()));
+//    if (setupMode)
+//        emit newLogMessage(s.sprintf("%d: Processing %d tags\n", count, newTagsList.size()));
 
 
     // Loop through current tag list and remove any current tag that is not in new list

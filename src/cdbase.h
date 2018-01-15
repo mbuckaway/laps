@@ -50,13 +50,13 @@ private:
 };
 
 
-class CLapsDbase
+class CLapsDbase //: public QObject
 {
+//    Q_OBJECT
 public:
     enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
     CLapsDbase(void);
-    int setConnectionName(const QString &connectionName);
-    int open(const QString &filename, const QString &connectionName, const QString &username, const QString &password);
+    int open(const QString &connectionName, const QString &username, const QString &password);
     void close(void);
     int addLap(const CRider &rider, unsigned int dateTime);
     int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
@@ -69,11 +69,16 @@ public:
     int error(void);
     bool isOpen(void);
     QString errorText(void);
-//    QSqlDatabase dBase;
-    QList<QSqlDatabase *> dBaseList;    // list of dBase pointers in reverse chronological order
+    QSqlDatabase dBase;
+    QSqlDatabase dBaseLastYear;
+//    QList<QSqlDatabase *> dBaseList;    // list of dBase pointers in reverse chronological order
 private:
     QString errorTextVal;
     int errorVal;
+    int priorLapsTotal;
+    float priorKmTotal;
+signals:
+    void newLogMessage(QString);
 };
 
 #endif // CDBASE_H

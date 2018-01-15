@@ -1158,44 +1158,44 @@ MainWindow::MainWindow(QWidget *parent) :
         onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbaseFileName.toLatin1().data()));
 
 
-    // The lapsDbase contains a record of all laps for all riders.
+    // lapsDbase contains a record of all laps for all riders.
     // Each file contains data for one year.
 
-    QDate currentDate(QDate::currentDate());
-    QString lapsDbaseFileName;
-    if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", currentDate.year());
-    else lapsDbaseFileName = s.sprintf("laps%d.db", currentDate.year());
+    //connect(&lapsDbase, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
+    QString lapsDbaseRootName;
+    if (testMode) lapsDbaseRootName = "lapsTest";
+    else lapsDbaseRootName = "laps";
     QString lapsDbaseUserName = "fcv";
     QString lapsDbasePassword = "fcv";
-    rc = lapsDbase.open(lapsDbaseFileName, "laps", lapsDbaseUserName, lapsDbasePassword);
+    rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
     if ((rc != 0) || !lapsDbase.isOpen())
-        guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
-    else
-        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
+        guiCritical(s.sprintf("Error %d opening laps database: %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.errorText().toLatin1().data()));
+//    else
+//        onNewLogMessage("Opened laps database");
 
     // Loop backwards through previous database files and make a list of dBases
 
-    for (int year=currentDate.year()-1; year>=2010; year--) {
-        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", year);
-        else lapsDbaseFileName = s.sprintf("laps%d.db", year);
-        if (QFile(lapsDbaseFileName).exists()) {
-            CLapsDbase *oldLapsDbase = new CLapsDbase;
-            QString connectionName;
-            connectionName.sprintf("laps%d", year);
-            rc = oldLapsDbase->open(lapsDbaseFileName, connectionName, lapsDbaseUserName, lapsDbasePassword);
-            if ((rc == 0) && oldLapsDbase->isOpen()) {
-                oldLapsDbaseList.append(oldLapsDbase);
-                onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
-            }
-            else {
-                delete oldLapsDbase;
-                break;
-            }
-        }
-        else {
-            break;
-        }
-    }
+//    for (int year=currentDate.year()-1; year>=2010; year--) {
+//        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", year);
+//        else lapsDbaseFileName = s.sprintf("laps%d.db", year);
+//        if (QFile(lapsDbaseFileName).exists()) {
+//            CLapsDbase *oldLapsDbase = new CLapsDbase;
+//            QString connectionName;
+//            connectionName.sprintf("laps%d", year);
+//            rc = oldLapsDbase->open(lapsDbaseFileName, connectionName, lapsDbaseUserName, lapsDbasePassword);
+//            if ((rc == 0) && oldLapsDbase->isOpen()) {
+//                oldLapsDbaseList.append(oldLapsDbase);
+//                onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
+//            }
+//            else {
+//                delete oldLapsDbase;
+//                break;
+//            }
+//        }
+//        else {
+//            break;
+//        }
+//    }
 
 
     // Initialize membership table

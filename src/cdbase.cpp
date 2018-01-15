@@ -456,6 +456,8 @@ bool CMembershipDbase::isOpen(void) {
 
 // ***************************************************************************************************
 // Database files are associated with one year of data, with names like laps2018.db etc.
+// dBaseList contains a list of dbase files, one per year, in reverse order, with dBaseList[0]
+// being the current year.
 //
 
 CLapsDbase::CLapsDbase(void) {
@@ -466,36 +468,51 @@ CLapsDbase::CLapsDbase(void) {
 }
 
 
-int CLapsDbase::open(const QString &filename, const QString &connectionName, const QString &username, const QString &password) {
+int CLapsDbase::open(const QString &rootName, const QString &username, const QString &password) {
     errorTextVal.clear();
     errorVal = 0;
+    QString s;
 
     bool showContents = false;
+    QDate currentDate(QDate::currentDate());
 
-    // Open dbase for current year and create if necessary
+    // Close any existing dbase if necessary
 
-    QSqlDatabase *dBase = new QSqlDatabase;
-    *dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+    close();
 
-    dBase->setUserName(username);
-    dBase->setPassword(password);
-    dBase->setDatabaseName(filename);
 
-    if (!dBase->open()) {
-        errorTextVal = dBase->lastError().text();
+    // Determine database file name (rootName + year + ".db")
+
+    QString connectionName = rootName + s.setNum(currentDate.year());
+    QString fileName = connectionName + ".db";
+
+
+    // Make sure table for current year exists and create if necessary.
+    // If we have to create new table, this is a new database so open previous year
+    // and sum prior totals if it exists.
+
+
+
+
+
+    dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+    dBase.setUserName(username);
+    dBase.setPassword(password);
+    dBase.setDatabaseName(fileName);
+
+    if (!dBase.open()) {
+        errorTextVal = dBase.lastError().text();
         errorVal = 1;
-        delete dBase;
         return errorVal;
-    }
+   }
 
-    dBaseList.append(dBase);
+//    emit newLogMessage(QString("Opened dbase ") + fileName);
+//    qDebug() << fileName;
 
-    // Make sure table exists and create as necessary
-
-    QSqlQuery query(*dBase);
-    QStringList tableList = dBase->tables();
+    QSqlQuery query(dBase);
+    QStringList tableList = dBase.tables();
     if (!tableList.contains("lapsTable")) {
-        qDebug() << "Creating new lapsTable in " + filename;
+        qDebug() << "Creating new lapsTable in " + fileName;
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -503,107 +520,98 @@ int CLapsDbase::open(const QString &filename, const QString &connectionName, con
             return errorVal;
         }
         qDebug() << "  Created new lapsTable";
+
+
+//        // Open previous year if it exists and determine prior totals
+
+//        connectionName = rootName + s.setNum(currentDate.year() - 1);
+//        fileName = connectionName + ".db";
+//        if (QFile::exists(fileName)) {
+//            qDebug() << "Opening" << fileName;
+//            dBaseLastYear = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+//            dBaseLastYear.setUserName(username);
+//            dBaseLastYear.setPassword(password);
+//            dBaseLastYear.setDatabaseName(fileName);
+
+//            if (!dBaseLastYear.open()) {
+//                errorTextVal = dBaseLastYear.lastError().text();
+//                errorVal = 1;
+//                return errorVal;
+//            }
+
+//            // If table of
+
+//        //    tableList = dBase.tables();
+//        //    qDebug() << tableList;
+
+//            //
+//        //    if (!tableList.contains("lapsTable")) {
+//        //        QSqlQuery query(dBase);
+//        //        qDebug() << "Creating new lapsTable in " + filename;
+//        //        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
+//        //        if (!query.exec()) {
+//        //            errorTextVal = query.lastError().text();
+//        //            errorVal = 2;
+//        //            return errorVal;
+//        //        }
+//        //        qDebug() << "  Created new lapsTable";
+//        //    }
+
+//        //    if (showContents) {
+//        //        QSqlQuery query(dBase);
+//        //        qDebug() << "List of lapsTable...";
+//        //        query.prepare("select * from lapsTable");
+//        //        if (!query.exec()) {
+//        //            errorTextVal = query.lastError().text();
+//        //            errorVal = 3;
+//        //            return errorVal;
+//        //        }
+//        //        int id = query.record().indexOf("id");
+//        //        int idTagId = query.record().indexOf("tagId");
+//        //        int idDateTime = query.record().indexOf("dateTime");
+//        //        int idLapSec = query.record().indexOf("lapsec");
+//        //        int idLapM = query.record().indexOf("lapm");
+//        //        int idReportStatus = query.record().indexOf("reportStatus");
+//        //        while (query.next()) {
+//        //            int year;
+//        //            int month;
+//        //            int day;
+//        //            int hour;
+//        //            int minute;
+//        //            int second;
+//        //            unsigned int dateTime = query.value(idDateTime).toUInt();
+//        //            int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
+//        //            float lapSec = query.value(idLapSec).toFloat();
+//        //            float lapM = query.value(idLapM).toFloat();
+//        //            int reportStatus = query.value(idReportStatus).toInt();
+//        //            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
+//        //        }
+//        //    }
+
+//        //    dBaseLastYear.close();
+
+
     }
 
-//    if (!tableList.contains("priorTotalsTable")) {
-//        qDebug() << "Creating new priorTotalsTable in " + filename;
-//        query.prepare("create table priorTotalsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            errorVal = 3;
-//            return errorVal;
-//        }
-//        qDebug() << "  Created new priorTotalsTable";
-//    }
 
-//    int idLapsTotal = 0;
-//    int idkmTotal = 0;
 
-    if (showContents) {
-        qDebug() << "List of lapsTable...";
-        query.prepare("select * from lapsTable");
+    if (!tableList.contains("priorTotalsTable")) {
+        qDebug() << "Creating new priorTotalsTable in " + fileName;
+        query.prepare("create table priorTotalsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            errorVal = 4;
+            errorVal = 3;
             return errorVal;
         }
-        int id = query.record().indexOf("id");
-        int idTagId = query.record().indexOf("tagId");
-        int idDateTime = query.record().indexOf("dateTime");
-        int idLapSec = query.record().indexOf("lapsec");
-        int idLapM = query.record().indexOf("lapm");
-        int idReportStatus = query.record().indexOf("reportStatus");
-        while (query.next()) {
-            int year;
-            int month;
-            int day;
-            int hour;
-            int minute;
-            int second;
-            unsigned int dateTime = query.value(idDateTime).toUInt();
-            int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
-            float lapSec = query.value(idLapSec).toFloat();
-            float lapM = query.value(idLapM).toFloat();
-            int reportStatus = query.value(idReportStatus).toInt();
-            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
-        }
-
-//        qDebug() << "List of priorTotalsTable...";
-//        query.prepare("select * from priorTotalsTable");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            errorVal = 5;
-//            return errorVal;
-//        }
-//        id = query.record().indexOf("id");
-//        idTagId = query.record().indexOf("tagId");
-//        idLapsTotal = query.record().indexOf("lapsTotal");
-//        idkmTotal = query.record().indexOf("kmTotal");
-//        while (query.next()) {
-//            int lapsTotal = query.value(idLapsTotal).toUInt();
-//            float kmTotal = query.value(idkmTotal).toFloat();
-//            qDebug("id=%d tagId=%s lapsTotal=%u kmTotal=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), lapsTotal, kmTotal);
-//        }
+        qDebug() << "  Created new priorTotalsTable";
     }
 
-
-
-//    // If month is January, open dbase with info from last year so we can retrieve lastMonth stats
-
-//    dBaseLastYear.setUserName(username);
-//    dBaseLastYear.setPassword(password);
-//    dBaseLastYear.setDatabaseName(filename);
-
-//    if (!dBase.open()) {
-//        errorTextVal = dBase.lastError().text();
-//        errorVal = 1;
-//        return errorVal;
-//    }
-
-//    bool showContents = false;
-
-//    // Make sure table exists and create as necessary
-
-//    QStringList tableList = dBase.tables();
-//    if (!tableList.contains("lapsTable")) {
-//        QSqlQuery query(dBase);
-//        qDebug() << "Creating new lapsTable in " + filename;
-//        query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
-//        if (!query.exec()) {
-//            errorTextVal = query.lastError().text();
-//            errorVal = 2;
-//            return errorVal;
-//        }
-//        qDebug() << "  Created new lapsTable";
-//    }
-
 //    if (showContents) {
-//        QSqlQuery query(dBase);
 //        qDebug() << "List of lapsTable...";
 //        query.prepare("select * from lapsTable");
 //        if (!query.exec()) {
 //            errorTextVal = query.lastError().text();
-//            errorVal = 3;
+//            errorVal = 4;
 //            return errorVal;
 //        }
 //        int id = query.record().indexOf("id");
@@ -626,19 +634,43 @@ int CLapsDbase::open(const QString &filename, const QString &connectionName, con
 //            int reportStatus = query.value(idReportStatus).toInt();
 //            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
 //        }
+
 //    }
+
+    priorLapsTotal = 0;
+    priorKmTotal = 0.;
+
+//    qDebug() << "List of priorTotalsTable...";
+//    query.prepare("select * from priorTotalsTable");
+//    if (!query.exec()) {
+//        errorTextVal = query.lastError().text();
+//        errorVal = 5;
+//        return errorVal;
+//    }
+//    int id = query.record().indexOf("id");
+//    int idTagId = query.record().indexOf("tagId");
+//    int idPriorLapsTotal = query.record().indexOf("priorLapsTotal");
+//    int idPriorKmTotal = query.record().indexOf("priorKmTotal");
+//    while (query.next()) {
+//        priorLapsTotal = query.value(idPriorLapsTotal).toUInt();
+//        priorKmTotal = query.value(idPriorKmTotal).toFloat();
+//        qDebug("id=%d tagId=%s priorLapsTotal=%u priorKmTotal=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), priorLapsTotal, priorKmTotal);
+//    }
+
+
     return 0;
 }
 
 
 
 void CLapsDbase::close(void) {
-    for (int i=0; i<dBaseList.size(); i++) {
-        if (dBaseList[i]->isOpen())
-            dBaseList[i]->close();
-        delete dBaseList[i];
-    }
-
+//    for (int i=0; i<dBaseList.size(); i++) {
+//        if (dBaseList[i]->isOpen())
+//            dBaseList[i]->close();
+//        delete dBaseList[i];
+//    }
+//    dBaseList.clear();
+    dBase.close();
 }
 
 
@@ -651,9 +683,15 @@ int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase is closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
@@ -666,7 +704,7 @@ int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
     query.bindValue(":reportStatus", rider.reportStatus);
     if (!query.exec()) {
         errorTextVal = "Could not add to laps table";
-        errorVal = 2;
+        errorVal = 3;
         return errorVal;
     }
     return 0;
@@ -678,9 +716,15 @@ int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *la
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
@@ -689,42 +733,42 @@ int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *la
     query.bindValue(":id", id);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
-        errorVal = 2;
+        errorVal = 3;
         return errorVal;
     }
 
     int tagIdIndex = query.record().indexOf("tagId");
     if (tagIdIndex < 0) {
         errorTextVal = "Could not find tagId index in getLap";
-        errorVal = 3;
+        errorVal = 4;
         return errorVal;
     }
 
     int dateTimeIndex = query.record().indexOf("dateTime");
     if (dateTimeIndex < 0) {
         errorTextVal = "Could not find dateTime index in getLap";
-        errorVal = 4;
+        errorVal = 5;
         return errorVal;
     }
 
     int lapsecIndex = query.record().indexOf("lapsec");
     if (lapsecIndex < 0) {
         errorTextVal = "Could not find lapsec index in getLap";
-        errorVal = 5;
+        errorVal = 6;
         return errorVal;
     }
 
     int lapmIndex = query.record().indexOf("lapm");
     if (lapmIndex < 0) {
         errorTextVal = "Could not find lapm index in getLap";
-        errorVal = 6;
+        errorVal = 7;
         return errorVal;
     }
 
     int reportStatusIndex = query.record().indexOf("reportStatus");
     if (reportStatusIndex < 0) {
         errorTextVal = "Could not find reportStatus index in getLap";
-        errorVal = 7;
+        errorVal = 8;
         return errorVal;
     }
 
@@ -747,9 +791,15 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase is closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
@@ -801,15 +851,21 @@ int CLapsDbase::getStatsForPeriod(const QString &tagId, unsigned int dateTimeSta
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
     if (dateTimeStart > dateTimeEnd) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
-        errorVal = 2;
+        errorVal = 3;
         return errorVal;
     }
 
@@ -905,15 +961,21 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
     if (dateTimeStart > dateTimeEnd) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
-        errorVal = 2;
+        errorVal = 3;
         return errorVal;
     }
 
@@ -925,7 +987,7 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
     query.bindValue(":dateTimeEnd", dateTimeEnd);
     if (!query.exec()) {
         errorTextVal = "Could not update database.";
-        return 3;
+        return 4;
     }
 
     return 0;
@@ -939,15 +1001,21 @@ int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart
     errorTextVal.clear();
     errorVal = 0;
 
+//    if (dBaseList.isEmpty()) {
+//        errorTextVal = "Empty dBaseList";
+//        errorVal = 1;
+//        return errorVal;
+//    }
+
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";
-        errorVal = 1;
+        errorVal = 2;
         return errorVal;
     }
 
     if (dateTimeStart > dateTimeEnd) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getLapsInPeriod";
-        errorVal = 2;
+        errorVal = 3;
         return errorVal;
     }
 
@@ -959,14 +1027,14 @@ int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart
     query.bindValue(":reportStatus", reportStatus);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
-        errorVal = 3;
+        errorVal = 4;
         return errorVal;
     }
 
     int idIndex = query.record().indexOf("id");
     if (idIndex < 0) {
         errorTextVal = "Could not find id index in getLapsInPeriod";
-        errorVal = 4;
+        errorVal = 5;
         return errorVal;
     }
 
@@ -1017,6 +1085,9 @@ QString CLapsDbase::errorText(void) {
 
 
 bool CLapsDbase::isOpen(void) {
+//    if (dBaseList.isEmpty())
+//        return false;
+
     return dBase.isOpen();
 }
 
