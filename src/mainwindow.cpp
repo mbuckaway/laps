@@ -857,6 +857,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             if (id > 0) {
                 rider->inDbase = true;
                 mainWindow->membershipDbase.getAllFromId(id, &info);
+                rider->tagId = info.tagId;
                 rider->name = info.firstName + " " + info.lastName;
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
@@ -866,6 +867,8 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
 
                 // Get stats
+
+                //qDebug() << rider->tagId << rider->name;
             }
             else {
                 rider->inDbase = false;
@@ -1161,7 +1164,6 @@ MainWindow::MainWindow(QWidget *parent) :
     // lapsDbase contains a record of all laps for all riders.
     // Each file contains data for one year.
 
-    //connect(&lapsDbase, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
     QString lapsDbaseRootName;
     if (testMode) lapsDbaseRootName = "lapsTest";
     else lapsDbaseRootName = "laps";
@@ -1170,32 +1172,8 @@ MainWindow::MainWindow(QWidget *parent) :
     rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
     if ((rc != 0) || !lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database: %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.errorText().toLatin1().data()));
-//    else
-//        onNewLogMessage("Opened laps database");
-
-    // Loop backwards through previous database files and make a list of dBases
-
-//    for (int year=currentDate.year()-1; year>=2010; year--) {
-//        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", year);
-//        else lapsDbaseFileName = s.sprintf("laps%d.db", year);
-//        if (QFile(lapsDbaseFileName).exists()) {
-//            CLapsDbase *oldLapsDbase = new CLapsDbase;
-//            QString connectionName;
-//            connectionName.sprintf("laps%d", year);
-//            rc = oldLapsDbase->open(lapsDbaseFileName, connectionName, lapsDbaseUserName, lapsDbasePassword);
-//            if ((rc == 0) && oldLapsDbase->isOpen()) {
-//                oldLapsDbaseList.append(oldLapsDbase);
-//                onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
-//            }
-//            else {
-//                delete oldLapsDbase;
-//                break;
-//            }
-//        }
-//        else {
-//            break;
-//        }
-//    }
+    else
+        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbase.currentFileName().toLatin1().data()));
 
 
     // Initialize membership table
@@ -1331,7 +1309,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     if (!initialized)
         guiCritical("One or more track-length values are not configured properly in Settings tab.  Set track length correctly or set to -1 if antenna is not used.  The application will not operate until properly configured.");
-
 
 
     // Create CReader objects for each physical reader device.  At this point the code accepts only 1 track reader
@@ -1500,6 +1477,7 @@ void MainWindow::onEMailTestPushButtonClicked(void) {
 }
 
 
+
 void MainWindow::onTestMailSent(void) {
     QMessageBox::information(this, "EMail Test", "Email message sent");
 }
@@ -1516,7 +1494,7 @@ void MainWindow::onClockTimerTimeout(void) {
     static bool sentInThisInterval = false;
     if ((currentDateTime.time().hour() % ui->emailReportLatencySpinBox->value()) == 0) {
         if (!sentInThisInterval) {
-            qDebug() << "sendReports";
+            //qDebug() << "sendReports";
             sendInactiveRiderReports();
             sentInThisInterval = true;
         }
@@ -1555,7 +1533,6 @@ QString MainWindow::getSession(const QDateTime &dateTime) {
     }
     return session;
 }
-
 
 
 
@@ -1672,7 +1649,7 @@ void MainWindow::prepareNextReport(void) {
         unsigned int reportPeriodStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
         unsigned int reportPeriodEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
         CStats statsForDay;
-        int rc = lapsDbase.getStatsForPeriod(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
+        int rc = lapsDbase.getStatsForCurrentPeriod(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
             qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
             return;
@@ -1693,7 +1670,7 @@ void MainWindow::prepareNextReport(void) {
                     unsigned int sessionStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
                     unsigned int sessionEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
                     CStats stats;
-                    rc = lapsDbase.getStatsForPeriod(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
+                    rc = lapsDbase.getStatsForCurrentPeriod(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
                     statsForSession.append(stats);
                     sessionList.append(ui->sessionsTableWidget->item(i, 1)->text());
                 }
@@ -1804,7 +1781,6 @@ void MainWindow::onPurgeActiveRidersList(void) {
 
 
 
-
 void MainWindow::onReaderConnected(void) {
     CReader *sendingReader = (CReader *)sender();
 
@@ -1896,7 +1872,6 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
         ui->activeRidersTableView->setSortingEnabled(true);
     }
     else {
-//        ui->activeRidersTableView->sortByColumn(0, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
         activeRidersProxyModel->setDynamicSortFilter(false);
         ui->activeRidersTableView->setSortingEnabled(false);
     }
@@ -1970,9 +1945,7 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
     QString firstName = ui->deskFirstNameLineEdit->text();
     QString lastName = ui->deskLastNameLineEdit->text();
     QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
-//    QString caRegistration = ui->deskCaRegistrationLineEdit->text();
-//    QString eMail = ui->deskEMailLineEdit->text();
-//    bool sendReports = ui->sendReportsCheckBox->isChecked();
+
 
     // If tagId contains entry, search based on only that.
     // If found, update fields.  Otherwise clear fields.
@@ -2286,8 +2259,6 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskUpdatePushButton->setEnabled(false);
 
 }
-
-
 
 
 

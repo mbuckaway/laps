@@ -50,9 +50,8 @@ private:
 };
 
 
-class CLapsDbase //: public QObject
+class CLapsDbase
 {
-//    Q_OBJECT
 public:
     enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
     CLapsDbase(void);
@@ -61,22 +60,25 @@ public:
     int addLap(const CRider &rider, unsigned int dateTime);
     int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
     int getStats(const QString &tagId, CRider *rider);
-    int getStatsForPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
+    int getStatsForCurrentPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
+    int getStatsForPriorPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int setReportStatus(reportStatus_t reportStatus, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd);
     int getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, QList<int> *lapsList);
     static unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);
     bool isOpen(void);
+    QString currentFileName(void);
+    QString priorFileName(void);
     QString errorText(void);
     QSqlDatabase dBase;
-    QSqlDatabase dBaseLastYear;
-//    QList<QSqlDatabase *> dBaseList;    // list of dBase pointers in reverse chronological order
+    QSqlDatabase dBasePrior;
 private:
     QString errorTextVal;
+    QString currentFileNameVal;
+    QString priorFileNameVal;
+    int getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int errorVal;
-    int priorLapsTotal;
-    float priorKmTotal;
 signals:
     void newLogMessage(QString);
 };
