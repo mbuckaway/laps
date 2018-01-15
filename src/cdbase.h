@@ -54,8 +54,9 @@ class CLapsDbase
 {
 public:
     enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
-    CLapsDbase();
-    int open(const QString &filename, const QString &username, const QString &password);
+    CLapsDbase(void);
+    int setConnectionName(const QString &connectionName);
+    int open(const QString &filename, const QString &connectionName, const QString &username, const QString &password);
     void close(void);
     int addLap(const CRider &rider, unsigned int dateTime);
     int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
@@ -68,14 +69,11 @@ public:
     int error(void);
     bool isOpen(void);
     QString errorText(void);
-    QSqlDatabase dBase;
-    QSqlDatabase dBaseLastYear;
+//    QSqlDatabase dBase;
+    QList<QSqlDatabase *> dBaseList;    // list of dBase pointers in reverse chronological order
 private:
     QString errorTextVal;
     int errorVal;
-    unsigned lapsPreviousTotal;
-    float kmPreviousTotal;
-    int getPriorTotal(const QString &tagId, unsigned int *lapsTotal, float *kmTotal);
 };
 
 #endif // CDBASE_H

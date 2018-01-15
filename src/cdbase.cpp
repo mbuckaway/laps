@@ -458,39 +458,42 @@ bool CMembershipDbase::isOpen(void) {
 // Database files are associated with one year of data, with names like laps2018.db etc.
 //
 
-CLapsDbase::CLapsDbase() {
+CLapsDbase::CLapsDbase(void) {
     errorTextVal.clear();
     errorVal = 0;
-    lapsPreviousTotal = 0;
-    kmPreviousTotal = 0.;
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
-
-    dBase = QSqlDatabase::addDatabase("QSQLITE", "laps");
-    dBaseLastYear = QSqlDatabase::addDatabase("QSQLITE", "lapsLastYear");
 }
 
 
-int CLapsDbase::open(const QString &filename, const QString &username, const QString &password) {
+int CLapsDbase::open(const QString &filename, const QString &connectionName, const QString &username, const QString &password) {
     errorTextVal.clear();
     errorVal = 0;
-    dBase.setUserName(username);
-    dBase.setPassword(password);
-    dBase.setDatabaseName(filename);
-
-    if (!dBase.open()) {
-        errorTextVal = dBase.lastError().text();
-        errorVal = 1;
-        return errorVal;
-    }
 
     bool showContents = false;
 
+    // Open dbase for current year and create if necessary
+
+    QSqlDatabase *dBase = new QSqlDatabase;
+    *dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+
+    dBase->setUserName(username);
+    dBase->setPassword(password);
+    dBase->setDatabaseName(filename);
+
+    if (!dBase->open()) {
+        errorTextVal = dBase->lastError().text();
+        errorVal = 1;
+        delete dBase;
+        return errorVal;
+    }
+
+    dBaseList.append(dBase);
+
     // Make sure table exists and create as necessary
 
-    QSqlQuery query(dBase);
-
-    QStringList tableList = dBase.tables();
+    QSqlQuery query(*dBase);
+    QStringList tableList = dBase->tables();
     if (!tableList.contains("lapsTable")) {
         qDebug() << "Creating new lapsTable in " + filename;
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
@@ -502,19 +505,19 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
         qDebug() << "  Created new lapsTable";
     }
 
-    if (!tableList.contains("priorTotalsTable")) {
-        qDebug() << "Creating new priorTotalsTable in " + filename;
-        query.prepare("create table priorTotalsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
-        if (!query.exec()) {
-            errorTextVal = query.lastError().text();
-            errorVal = 3;
-            return errorVal;
-        }
-        qDebug() << "  Created new priorTotalsTable";
-    }
+//    if (!tableList.contains("priorTotalsTable")) {
+//        qDebug() << "Creating new priorTotalsTable in " + filename;
+//        query.prepare("create table priorTotalsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
+//        if (!query.exec()) {
+//            errorTextVal = query.lastError().text();
+//            errorVal = 3;
+//            return errorVal;
+//        }
+//        qDebug() << "  Created new priorTotalsTable";
+//    }
 
-    int idLapsTotal = 0;
-    int idkmTotal = 0;
+//    int idLapsTotal = 0;
+//    int idkmTotal = 0;
 
     if (showContents) {
         qDebug() << "List of lapsTable...";
@@ -545,22 +548,22 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
             qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime, year, month, day, hour, minute, second, lapSec, lapM, reportStatus);
         }
 
-        qDebug() << "List of priorTotalsTable...";
-        query.prepare("select * from priorTotalsTable");
-        if (!query.exec()) {
-            errorTextVal = query.lastError().text();
-            errorVal = 5;
-            return errorVal;
-        }
-        id = query.record().indexOf("id");
-        idTagId = query.record().indexOf("tagId");
-        idLapsTotal = query.record().indexOf("lapsTotal");
-        idkmTotal = query.record().indexOf("kmTotal");
-        while (query.next()) {
-            int lapsTotal = query.value(idLapsTotal).toUInt();
-            float kmTotal = query.value(idkmTotal).toFloat();
-            qDebug("id=%d tagId=%s lapsTotal=%u kmTotal=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), lapsTotal, kmTotal);
-        }
+//        qDebug() << "List of priorTotalsTable...";
+//        query.prepare("select * from priorTotalsTable");
+//        if (!query.exec()) {
+//            errorTextVal = query.lastError().text();
+//            errorVal = 5;
+//            return errorVal;
+//        }
+//        id = query.record().indexOf("id");
+//        idTagId = query.record().indexOf("tagId");
+//        idLapsTotal = query.record().indexOf("lapsTotal");
+//        idkmTotal = query.record().indexOf("kmTotal");
+//        while (query.next()) {
+//            int lapsTotal = query.value(idLapsTotal).toUInt();
+//            float kmTotal = query.value(idkmTotal).toFloat();
+//            qDebug("id=%d tagId=%s lapsTotal=%u kmTotal=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), lapsTotal, kmTotal);
+//        }
     }
 
 
@@ -630,8 +633,12 @@ int CLapsDbase::open(const QString &filename, const QString &username, const QSt
 
 
 void CLapsDbase::close(void) {
-    if (dBase.isOpen())
-        dBase.close();
+    for (int i=0; i<dBaseList.size(); i++) {
+        if (dBaseList[i]->isOpen())
+            dBaseList[i]->close();
+        delete dBaseList[i];
+    }
+
 }
 
 

@@ -851,7 +851,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         case CRider::firstCrossing:
 
-            // In first lap try getting name and prior stats from two dbases
+            // In first lap try getting name and prior stats from dbases
 
             id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
             if (id > 0) {
@@ -860,11 +860,16 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 rider->name = info.firstName + " " + info.lastName;
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
+
+                // Get stats for current year
+
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
+
+                // Get stats
             }
             else {
                 rider->inDbase = false;
-                rider->name.clear();// = "???";
+                rider->name.clear();
             }
             rider->lapCount = 0;
             rider->lapSec = 0.;
@@ -1016,6 +1021,10 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
 
 
 
+
+
+
+
 // **************************************************************************************************
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -1073,7 +1082,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->tablePurgeIntervalDoubleSpinBox->setMinimum(0.01);
     ui->tablePurgeIntervalDoubleSpinBox->setValue(settings.value("tablePurgeIntervalHours").toFloat());
-    ui->emailReportLatencySpinBox->setMinimum(1);
+    ui->emailReportLatencySpinBox->setMinimum(2);
 
 
     // Initialize member variables
@@ -1136,7 +1145,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Two databases are used.
     // membershipDbase contains track membership info for each rider.
-    // lapsDbase contains a record of all laps for all riders.
 
     QString membershipDbaseFileName;
     if (testMode) membershipDbaseFileName = "membershipTest.db";
@@ -1146,7 +1154,12 @@ MainWindow::MainWindow(QWidget *parent) :
     rc = membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
+    else
+        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbaseFileName.toLatin1().data()));
 
+
+    // The lapsDbase contains a record of all laps for all riders.
+    // Each file contains data for one year.
 
     QDate currentDate(QDate::currentDate());
     QString lapsDbaseFileName;
@@ -1154,18 +1167,36 @@ MainWindow::MainWindow(QWidget *parent) :
     else lapsDbaseFileName = s.sprintf("laps%d.db", currentDate.year());
     QString lapsDbaseUserName = "fcv";
     QString lapsDbasePassword = "fcv";
-    rc = lapsDbase.open(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
+    rc = lapsDbase.open(lapsDbaseFileName, "laps", lapsDbaseUserName, lapsDbasePassword);
     if ((rc != 0) || !lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
+    else
+        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
 
-    // If this is January, open dbase from previous year if it exists
+    // Loop backwards through previous database files and make a list of dBases
 
-//    if (lapsDbase.isOpen() && (currentDate.month() == 1)) {
-//        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", currentDate.year() - 1);
-//        else lapsDbaseFileName = s.sprintf("laps%d.db", currentDate.year() - 1);
-//        rc = lapsDbase.openLastYear(lapsDbaseFileName, lapsDbaseUserName, lapsDbasePassword);
-//        if ((rc != 0) || !lapsDbase.isOpen())
-//            guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbaseFileName.toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
+    for (int year=currentDate.year()-1; year>=2010; year--) {
+        if (testMode) lapsDbaseFileName = s.sprintf("lapsTest%d.db", year);
+        else lapsDbaseFileName = s.sprintf("laps%d.db", year);
+        if (QFile(lapsDbaseFileName).exists()) {
+            CLapsDbase *oldLapsDbase = new CLapsDbase;
+            QString connectionName;
+            connectionName.sprintf("laps%d", year);
+            rc = oldLapsDbase->open(lapsDbaseFileName, connectionName, lapsDbaseUserName, lapsDbasePassword);
+            if ((rc == 0) && oldLapsDbase->isOpen()) {
+                oldLapsDbaseList.append(oldLapsDbase);
+                onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbaseFileName.toLatin1().data()));
+            }
+            else {
+                delete oldLapsDbase;
+                break;
+            }
+        }
+        else {
+            break;
+        }
+    }
+
 
     // Initialize membership table
 
@@ -1484,9 +1515,9 @@ void MainWindow::onClockTimerTimeout(void) {
 
     static bool sentInThisInterval = false;
     if ((currentDateTime.time().hour() % ui->emailReportLatencySpinBox->value()) == 0) {
-//    if ((currentDateTime.time().second() % 10) == 0) {
         if (!sentInThisInterval) {
-            sendReports();
+            qDebug() << "sendReports";
+            sendInactiveRiderReports();
             sentInThisInterval = true;
         }
     }
@@ -1530,14 +1561,15 @@ QString MainWindow::getSession(const QDateTime &dateTime) {
 
 // *********************************************************************************************
 //
-// sendReports()
+// sendInactiveRiderReports()
 // This routing is called on a regular basis whether previous attempts to send reports were
 // successful or not.
 // Look through lapsDbase for laps within the last week with pending reports
 
-void MainWindow::sendReports(void) {
+void MainWindow::sendInactiveRiderReports(void) {
     if (!ui->emailSendReportsCheckBox->isChecked())
         return;
+
     if (!lapsDbase.isOpen())
         return;
 
@@ -2260,11 +2292,13 @@ void MainWindow::updateDbaseButtons(void) {
 
 
 void MainWindow::guiCritical(QString s) {
+    onNewLogMessage("Critical: " + s);
     QMessageBox::critical(NULL, "llrplaps Critical Error", s, QMessageBox::Ok);
 }
 
 
 void MainWindow::guiInformation(QString s) {
+    onNewLogMessage("Information: " + s);
     QMessageBox::information(NULL, QCoreApplication::applicationName() + "\n\n", s, QMessageBox::Ok);
 }
 

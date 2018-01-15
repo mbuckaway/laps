@@ -130,7 +130,7 @@ public:
     ~MainWindow();
     CMembershipDbase membershipDbase;
     CLapsDbase lapsDbase;
-    //CLapsDbase lapsLastYearDbase;
+    QList<CLapsDbase *> oldLapsDbaseList;
     float maxAcceptableLapSec;        // max time allowable for lap.  If greater, rider must have left and return to track
     QList<float> trackLengthM;      // length of track (1 lap) at height of each antenna
     float blackLineDistancem;
@@ -165,7 +165,7 @@ private:
     QSettings settings;
     void initializeSettingsPanel(void);
     bool tagInDbase;
-    void sendReports(void);
+    void sendInactiveRiderReports(void);
     void prepareNextReport(void);
     void sendReport(const CMembershipInfo &info, const QString &body);
     QList<CMembershipInfo> membershipInfoNotReported;
