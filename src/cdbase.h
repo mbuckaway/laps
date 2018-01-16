@@ -27,7 +27,7 @@ class CMembershipDbase
 {
 public:
     CMembershipDbase();
-    int open(const QString &filename, const QString &username, const QString &password);
+    int open(const QString &rootName, const QString &username, const QString &password);
     void close(void);
     int add(const CMembershipInfo &info);
     int update(const CMembershipInfo &info);
@@ -42,11 +42,13 @@ public:
     int namesRowCount(void);
     int error(void);
     bool isOpen(void);
+    QString fileName(void);
     QString errorText(void);
     QSqlDatabase dBase;
 private:
     QString errorTextVal;
     int errorVal;
+    QString fileNameVal;
 };
 
 

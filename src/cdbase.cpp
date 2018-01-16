@@ -21,11 +21,12 @@ CMembershipDbase::CMembershipDbase() {
 
 
 
-int CMembershipDbase::open(const QString &filename, const QString &username, const QString &password) {
+int CMembershipDbase::open(const QString &rootName, const QString &username, const QString &password) {
     errorTextVal.clear();
+    fileNameVal = rootName + ".db";
     dBase.setUserName(username);
     dBase.setPassword(password);
-    dBase.setDatabaseName(filename);
+    dBase.setDatabaseName(fileNameVal);
 
     if (!dBase.open()) {
         errorTextVal = dBase.lastError().text();
@@ -40,7 +41,7 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
     QStringList tableList = dBase.tables();
     if (!tableList.contains("membershipTable")) {
         QSqlQuery query(dBase);
-        qDebug() << "Creating new membershipTable in" << filename;
+        qDebug() << "Creating new membershipTable in" << fileNameVal;
         query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER, caRegistration VARCHAR(20), eMail VARCHAR(20), sendReports INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -80,6 +81,12 @@ int CMembershipDbase::open(const QString &filename, const QString &username, con
 void CMembershipDbase::close(void) {
     if (dBase.isOpen())
         dBase.close();
+}
+
+
+
+QString CMembershipDbase::fileName(void) {
+    return fileNameVal;
 }
 
 
@@ -939,12 +946,6 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
 int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {
     errorTextVal.clear();
     errorVal = 0;
-
-//    if (dBaseList.isEmpty()) {
-//        errorTextVal = "Empty dBaseList";
-//        errorVal = 1;
-//        return errorVal;
-//    }
 
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";

@@ -1148,17 +1148,19 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Two databases are used.
     // membershipDbase contains track membership info for each rider.
+    // This should be opened before lapsdbase because the membershipdbase is used when a new lapsdbase is created
+    // at the start of a new year.
 
-    QString membershipDbaseFileName;
-    if (testMode) membershipDbaseFileName = "membershipTest.db";
-    else membershipDbaseFileName = "membership.db";
+    QString membershipDbaseRootName;
+    if (testMode) membershipDbaseRootName = "membershipTest";
+    else membershipDbaseRootName = "membership";
     QString membershipDbaseUserName = "fcv";
     QString membershipDbasePassword = "fcv";
-    rc = membershipDbase.open(membershipDbaseFileName, membershipDbaseUserName, membershipDbasePassword);
+    rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
-        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbaseFileName.toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
+        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbase.fileName().toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
     else
-        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbaseFileName.toLatin1().data()));
+        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbase.fileName().toLatin1().data()));
 
 
     // lapsDbase contains a record of all laps for all riders.
