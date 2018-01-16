@@ -495,7 +495,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     currentFileNameVal = connectionName + ".db";
 
 
-    // Make sure table for current year exists and create if necessary.
+    // Make sure dbase for current year exists and create if necessary.
 
     dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     dBase.setUserName(username);
@@ -509,40 +509,27 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     }
 
     QSqlQuery query(dBase);
-    QStringList tableList = dBase.tables();
-    if (!tableList.contains("lapsTable")) {
+
+    // Make sure lapsTable exists in dbase
+
+    if (!dBase.tables().contains("lapsTable")) {
         qDebug() << "Creating new lapsTable in " + currentFileNameVal;
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            errorVal = 2;
+            errorVal = 3;
             return errorVal;
         }
         qDebug() << "  Created new lapsTable";
     }
 
 
-    // Make sure ridersTable exists and create if necessary
-
-    if (!tableList.contains("ridersTable")) {
-        qDebug() << "Creating new ridersTable in " + currentFileNameVal;
-        query.prepare("create table ridersTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapsTotal UNSIGNED INTEGER, kmTotal FLOAT)");
-        if (!query.exec()) {
-            errorTextVal = query.lastError().text();
-            errorVal = 3;
-            return errorVal;
-        }
-        qDebug() << "  Created new ridersTable";
-    }
-
-
     if (showContents) {
-        QSqlQuery query(dBase);
         qDebug() << "List of lapsTable...";
         query.prepare("select * from lapsTable");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
-            errorVal = 3;
+            errorVal = 4;
             return errorVal;
         }
         int id = query.record().indexOf("id");
@@ -567,7 +554,50 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
     }
 
-    // Open previous year if it exists and determine prior totals
+    // Make sure priorsTable exists in dbase and create if not
+
+    bool calculatePriorsRequired = false;
+    if (!dBase.tables().contains("priorsTable")) {
+        qDebug() << "Creating new priorsTable in " + currentFileNameVal;
+        query.prepare("create table priorsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapCount INTEGER, lapSecTotal FLOAT, lapMTotal FLOAT)");
+        if (!query.exec()) {
+            errorTextVal = query.lastError().text();
+            errorVal = 5;
+            return errorVal;
+        }
+        calculatePriorsRequired = true;
+        qDebug() << "  Created new priorsTable";
+    }
+
+
+
+    if (showContents) {
+        qDebug() << "List of priorsTable...";
+        query.prepare("select * from priorsTable");
+        if (!query.exec()) {
+            errorTextVal = query.lastError().text();
+            errorVal = 6;
+            return errorVal;
+        }
+        int idid = query.record().indexOf("id");
+        int idTagId = query.record().indexOf("tagId");
+        int idName = query.record().indexOf("name");
+        int idLapCount = query.record().indexOf("lapCount");
+        int idLapSecTotal = query.record().indexOf("lapSecTotal");
+        int idLapMTotal = query.record().indexOf("lapMTotal");
+        while (query.next()) {
+            int id = query.value(idid).toInt();
+            QString tagId = query.value(idTagId).toString();
+            QString name = query.value(idName).toString();
+            int lapCount = query.value(idLapCount).toInt();
+            float lapSecTotal = query.value(idLapSecTotal).toFloat();
+            float lapMTotal = query.value(idLapMTotal).toFloat();
+            qDebug("id=%d tagId=%s name=%s lapCount=%d lapSecTotal=%f lapMTotal=%f", id, tagId.toLatin1().data(), name.toLatin1().data(), lapCount, lapSecTotal, lapMTotal);
+        }
+    }
+
+
+    // Open previous year dbase if it exists
 
     connectionName = rootName + s.setNum(currentDate.year() - 1);
     priorFileNameVal = connectionName + ".db";
@@ -577,33 +607,71 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         dBasePrior.setPassword(password);
         dBasePrior.setDatabaseName(priorFileNameVal);
         dBasePrior.open();
-    }
 
+        QSqlQuery queryPrior(dBasePrior);
 
-    if (showContents) {
-//        qDebug() << "List of ridersTable...";
-        query.prepare("select * from ridersTable");
-        if (!query.exec()) {
-            errorTextVal = query.lastError().text();
-            errorVal = 5;
-            return errorVal;
-        }
-        int id = query.record().indexOf("id");
-        int idTagId = query.record().indexOf("tagId");
-        int idName = query.record().indexOf("name");
-        int idLapsPrior = query.record().indexOf("lapsPrior");
-        int idKmPrior = query.record().indexOf("kmPrior");
-        while (query.next()) {
-            QString tagId;
-            QString name;
-            int lapsPrior = 0;
-            float kmPrior = 0.;
+        // If required, calculate totals from dBasePrior:lapsTable and put into dBase:priorsTable
 
-            tagId = query.value(idTagId).toString();
-            name = query.value(idName).toString();
-            lapsPrior = query.value(idLapsPrior).toUInt();
-            kmPrior = query.value(idKmPrior).toFloat();
-            qDebug("id=%d tagId=%s name=%s lapsPrior=%d kmPrior=%f", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), query.value(idName).toString().toLatin1().data(), lapsPrior, kmPrior);
+        if (calculatePriorsRequired && dBasePrior.isOpen()) {
+            qDebug() << "Calculating priors";
+
+            queryPrior.prepare("SELECT tagId FROM lapsTable");
+            if (!queryPrior.exec()) {
+                errorTextVal = queryPrior.lastError().text();
+                errorVal = 7;
+                return errorVal;
+            }
+            QStringList tagIdList;
+            int idTagId = queryPrior.record().indexOf("tagId");
+            while (queryPrior.next()) {
+                QString tagId = queryPrior.value(idTagId).toString();
+                if (!tagIdList.contains(tagId))
+                    tagIdList.append(tagId);
+            }
+            qDebug() << tagIdList;
+
+            // Calculate lists of totals for each tagId
+
+            QList<float> lapSecTotal;
+            QList<float> lapMTotal;
+            QList<int> lapCount;
+            for (int i=0; i<tagIdList.size(); i++) {
+                queryPrior.prepare("SELECT lapSec, lapM FROM lapsTable WHERE tagId = :tagId");
+                queryPrior.bindValue(":tagId", tagIdList[i]);
+                if (!queryPrior.exec()) {
+                    errorTextVal = queryPrior.lastError().text();
+                    errorVal = 8;
+                    return errorVal;
+                }
+                int idLapSec = queryPrior.record().indexOf("lapSec");
+                int idLapM = queryPrior.record().indexOf("lapM");
+                lapSecTotal.append(0.);
+                lapMTotal.append(0.);
+                lapCount.append(0);
+                while (queryPrior.next()) {
+                    lapSecTotal[i] += queryPrior.value(idLapSec).toFloat();
+                    lapMTotal[i] += queryPrior.value(idLapM).toFloat();
+                    lapCount[i]++;
+                }
+
+                // Add in priors
+
+                getPriors(dBasePrior, tagIdList[i], &lapCount[i], &lapSecTotal[i], &lapMTotal[i]);
+            }
+
+            for (int i=0; i<tagIdList.size(); i++) {
+                query.prepare("INSERT INTO priorsTable (tagId, name, lapCount, lapSecTotal, lapMTotal) VALUES (:tagId, :name, :lapCount, :lapSecTotal, :lapMTotal)");
+                query.bindValue(":tagId", tagIdList[i]);
+                query.bindValue(":name", QString());
+                query.bindValue(":lapCount", lapCount[i]);
+                query.bindValue(":lapSecTotal", lapSecTotal[i]);
+                query.bindValue(":lapMTotal", lapMTotal[i]);
+                if (!query.exec()) {
+                    errorTextVal = "Could not insert data into priorsTable of laps";
+                    errorVal = 9;
+                    return errorVal;
+                }
+            }
         }
     }
 
@@ -727,7 +795,7 @@ int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *la
 
 
 
-// Calculate stats for specified rider (tagId)
+// Calculate stats for specified tagId
 //
 int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorTextVal.clear();
@@ -770,7 +838,7 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     if (errorVal) return errorVal;
 
 
-    // Get stats for all time - wip
+    // Get stats for all time
 
     int allTimeYear = 2000;     // min value is 2000
     int allTimeMonth = 0;
@@ -780,10 +848,18 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorVal = getStatsForCurrentPeriod(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->allTime);
     if (errorVal)
         return errorVal;
-//    CStats priorStats;
-//    errorVal = getStatsForPriorPeriod(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &priorStats);
-//    if (errorVal)
-//        return errorVal;
+
+    // Add priors
+
+    int lapCountPrior = 0;
+    float lapSecTotalPrior = 0.;
+    float lapMTotalPrior = 0.;
+    getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
+
+    rider->allTime.lapCount += lapCountPrior;
+    rider->allTime.totalSec += lapSecTotalPrior;
+    rider->allTime.totalM += lapMTotalPrior;
+
     return 0;
 }
 
@@ -905,6 +981,57 @@ int CLapsDbase::getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagI
     return 0;
 }
 
+
+
+// Get stats from specified dbase for specified tagId and time period
+//
+int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    *lapCount = 0;
+    *lapSecTotal = 0.;
+    *lapMTotal = 0.;
+
+    if (!dBase.isOpen()) {
+        return 0;
+    }
+
+    QSqlQuery query(dBase);
+    query.prepare("SELECT lapCount, lapSecTotal, lapMTotal FROM priorsTable WHERE tagId = :tagId");
+    query.bindValue(":tagId", tagId);
+    if (!query.exec()) {
+        return 0;
+    }
+
+    int lapCountIndex = query.record().indexOf("lapCount");
+    if (lapCountIndex < 0) {
+        errorTextVal = "Could not find lapCount index in getPriors";
+        errorVal = 4;
+        return errorVal;
+    }
+
+    int lapSecTotalIndex = query.record().indexOf("lapSecTotal");
+    if (lapSecTotalIndex < 0) {
+        errorTextVal = "Could not find lapSecTotal index in getPriors";
+        errorVal = 4;
+        return errorVal;
+    }
+
+    int lapMTotalIndex = query.record().indexOf("lapMTotal");
+    if (lapMTotalIndex < 0) {
+        errorTextVal = "Could not find lapMTotal index in getPriors";
+        errorVal = 5;
+        return errorVal;
+    }
+
+    while (query.next()) {
+        *lapCount = query.value(lapCountIndex).toInt();
+        *lapSecTotal = query.value(lapSecTotalIndex).toFloat();
+        *lapMTotal = query.value(lapMTotalIndex).toFloat();
+    }
+    return 0;
+}
 
 
 // Set reportStatus for specified tagId and time period

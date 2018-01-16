@@ -80,6 +80,7 @@ private:
     QString currentFileNameVal;
     QString priorFileNameVal;
     int getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
+    int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);
     int errorVal;
 signals:
     void newLogMessage(QString);
