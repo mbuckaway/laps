@@ -136,13 +136,13 @@ void CReader::onStarted(void) {
                 }
             }
 
-            // emit null tag to update tables
+//            // emit null tag to update tables
 
-            CTagInfo tagInfo;
-            tagInfo.readerId = readerId;
-            tagInfo.antennaId = 0;
-            tagInfo.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
-            emit newTag(tagInfo);
+//            CTagInfo tagInfo;
+//            tagInfo.readerId = readerId;
+//            tagInfo.antennaId = 0;
+//            tagInfo.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+//            emit newTag(tagInfo);
         }
     }
 

@@ -165,6 +165,7 @@ private:
     QSettings settings;
     void initializeSettingsPanel(void);
     bool tagInDbase;
+    bool entryEdited;
     void sendInactiveRiderReports(void);
     void prepareNextReport(void);
     void sendReport(const CMembershipInfo &info, const QString &body);
@@ -182,12 +183,12 @@ public slots:
     void onDbaseRemovePushButtonClicked(void);
     void onDbaseUpdatePushButtonClicked(void);
     void onDbaseReadPushButtonClicked(bool);
-    void onDbaseTagIdTextChanged(QString);
-    void onDbaseFirstNameTextChanged(QString);
-    void onDbaseLastNameTextChanged(QString);
-    void onDbaseMembershipNumberTextChanged(QString);
-    void onDbaseCaRegistrationTextChanged(QString);
-    void onDbaseEMailTextChanged(QString);
+    void onDbaseTagIdTextEdited(QString);
+    void onDbaseFirstNameTextEdited(QString);
+    void onDbaseLastNameTextEdited(QString);
+    void onDbaseMembershipNumberTextEdited(QString);
+    void onDbaseCaRegistrationTextEdited(QString);
+    void onDbaseEMailTextEdited(QString);
 private slots:
     void onReaderConnected(void);
     void onClockTimerTimeout(void);

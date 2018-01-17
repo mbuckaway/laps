@@ -463,8 +463,19 @@ bool CMembershipDbase::isOpen(void) {
 
 // ***************************************************************************************************
 // Database files are associated with one year of data, with names like laps2018.db etc.
-// dBaseList contains a list of dbase files, one per year, in reverse order, with dBaseList[0]
-// being the current year.
+// Each file contains two tables.  The first, lapsTable, is a raw listing of each lap:
+//   id: index id
+//   tagId: character string showing tagId
+//   dateTime: unsigned integer with timestamp
+//   lapSec: time duration (s) of completed lap
+//   lapM: distance of completed lap (m)
+//   reportStatus: 0=not reported in email (yet), 1=reported
+//
+// The second table, priorsTable, is a summary of all laps in previous years:
+//   id:
+//   tagId:
+//   lapSecTotal: sum of all lap times (s) completed before start of lapsTable
+//   lapMTotal: sum of all lap distances (m) completed before start of lapsTable
 //
 
 CLapsDbase::CLapsDbase(void) {
@@ -630,7 +641,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
             }
             qDebug() << tagIdList;
 
-            // Calculate lists of totals for each tagId
+            // For each tagId, calculate lapCount, lapSecTotal and lapMTotal, including priors
 
             QList<float> lapSecTotal;
             QList<float> lapMTotal;
@@ -656,7 +667,10 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
                 // Add in priors
 
-                getPriors(dBasePrior, tagIdList[i], &lapCount[i], &lapSecTotal[i], &lapMTotal[i]);
+                int rc = getPriors(dBasePrior, tagIdList[i], &lapCount[i], &lapSecTotal[i], &lapMTotal[i]);
+                if (rc) {
+                    return errorVal;
+                }
             }
 
             for (int i=0; i<tagIdList.size(); i++) {
@@ -854,8 +868,9 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     int lapCountPrior = 0;
     float lapSecTotalPrior = 0.;
     float lapMTotalPrior = 0.;
-    getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
-
+    errorVal = getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
+    if (errorVal)
+        return errorVal;
     rider->allTime.lapCount += lapCountPrior;
     rider->allTime.totalSec += lapSecTotalPrior;
     rider->allTime.totalM += lapMTotalPrior;
@@ -994,14 +1009,18 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
     *lapMTotal = 0.;
 
     if (!dBase.isOpen()) {
-        return 0;
+        errorTextVal = "Database not open";
+        errorVal = 1;
+        return errorVal;
     }
 
     QSqlQuery query(dBase);
     query.prepare("SELECT lapCount, lapSecTotal, lapMTotal FROM priorsTable WHERE tagId = :tagId");
     query.bindValue(":tagId", tagId);
     if (!query.exec()) {
-        return 0;
+        errorTextVal = "Could not select priors";
+        errorVal = 2;
+        return errorVal;
     }
 
     int lapCountIndex = query.record().indexOf("lapCount");

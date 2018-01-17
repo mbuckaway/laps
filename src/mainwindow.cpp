@@ -694,8 +694,6 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             case CRider::firstCrossing:
                 return QString("first lap");
             case CRider::regularCrossing:
-//                if (rider->lapCount >= mainWindow->bestLapCountInSession)
-//                    return QString("Best lap count in session");
                 return rider->comment;
             case CRider::onBreak:
                 return QString("on break");
@@ -787,6 +785,8 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 
 // newTrackTag()
 // This routine processes each tag as it arrives, calculating lap times, speed etc.
+// Tags are assumed to be from valid read events (already filtered for uninitialized antennas), but may be
+// a null tag (used to update tables).
 
 void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
     try {
@@ -1055,6 +1055,7 @@ MainWindow::MainWindow(QWidget *parent) :
     bool initialized = true;
 
     tagInDbase = false;
+    entryEdited = false;
     bestLapSpeedInSession = 0.;
     bestLapCountInSession = 0;
 
@@ -1136,12 +1137,12 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->deskRemovePushButton, SIGNAL(clicked()), this, SLOT(onDbaseRemovePushButtonClicked()));
     connect(ui->deskUpdatePushButton, SIGNAL(clicked()), this, SLOT(onDbaseUpdatePushButtonClicked()));
     connect(ui->deskReadPushButton, SIGNAL(clicked(bool)), this, SLOT(onDbaseReadPushButtonClicked(bool)));
-    connect(ui->deskTagIdLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseTagIdTextChanged(QString)));
-    connect(ui->deskFirstNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseFirstNameTextChanged(QString)));
-    connect(ui->deskLastNameLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseLastNameTextChanged(QString)));
-    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseMembershipNumberTextChanged(QString)));
-    connect(ui->deskCaRegistrationLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseCaRegistrationTextChanged(QString)));
-    connect(ui->deskEMailLineEdit, SIGNAL(textChanged(QString)), this, SLOT(onDbaseEMailTextChanged(QString)));
+    connect(ui->deskTagIdLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseTagIdTextEdited(QString)));
+    connect(ui->deskFirstNameLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseFirstNameTextEdited(QString)));
+    connect(ui->deskLastNameLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseLastNameTextEdited(QString)));
+    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseMembershipNumberTextEdited(QString)));
+    connect(ui->deskCaRegistrationLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseCaRegistrationTextEdited(QString)));
+    connect(ui->deskEMailLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseEMailTextEdited(QString)));
 
     updateDbaseButtons();
 
@@ -1153,7 +1154,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QString membershipDbaseRootName;
     if (testMode) membershipDbaseRootName = "membershipTest";
-    else membershipDbaseRootName = "membership";
+    else membershipDbaseRootName = "../data/membership";
     QString membershipDbaseUserName = "fcv";
     QString membershipDbasePassword = "fcv";
     rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
@@ -1168,7 +1169,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QString lapsDbaseRootName;
     if (testMode) lapsDbaseRootName = "lapsTest";
-    else lapsDbaseRootName = "laps";
+    else lapsDbaseRootName = "../data/laps";
     QString lapsDbaseUserName = "fcv";
     QString lapsDbasePassword = "fcv";
     rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
@@ -1272,7 +1273,6 @@ MainWindow::MainWindow(QWidget *parent) :
     purgeActiveRidersListTimer.setInterval((int)(ui->tablePurgeIntervalDoubleSpinBox->value() * 3600. * 1000. / 4.));
     purgeActiveRidersListTimer.start();
 
-
     connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
     connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
     connect(ui->saveSessionsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSessionsPushButtonClicked()));
@@ -1357,9 +1357,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 MainWindow::~MainWindow() {
+    qDebug() << "Clean exit";
+    onNewLogMessage("Clean exit requested");
+
     membershipDbase.close();
     lapsDbase.close();
     for (int i=0; i<readerThreadList.size(); i++) {
+//        deskReader->disconnect();
         readerThreadList[i]->requestInterruption();
         readerThreadList[i]->wait();
         delete readerThreadList[i];
@@ -1487,16 +1491,25 @@ void MainWindow::onTestMailSent(void) {
 
 
 void MainWindow::onClockTimerTimeout(void) {
+    QDateTime currentDateTime(QDateTime::currentDateTime());
     ui->rightTitleLabel->setText(QDateTime::currentDateTime().toString("ddd MMMM d yyyy  hh:mm:ss"));
 
-    // Check to see if this is the first timeout after a specified time (midnight) and send email reports
+    // Emit null tag every minute
 
-    QDateTime currentDateTime(QDateTime::currentDateTime());
+    if ((currentDateTime.time().second() % 10) == 0) {
+        CTagInfo tagInfo;
+        tagInfo.readerId = 0;
+        tagInfo.antennaId = 0;
+        tagInfo.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
+        emit onNewTrackTag(tagInfo);
+    }
+
+
+    // Check to see if this is the first timeout after a specified time (midnight) and send email reports
 
     static bool sentInThisInterval = false;
     if ((currentDateTime.time().hour() % ui->emailReportLatencySpinBox->value()) == 0) {
         if (!sentInThisInterval) {
-            //qDebug() << "sendReports";
             sendInactiveRiderReports();
             sentInThisInterval = true;
         }
@@ -1886,6 +1899,7 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     QString s;
     static int tagCount = 0;
+    //qDebug() << tagInfo.tagId << tagInfo.readerId;
 
     // Add string to messages window
 
@@ -1910,8 +1924,10 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Confirm track length for the antenna triggering this read event is valid (> 0)
 
-    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == 0.))
+    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == 0.)) {
         guiCritical(s.sprintf("The track length value for the antenna triggering this event (%d) is zero.  Please set track length in Settings panel.", tagInfo.antennaId));
+        return;
+    }
 
     // Process tag
 
@@ -2016,6 +2032,8 @@ void MainWindow::onDbaseSearchPushButtonClicked(void) {
             tagInDbase = false;
         }
     }
+
+    entryEdited = false;
     updateDbaseButtons();
 }
 
@@ -2061,6 +2079,8 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
 void MainWindow::onDbaseClearPushButtonClicked(void) {
     tagInDbase = false;
+    entryEdited = false;
+
     ui->deskTagIdLineEdit->clear();
     ui->deskFirstNameLineEdit->clear();
     ui->deskLastNameLineEdit->clear();
@@ -2086,6 +2106,7 @@ void MainWindow::onDbaseRemovePushButtonClicked(void) {
         }
     }
 
+    entryEdited = false;
     onDbaseClearPushButtonClicked();
 }
 
@@ -2122,6 +2143,7 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
         return;
     }
 
+    entryEdited = false;
     onDbaseClearPushButtonClicked();
 }
 
@@ -2140,6 +2162,7 @@ void MainWindow::onDbaseReadPushButtonClicked(bool state) {
         ui->deskReadPushButton->setChecked(false);
     }
 
+    entryEdited = false;
     updateDbaseButtons();
 }
 
@@ -2153,40 +2176,47 @@ void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
     onDbaseSearchPushButtonClicked();
     ui->deskReadPushButton->setChecked(false);
 
+    entryEdited = false;
     updateDbaseButtons();
 }
 
 
 
-void MainWindow::onDbaseTagIdTextChanged(QString) {
+void MainWindow::onDbaseTagIdTextEdited(QString) {
     tagInDbase = false;
+    entryEdited = true;
     updateDbaseButtons();
 }
 
 
 
-void MainWindow::onDbaseFirstNameTextChanged(QString) {
+void MainWindow::onDbaseFirstNameTextEdited(QString) {
+    entryEdited = true;
     updateDbaseButtons();
 }
 
 
 
-void MainWindow::onDbaseLastNameTextChanged(QString) {
+void MainWindow::onDbaseLastNameTextEdited(QString) {
+    entryEdited = true;
     updateDbaseButtons();
 }
 
 
-void MainWindow::onDbaseMembershipNumberTextChanged(QString) {
+void MainWindow::onDbaseMembershipNumberTextEdited(QString) {
+    entryEdited = true;
     updateDbaseButtons();
 }
 
 
-void MainWindow::onDbaseCaRegistrationTextChanged(QString) {
+void MainWindow::onDbaseCaRegistrationTextEdited(QString) {
+    entryEdited = true;
     updateDbaseButtons();
 }
 
 
-void MainWindow::onDbaseEMailTextChanged(QString) {
+void MainWindow::onDbaseEMailTextEdited(QString) {
+    entryEdited = true;
     updateDbaseButtons();
 }
 
@@ -2252,9 +2282,9 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskRemovePushButton->setEnabled(false);
 
 
-    // Update is enabled when all fields are filled, tagInDbase is true, and with email optional
+    // Update is enabled when all fields (email optional) are filled, and tagInDbase is true and entryChanged is true
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase)
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase && entryEdited)
         ui->deskUpdatePushButton->setEnabled(true);
 
     else
