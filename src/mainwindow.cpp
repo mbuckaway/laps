@@ -1266,6 +1266,9 @@ MainWindow::MainWindow(QWidget *parent) :
 //    ui->activeRidersTableSortEnableCheckBox->hide();
     connect(ui->activeRidersTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortEnableCheckBoxClicked(bool)));
 
+    connect(ui->activeRidersTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onActiveRidersTableClicked(const QModelIndex &)));
+    connect(ui->namesTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onNamesTableClicked(const QModelIndex &)));
+
 
     // Start timer that will purge old riders from activeRidersTable
 
@@ -1373,6 +1376,32 @@ MainWindow::~MainWindow() {
 
     delete ui;
 }
+
+
+
+void MainWindow::onActiveRidersTableClicked(const QModelIndex &/*index*/) {
+//    int row = index.row();
+//    qDebug() << "A0" << index.row() << index.column() << activeRidersTableModel->data(activeRidersTableModel->index(row, 0)).toString();
+
+//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
+//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+}
+
+
+
+
+void MainWindow::onNamesTableClicked(const QModelIndex &/*index*/) {
+//    int row = index.row();
+//    qDebug() << "A1" << index.row() << index.column() << membershipTableModel->data(index).toString();// membershipTableModel->index(row, 0)).toString();
+//    qDebug() << index.row() << membershipTableModel->itemFromIndex(mysort->mapToSource(index))
+//    qDebug() << ui->namesTableView->selectionModel()->selection().indexes();
+
+
+
+//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
+//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+}
+
 
 
 
@@ -1494,7 +1523,7 @@ void MainWindow::onClockTimerTimeout(void) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
     ui->rightTitleLabel->setText(QDateTime::currentDateTime().toString("ddd MMMM d yyyy  hh:mm:ss"));
 
-    // Emit null tag every minute
+    // Emit null tag every 10 sec
 
     if ((currentDateTime.time().second() % 10) == 0) {
         CTagInfo tagInfo;
@@ -1792,6 +1821,7 @@ void MainWindow::onPurgeActiveRidersList(void) {
 
     if (lapsTableModel)
         lapsTableModel->purgeTable();
+
 }
 
 
@@ -1899,7 +1929,6 @@ void MainWindow::onActiveRidersTableSortEnableCheckBoxClicked(bool state) {
 void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     QString s;
     static int tagCount = 0;
-    //qDebug() << tagInfo.tagId << tagInfo.readerId;
 
     // Add string to messages window
 
@@ -1932,6 +1961,10 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     // Process tag
 
     activeRidersTableModel->newTrackTag(tagInfo);
+
+//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
+//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+
 }
 
 
@@ -2072,6 +2105,15 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
         return;
     }
 
+    // Update name in activeRidersList so it appears in activeRidersTable
+
+    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
+        if (activeRidersTableModel->activeRidersList[i].tagId == info.tagId) {
+            activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
+            break;
+        }
+    }
+
     onDbaseClearPushButtonClicked();
 }
 
@@ -2096,15 +2138,26 @@ void MainWindow::onDbaseClearPushButtonClicked(void) {
 void MainWindow::onDbaseRemovePushButtonClicked(void) {
     QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag entry from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
     if (b == QMessageBox::Ok) {
-        if (membershipDbase.removeTagId(ui->deskTagIdLineEdit->text().toLatin1()) != 0) {
+        QString tagId(ui->deskTagIdLineEdit->text());
+        if (membershipDbase.removeTagId(tagId) != 0) {
             guiCritical("Error removing name from database");
             return;
         }
-        if (!membershipTableModel->remove(ui->deskTagIdLineEdit->text().toLatin1())) {
+        if (!membershipTableModel->remove(tagId)) {
             guiCritical("Error removing name from namesTable");
             return;
         }
+
+        // Update name in activeRidersList so it appears in activeRidersTable
+
+        for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
+            if (activeRidersTableModel->activeRidersList[i].tagId == tagId) {
+                activeRidersTableModel->activeRidersList[i].name.clear();
+                break;
+            }
+        }
     }
+
 
     entryEdited = false;
     onDbaseClearPushButtonClicked();

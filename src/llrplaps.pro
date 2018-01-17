@@ -10,6 +10,9 @@ QT += core widgets gui sql network
 
 TARGET = llrplaps
 TEMPLATE = app
+#RESOURCES = ../qrc/llrplaps.qrc
+#RC_FILE += ../qrc/llrplaps.rc
+#ICON = ../qrc/icons/llrplaps.icns
 
 LTKLIBDIR = ../LTK/LTKCPP/Library
 
@@ -41,12 +44,12 @@ message($$PWD)
 linux-g++ {
   message(Building for linux-g++)
   QMAKE_CXXFLAGS += -Wno-write-strings
-#  QMAKE_RPATHDIR = $$LIBDIR
+  QMAKE_RPATHDIR = $$LIBDIR
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
 #  INCLUDEPATH += /usr/include
 #  LIBS += -L/usr/lib/mysql -lrt
-  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
+#  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
 }
 
 
