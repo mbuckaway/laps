@@ -207,7 +207,10 @@ private slots:
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
     void onActiveRidersTableClicked(const QModelIndex &);
+    void onLapsTableClicked(const QModelIndex &);
     void onNamesTableClicked(const QModelIndex &);
+    void onHelpAbout(bool);
+    void cleanExit(bool flag=false);
 };
 
 #endif // MAINWINDOW_H

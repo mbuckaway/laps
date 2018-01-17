@@ -159,7 +159,7 @@
        <enum>Qt::NoFocus</enum>
       </property>
       <property name="currentIndex">
-       <number>4</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="ridersTab">
        <attribute name="title">
@@ -408,6 +408,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="deskUpdatePushButton">
+            <property name="text">
+             <string>Update</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="deskClearPushButton">
             <property name="text">
              <string>Clear</string>
@@ -418,13 +425,6 @@
            <widget class="QPushButton" name="deskRemovePushButton">
             <property name="text">
              <string>Remove</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="deskUpdatePushButton">
-            <property name="text">
-             <string>Update</string>
             </property>
            </widget>
           </item>
@@ -1511,6 +1511,7 @@ Leave blank for simulator.</string>
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionHelpAbout"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
@@ -1520,6 +1521,11 @@ Leave blank for simulator.</string>
   <action name="actionExit">
    <property name="text">
     <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionHelpAbout">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>

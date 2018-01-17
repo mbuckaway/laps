@@ -23,10 +23,11 @@ CMembershipDbase::CMembershipDbase() {
 
 int CMembershipDbase::open(const QString &rootName, const QString &username, const QString &password) {
     errorTextVal.clear();
-    fileNameVal = rootName + ".db";
+    setFile(rootName + ".db");
+    //qDebug() << absoluteFilePath();
     dBase.setUserName(username);
     dBase.setPassword(password);
-    dBase.setDatabaseName(fileNameVal);
+    dBase.setDatabaseName(absoluteFilePath());
 
     if (!dBase.open()) {
         errorTextVal = dBase.lastError().text();
@@ -41,7 +42,7 @@ int CMembershipDbase::open(const QString &rootName, const QString &username, con
     QStringList tableList = dBase.tables();
     if (!tableList.contains("membershipTable")) {
         QSqlQuery query(dBase);
-        qDebug() << "Creating new membershipTable in" << fileNameVal;
+        qDebug() << "Creating new membershipTable in" << absoluteFilePath();
         query.prepare("create table membershipTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, firstName VARCHAR(20), lastName VARCHAR(20), membershipNumber INTEGER, caRegistration VARCHAR(20), eMail VARCHAR(20), sendReports INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -85,9 +86,9 @@ void CMembershipDbase::close(void) {
 
 
 
-QString CMembershipDbase::fileName(void) {
-    return fileNameVal;
-}
+//QString CMembershipDbase::fileName(void) {
+//    return absoluteFilePath();
+//}
 
 
 
@@ -488,8 +489,6 @@ CLapsDbase::CLapsDbase(void) {
 int CLapsDbase::open(const QString &rootName, const QString &username, const QString &password) {
     errorTextVal.clear();
     errorVal = 0;
-    currentFileNameVal.clear();
-    priorFileNameVal.clear();
     QString s;
 
     bool showContents = false;
@@ -503,7 +502,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     // Determine database file name (rootName + year + ".db")
 
     QString connectionName = rootName + s.setNum(currentDate.year());
-    currentFileNameVal = connectionName + ".db";
+    setFile(connectionName + ".db");
 
 
     // Make sure dbase for current year exists and create if necessary.
@@ -511,7 +510,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     dBase.setUserName(username);
     dBase.setPassword(password);
-    dBase.setDatabaseName(currentFileNameVal);
+    dBase.setDatabaseName(absoluteFilePath());
 
     if (!dBase.open()) {
         errorTextVal = dBase.lastError().text();
@@ -524,7 +523,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     // Make sure lapsTable exists in dbase
 
     if (!dBase.tables().contains("lapsTable")) {
-        qDebug() << "Creating new lapsTable in " + currentFileNameVal;
+        qDebug() << "Creating new lapsTable in " + absoluteFilePath();
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -569,7 +568,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     bool calculatePriorsRequired = false;
     if (!dBase.tables().contains("priorsTable")) {
-        qDebug() << "Creating new priorsTable in " + currentFileNameVal;
+        qDebug() << "Creating new priorsTable in " + prior.absoluteFilePath();
         query.prepare("create table priorsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapCount INTEGER, lapSecTotal FLOAT, lapMTotal FLOAT)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -611,12 +610,12 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     // Open previous year dbase if it exists
 
     connectionName = rootName + s.setNum(currentDate.year() - 1);
-    priorFileNameVal = connectionName + ".db";
-    if (QFile::exists(priorFileNameVal)) {
+    prior.setFile(connectionName + ".db");
+    if (QFile::exists(prior.absoluteFilePath())) {
         dBasePrior = QSqlDatabase::addDatabase("QSQLITE", connectionName);
         dBasePrior.setUserName(username);
         dBasePrior.setPassword(password);
-        dBasePrior.setDatabaseName(priorFileNameVal);
+        dBasePrior.setDatabaseName(prior.absoluteFilePath());
         dBasePrior.open();
 
         QSqlQuery queryPrior(dBasePrior);
@@ -700,16 +699,6 @@ void CLapsDbase::close(void) {
 }
 
 
-
-QString CLapsDbase::currentFileName(void) {
-    return currentFileNameVal;
-}
-
-
-
-QString CLapsDbase::priorFileName(void) {
-    return priorFileNameVal;
-}
 
 
 // addLap

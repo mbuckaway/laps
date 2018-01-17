@@ -23,7 +23,7 @@ public:
 
 
 
-class CMembershipDbase
+class CMembershipDbase : public QFileInfo
 {
 public:
     CMembershipDbase();
@@ -42,17 +42,15 @@ public:
     int namesRowCount(void);
     int error(void);
     bool isOpen(void);
-    QString fileName(void);
     QString errorText(void);
     QSqlDatabase dBase;
 private:
     QString errorTextVal;
     int errorVal;
-    QString fileNameVal;
 };
 
 
-class CLapsDbase
+class CLapsDbase : public QFileInfo
 {
 public:
     enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
@@ -70,15 +68,12 @@ public:
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);
     bool isOpen(void);
-    QString currentFileName(void);
-    QString priorFileName(void);
+    QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;
     QSqlDatabase dBasePrior;
 private:
     QString errorTextVal;
-    QString currentFileNameVal;
-    QString priorFileNameVal;
     int getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int insertPriors(const QSqlDatabase &dBase, const QString &tagId, int lapCount, float lapSecTotal, float lapMTotal);
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);

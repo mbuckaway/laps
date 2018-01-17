@@ -20,6 +20,7 @@
 #include <QDebug>
 #include <QSettings>
 #include <QStandardItemModel>
+#include <QClipboard>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -1153,30 +1154,30 @@ MainWindow::MainWindow(QWidget *parent) :
     // at the start of a new year.
 
     QString membershipDbaseRootName;
-    if (testMode) membershipDbaseRootName = "membershipTest";
+    if (testMode) membershipDbaseRootName = "../data/membershipTest";
     else membershipDbaseRootName = "../data/membership";
     QString membershipDbaseUserName = "fcv";
     QString membershipDbasePassword = "fcv";
     rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
-        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbase.fileName().toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
+        guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbase.absoluteFilePath().toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
     else
-        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbase.fileName().toLatin1().data()));
+        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbase.absoluteFilePath().toLatin1().data()));
 
 
     // lapsDbase contains a record of all laps for all riders.
     // Each file contains data for one year.
 
     QString lapsDbaseRootName;
-    if (testMode) lapsDbaseRootName = "lapsTest";
+    if (testMode) lapsDbaseRootName = "../data/lapsTest";
     else lapsDbaseRootName = "../data/laps";
     QString lapsDbaseUserName = "fcv";
     QString lapsDbasePassword = "fcv";
     rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
     if ((rc != 0) || !lapsDbase.isOpen())
-        guiCritical(s.sprintf("Error %d opening laps database: %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.errorText().toLatin1().data()));
+        guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.absoluteFilePath().toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
     else
-        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbase.currentFileName().toLatin1().data()));
+        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbase.absoluteFilePath().toLatin1().data()));
 
 
     // Initialize membership table
@@ -1267,6 +1268,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->activeRidersTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortEnableCheckBoxClicked(bool)));
 
     connect(ui->activeRidersTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onActiveRidersTableClicked(const QModelIndex &)));
+    connect(ui->lapsTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onLapsTableClicked(const QModelIndex &)));
     connect(ui->namesTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onNamesTableClicked(const QModelIndex &)));
 
 
@@ -1354,13 +1356,22 @@ MainWindow::MainWindow(QWidget *parent) :
         deskReaderThread->start();
     }
 
+    connect(ui->actionHelpAbout, SIGNAL(triggered(bool)), this, SLOT(onHelpAbout(bool)));
+    connect(ui->actionExit, SIGNAL(triggered(bool)), this, SLOT(cleanExit(bool)));
+
 }
 
 
 
 
 MainWindow::~MainWindow() {
-    qDebug() << "Clean exit";
+    cleanExit();
+    delete ui;
+}
+
+
+
+void MainWindow::cleanExit(bool /*flag*/) {
     onNewLogMessage("Clean exit requested");
 
     membershipDbase.close();
@@ -1374,32 +1385,28 @@ MainWindow::~MainWindow() {
     readerThreadList.clear();
     logFile->close();
 
-    delete ui;
+    exit(0);
 }
 
 
 
-void MainWindow::onActiveRidersTableClicked(const QModelIndex &/*index*/) {
-//    int row = index.row();
-//    qDebug() << "A0" << index.row() << index.column() << activeRidersTableModel->data(activeRidersTableModel->index(row, 0)).toString();
-
-//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
-//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+void MainWindow::onHelpAbout(bool /*state*/) {
+    QMessageBox::about(this, "llrplaps", "Text");
 }
 
 
 
 
-void MainWindow::onNamesTableClicked(const QModelIndex &/*index*/) {
-//    int row = index.row();
-//    qDebug() << "A1" << index.row() << index.column() << membershipTableModel->data(index).toString();// membershipTableModel->index(row, 0)).toString();
-//    qDebug() << index.row() << membershipTableModel->itemFromIndex(mysort->mapToSource(index))
-//    qDebug() << ui->namesTableView->selectionModel()->selection().indexes();
+void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+}
 
 
 
-//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
-//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+void MainWindow::onLapsTableClicked(const QModelIndex &index) {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
 }
 
 
@@ -2344,6 +2351,45 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskUpdatePushButton->setEnabled(false);
 
 }
+
+
+
+void MainWindow::onNamesTableClicked(const QModelIndex &index) {
+    onDbaseClearPushButtonClicked();
+    switch (index.column()) {
+    case 0:
+        ui->deskTagIdLineEdit->setText(index.data().toString());
+        break;
+    case 1:
+        ui->deskFirstNameLineEdit->setText(index.data().toString());
+        break;
+    case 2:
+        ui->deskLastNameLineEdit->setText(index.data().toString());
+        break;
+    case 3:
+        ui->deskMembershipNumberLineEdit->setText(index.data().toString());
+        break;
+    case 4:
+        ui->deskCaRegistrationLineEdit->setText(index.data().toString());
+        break;
+    case 5:
+        ui->deskEMailLineEdit->setText(index.data().toString());
+        break;
+    }
+    updateDbaseButtons();
+}
+
+//    int row = index.row();
+//    qDebug() << "A1" << index.row() << index.column() << membershipTableModel->data(index).toString();// membershipTableModel->index(row, 0)).toString();
+//    qDebug() << index.row() << membershipTableModel->itemFromIndex(mysort->mapToSource(index))
+//    qDebug() << ui->namesTableView->selectionModel()->selection().indexes();
+//    qDebug() << index.data().toString();
+
+
+//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
+//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+//}
+
 
 
 
