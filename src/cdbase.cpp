@@ -24,7 +24,6 @@ CMembershipDbase::CMembershipDbase() {
 int CMembershipDbase::open(const QString &rootName, const QString &username, const QString &password) {
     errorTextVal.clear();
     setFile(rootName + ".db");
-    //qDebug() << absoluteFilePath();
     dBase.setUserName(username);
     dBase.setPassword(password);
     dBase.setDatabaseName(absoluteFilePath());
@@ -84,11 +83,6 @@ void CMembershipDbase::close(void) {
         dBase.close();
 }
 
-
-
-//QString CMembershipDbase::fileName(void) {
-//    return absoluteFilePath();
-//}
 
 
 
@@ -520,6 +514,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     QSqlQuery query(dBase);
 
+
     // Make sure lapsTable exists in dbase
 
     if (!dBase.tables().contains("lapsTable")) {
@@ -532,7 +527,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
         qDebug() << "  Created new lapsTable";
     }
-
 
     if (showContents) {
         qDebug() << "List of lapsTable...";
@@ -564,6 +558,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
     }
 
+
     // Make sure priorsTable exists in dbase and create if not
 
     bool calculatePriorsRequired = false;
@@ -578,8 +573,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         calculatePriorsRequired = true;
         qDebug() << "  Created new priorsTable";
     }
-
-
 
     if (showContents) {
         qDebug() << "List of priorsTable...";
@@ -663,14 +656,26 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
                     lapMTotal[i] += queryPrior.value(idLapM).toFloat();
                     lapCount[i]++;
                 }
+                //qDebug() << "A0" << i << tagIdList[i] << lapCount[i] << lapMTotal[i];
 
                 // Add in priors
 
-                int rc = getPriors(dBasePrior, tagIdList[i], &lapCount[i], &lapSecTotal[i], &lapMTotal[i]);
+                int lapCountPrior = 0;
+                float lapSecPrior = 0.;
+                float lapMPrior = 0.;
+                int rc = getPriors(dBasePrior, tagIdList[i], &lapCountPrior, &lapSecPrior, &lapMPrior);
+                //qDebug() << "A0b" << rc;
                 if (rc) {
                     return errorVal;
                 }
+                lapCount[i] += lapCountPrior;
+                lapSecTotal[i] += lapSecPrior;
+                lapMTotal[i] += lapMPrior;
+
+                //qDebug() << "A1 priors" << lapCountPrior << lapSecPrior << lapMPrior;
             }
+
+            //qDebug() << "A2";
 
             for (int i=0; i<tagIdList.size(); i++) {
                 query.prepare("INSERT INTO priorsTable (tagId, name, lapCount, lapSecTotal, lapMTotal) VALUES (:tagId, :name, :lapCount, :lapSecTotal, :lapMTotal)");
@@ -1008,7 +1013,7 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
     query.bindValue(":tagId", tagId);
     if (!query.exec()) {
         errorTextVal = "Could not select priors";
-        errorVal = 2;
+        errorVal = 0;
         return errorVal;
     }
 
@@ -1040,6 +1045,7 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
     }
     return 0;
 }
+
 
 
 // Set reportStatus for specified tagId and time period

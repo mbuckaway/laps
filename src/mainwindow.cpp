@@ -962,9 +962,9 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
         setData(createIndex(activeRiderIndex, 0), 0, Qt::EditRole);
 
 
-        // Add lap to dbase if rider is in dbase and this is a regular ridingLap
+        // Add lap to dbase if this is a regular ridingLap
 
-        if (rider->inDbase && (rider->lapType == CRider::regularCrossing)) {
+        if (rider->lapType == CRider::regularCrossing) {
             QDateTime currentDateTime(QDateTime::currentDateTime());
             unsigned int dateTime = CLapsDbase::dateTime2Int(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
             mainWindow->lapsDbase.addLap(*rider, dateTime);
