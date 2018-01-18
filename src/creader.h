@@ -61,7 +61,7 @@ public:
     virtual ~CReader(void);
     int connectToReader(void);
     QList<int> *getTransmitPowerList(void);
-    //int setTransmitPower(int index);
+    //int setTransmitPower(int antenna, int index);
     int setTrackLength(int antenna);    // set length of track at height of specified antenna
     int setReaderConfiguration(void);
     int processReports(void);

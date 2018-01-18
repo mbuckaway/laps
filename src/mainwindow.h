@@ -130,7 +130,6 @@ public:
     ~MainWindow();
     CMembershipDbase membershipDbase;
     CLapsDbase lapsDbase;
-//    QList<CLapsDbase *> oldLapsDbaseList;
     float maxAcceptableLapSec;        // max time allowable for lap.  If greater, rider must have left and return to track
     QList<float> trackLengthM;      // length of track (1 lap) at height of each antenna
     float blackLineDistancem;
@@ -198,17 +197,25 @@ private slots:
     void onNewLogMessage(QString);
     void onLapsTableSortEnableCheckBoxClicked(bool);
     void onActiveRidersTableSortEnableCheckBoxClicked(bool);
-//    void onAntenna1ComboBoxActivated(int);
-    void onApplySettingsPushButtonClicked(void);
+    void onTrackAntenna1TransmitPowerComboBoxActivated(int);
+    void onTrackAntenna2TransmitPowerComboBoxActivated(int);
+    void onTrackAntenna3TransmitPowerComboBoxActivated(int);
+    void onTrackAntenna4TransmitPowerComboBoxActivated(int);
+    void onDeskAntenna1TransmitPowerComboBoxActivated(int);
+    void onDeskAntenna2TransmitPowerComboBoxActivated(int);
+    void onDeskAntenna3TransmitPowerComboBoxActivated(int);
+    void onDeskAntenna4TransmitPowerComboBoxActivated(int);
     void onSaveSettingsPushButtonClicked(void);
     void onSaveSessionsPushButtonClicked(void);
-    void onTrackAntenna1PowerComboBoxActivated(int);
     void onMailSent(int);
     void onEMailTestPushButtonClicked(void);
     void onTestMailSent(void);
     void onActiveRidersTableClicked(const QModelIndex &);
+    void onActiveRidersTableDoubleClicked(const QModelIndex &);
     void onLapsTableClicked(const QModelIndex &);
+    void onLapsTableDoubleClicked(const QModelIndex &);
     void onNamesTableClicked(const QModelIndex &);
+    void onNamesTableDoubleClicked(const QModelIndex &);
     void onHelpAbout(bool);
     void cleanExit(bool flag=false);
 };

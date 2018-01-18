@@ -1860,7 +1860,15 @@ int CReader::setReaderConfiguration(void) {
 
     // Build a decoder to extract the message from XML
 
-    pDecoder = new LLRP::CXMLTextDecoder(typeRegistry, "../readerConfig.xml");
+    pDecoder = NULL;
+    switch (antennaPosition) {
+    case track:
+        pDecoder = new LLRP::CXMLTextDecoder(typeRegistry, "../trackReaderConfig.xml");
+        break;
+    case desk:
+        pDecoder = new LLRP::CXMLTextDecoder(typeRegistry, "../deskReaderConfig.xml");
+        break;
+    }
     if (NULL == pDecoder) {
         return -1;
     }

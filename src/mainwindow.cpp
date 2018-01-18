@@ -97,7 +97,6 @@
 // - alltime best 40k
 
 
-int testMode = false;
 
 
 
@@ -863,13 +862,9 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
 
-                // Get stats for current year
-
-                mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
-
                 // Get stats
 
-                //qDebug() << rider->tagId << rider->name;
+                mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
             }
             else {
                 rider->inDbase = false;
@@ -1047,10 +1042,7 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersProxyModel = NULL;
     logFile = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
-    if (testMode)
-        QCoreApplication::setApplicationVersion("0.1-TestMode");
-    else
-        QCoreApplication::setApplicationVersion("0.1");
+    QCoreApplication::setApplicationVersion("0.2");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1094,7 +1086,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     activeRidersTableSortingEnabled = true;
     lapsTableSortingEnabled = true;
-    float nominalSpeedkmph = 30.0;              // Approximate, used to identified riders taking a break
+    float nominalSpeedkmph = 30.0;              // Approximate, used to identify riders taking a break
 
 
     // Initialize 1-sec timer for panel dateTime and possibly other things
@@ -1127,7 +1119,14 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->deskAntenna3PowerComboBox->setEnabled(false);
     ui->deskAntenna4PowerComboBox->setEnabled(false);
 
-    connect(ui->trackAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna1PowerComboBoxActivated(int)));
+    connect(ui->trackAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna1TransmitPowerComboBoxActivated(int)));
+    connect(ui->trackAntenna2PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna2TransmitPowerComboBoxActivated(int)));
+    connect(ui->trackAntenna3PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna3TransmitPowerComboBoxActivated(int)));
+    connect(ui->trackAntenna4PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna4TransmitPowerComboBoxActivated(int)));
+    connect(ui->deskAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna1TransmitPowerComboBoxActivated(int)));
+    connect(ui->deskAntenna2PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna2TransmitPowerComboBoxActivated(int)));
+    connect(ui->deskAntenna3PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna3TransmitPowerComboBoxActivated(int)));
+    connect(ui->deskAntenna4PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna4TransmitPowerComboBoxActivated(int)));
 
 
     // Configure Dbase page
@@ -1153,11 +1152,9 @@ MainWindow::MainWindow(QWidget *parent) :
     // This should be opened before lapsdbase because the membershipdbase is used when a new lapsdbase is created
     // at the start of a new year.
 
-    QString membershipDbaseRootName;
-    if (testMode) membershipDbaseRootName = "../data/membershipTest";
-    else membershipDbaseRootName = "../data/membership";
-    QString membershipDbaseUserName = "fcv";
-    QString membershipDbasePassword = "fcv";
+    QString membershipDbaseRootName("../data/membership");
+    QString membershipDbaseUserName("fcv");
+    QString membershipDbasePassword("fcv");
     rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbase.absoluteFilePath().toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
@@ -1168,11 +1165,9 @@ MainWindow::MainWindow(QWidget *parent) :
     // lapsDbase contains a record of all laps for all riders.
     // Each file contains data for one year.
 
-    QString lapsDbaseRootName;
-    if (testMode) lapsDbaseRootName = "../data/lapsTest";
-    else lapsDbaseRootName = "../data/laps";
-    QString lapsDbaseUserName = "fcv";
-    QString lapsDbasePassword = "fcv";
+    QString lapsDbaseRootName("../data/laps");
+    QString lapsDbaseUserName("fcv");
+    QString lapsDbasePassword("fcv");
     rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
     if ((rc != 0) || !lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.absoluteFilePath().toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
@@ -1268,8 +1263,13 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->activeRidersTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortEnableCheckBoxClicked(bool)));
 
     connect(ui->activeRidersTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onActiveRidersTableClicked(const QModelIndex &)));
+    connect(ui->activeRidersTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onActiveRidersTableDoubleClicked(const QModelIndex &)));
+
     connect(ui->lapsTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onLapsTableClicked(const QModelIndex &)));
+    connect(ui->lapsTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onLapsTableDoubleClicked(const QModelIndex &)));
+
     connect(ui->namesTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onNamesTableClicked(const QModelIndex &)));
+    connect(ui->namesTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onNamesTableDoubleClicked(const QModelIndex &)));
 
 
     // Start timer that will purge old riders from activeRidersTable
@@ -1289,10 +1289,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // Set track length to -1 if antenna is not used (zero length will be tested on each new tag event and
     // used to check for missing track length settings).
 
-    trackLengthM.append(settings.value("trackLength1M").toFloat());
-    trackLengthM.append(settings.value("trackLength2M").toFloat());
-    trackLengthM.append(settings.value("trackLength3M").toFloat());
-    trackLengthM.append(settings.value("trackLength4M").toFloat());
+    trackLengthM = QList<float>{settings.value("trackLength1M").toFloat(), settings.value("trackLength2M").toFloat(), settings.value("trackLength3M").toFloat(), settings.value("trackLength4M").toFloat()};
 
     emit onNewLogMessage(s.sprintf("Track lengths for each antenna (m): %f %f %f %f", trackLengthM[0], trackLengthM[1], trackLengthM[2], trackLengthM[3]));
 
@@ -1358,7 +1355,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->actionHelpAbout, SIGNAL(triggered(bool)), this, SLOT(onHelpAbout(bool)));
     connect(ui->actionExit, SIGNAL(triggered(bool)), this, SLOT(cleanExit(bool)));
-
 }
 
 
@@ -1404,11 +1400,29 @@ void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
 
 
 
+void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+
+    QTextEdit *t = new QTextEdit(NULL);
+    t->show();
+    t->insertHtml("<b>" + index.data().toString() + "</b>");
+
+}
+
+
+
 void MainWindow::onLapsTableClicked(const QModelIndex &index) {
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(index.data().toString(), QClipboard::Clipboard);
 }
 
+
+
+void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+}
 
 
 
@@ -1450,19 +1464,67 @@ void MainWindow::initializeSettingsPanel(void) {
 
 
 
-void MainWindow::onTrackAntenna1PowerComboBoxActivated(int antennaIndex) {
-    qDebug().nospace() << "onAntenna1ComboBoxActivated()" << antennaIndex;
+void MainWindow::onTrackAntenna1TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
 }
 
 
 
+void MainWindow::onTrackAntenna2TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onTrackAntenna3TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onTrackAntenna4TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onDeskAntenna1TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onDeskAntenna2TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onDeskAntenna3TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+void MainWindow::onDeskAntenna4TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
+    guiCritical("This feature not yet implemented");
+}
+
+
+
+
+// Save settings using QSettings and apply changes where possible
+
 void MainWindow::onSaveSettingsPushButtonClicked(void) {
     settings.setValue("trackName", ui->trackNameLineEdit->text());
+    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
+    setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
 
     settings.setValue("trackLength1M", ui->trackLength1LineEdit->text());
     settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
     settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
     settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
+    trackLengthM = QList<float> {ui->trackLength1LineEdit->text().toFloat(), ui->trackLength2LineEdit->text().toFloat(), ui->trackLength3LineEdit->text().toFloat(), ui->trackLength4LineEdit->text().toFloat()};
 
     settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalDoubleSpinBox->value());
     settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
@@ -1490,8 +1552,8 @@ void MainWindow::onSaveSettingsPushButtonClicked(void) {
 
 
 void MainWindow::onSaveSessionsPushButtonClicked(void) {
+    QString s;
     for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
-        QString s;
         settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->sessionsTableWidget->item(row, 0)->text());
         settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->sessionsTableWidget->item(row, 1)->text());
         settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->sessionsTableWidget->item(row, 2)->text());
@@ -1499,10 +1561,6 @@ void MainWindow::onSaveSessionsPushButtonClicked(void) {
     }
 }
 
-
-
-void MainWindow::onApplySettingsPushButtonClicked(void) {
-}
 
 
 
@@ -1895,7 +1953,6 @@ void MainWindow::onReaderConnected(void) {
         ui->deskAntenna4PowerComboBox->setEnabled(true);
     }
 
-
     ui->lapsTableView->setEnabled(true);
     ui->activeRidersTableView->setEnabled(true);
 }
@@ -1939,7 +1996,7 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Add string to messages window
 
-    onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
+//    onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
     // Tags from antennas with track length < 0 are ignored
 
@@ -2389,6 +2446,34 @@ void MainWindow::onNamesTableClicked(const QModelIndex &index) {
 //    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
 //        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
 //}
+
+
+
+
+void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
+    onDbaseClearPushButtonClicked();
+    switch (index.column()) {
+    case 0:
+        ui->deskTagIdLineEdit->setText(index.data().toString());
+        break;
+    case 1:
+        ui->deskFirstNameLineEdit->setText(index.data().toString());
+        break;
+    case 2:
+        ui->deskLastNameLineEdit->setText(index.data().toString());
+        break;
+    case 3:
+        ui->deskMembershipNumberLineEdit->setText(index.data().toString());
+        break;
+    case 4:
+        ui->deskCaRegistrationLineEdit->setText(index.data().toString());
+        break;
+    case 5:
+        ui->deskEMailLineEdit->setText(index.data().toString());
+        break;
+    }
+    updateDbaseButtons();
+}
 
 
 
