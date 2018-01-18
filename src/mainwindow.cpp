@@ -1996,7 +1996,8 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Add string to messages window
 
-//    onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
+    if (ui->detailedMessagesCheckBox->isChecked())
+        onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
     // Tags from antennas with track length < 0 are ignored
 
