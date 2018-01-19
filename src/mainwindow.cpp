@@ -1416,7 +1416,7 @@ void MainWindow::cleanExit(bool /*flag*/) {
     logFile->close();
 
     for (int i=0; i<plotList.size(); i++) {
-        delete plotList[i];
+        plotList[i]->close();
     }
     exit(0);
 }
@@ -1451,14 +1451,12 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
         unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
         unsigned int endDateTime = CLapsDbase::dateTime2Int(2018, 12, 31, 24, 0, 0);
 
-        QList<unsigned int> dateTime;
-        QList<float> sec;
-        QList<float> m;
-        lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &dateTime, &sec, &m);
-        qDebug() << sec << m;
-        cplot *plot = new cplot(dateTime, sec);
-        plotList.append(plot);
+        QList<CLapInfo> laps;
+        lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+        cplot *plot = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name);
+        plot->addPoints(laps);
         plot->show();
+        plotList.append(plot);
     }
 
 }
@@ -1475,6 +1473,30 @@ void MainWindow::onLapsTableClicked(const QModelIndex &index) {
 void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+}
+
+
+
+
+void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
+    QString tagId = index.data().toString();
+    int id = membershipDbase.getIdFromTagId(tagId);
+    if (id < 0)
+        return;
+
+    CMembershipInfo info;
+    membershipDbase.getAllFromId(id, &info);
+
+    unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
+    unsigned int endDateTime = CLapsDbase::dateTime2Int(2018, 12, 31, 24, 0, 0);
+
+    QList<CLapInfo> laps;
+    lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+    cplot *plot = new cplot(info.firstName + " " + info.lastName);
+//    plot->addCurve(laps);
+    plot->addPoints(laps);
+    plot->show();
+    plotList.append(plot);
 }
 
 
@@ -2468,46 +2490,6 @@ void MainWindow::updateDbaseButtons(void) {
 
 
 void MainWindow::onNamesTableClicked(const QModelIndex &index) {
-    onDbaseClearPushButtonClicked();
-    switch (index.column()) {
-    case 0:
-        ui->deskTagIdLineEdit->setText(index.data().toString());
-        break;
-    case 1:
-        ui->deskFirstNameLineEdit->setText(index.data().toString());
-        break;
-    case 2:
-        ui->deskLastNameLineEdit->setText(index.data().toString());
-        break;
-    case 3:
-        ui->deskMembershipNumberLineEdit->setText(index.data().toString());
-        break;
-    case 4:
-        ui->deskCaRegistrationLineEdit->setText(index.data().toString());
-        break;
-    case 5:
-        ui->deskEMailLineEdit->setText(index.data().toString());
-        break;
-    }
-    updateDbaseButtons();
-}
-
-//    int row = index.row();
-//    qDebug() << "A1" << index.row() << index.column() << membershipTableModel->data(index).toString();// membershipTableModel->index(row, 0)).toString();
-//    qDebug() << index.row() << membershipTableModel->itemFromIndex(mysort->mapToSource(index))
-//    qDebug() << ui->namesTableView->selectionModel()->selection().indexes();
-//    qDebug() << index.data().toString();
-
-
-//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
-//        qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
-//}
-
-
-
-
-void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
-    qDebug() << index;
     onDbaseClearPushButtonClicked();
     switch (index.column()) {
     case 0:

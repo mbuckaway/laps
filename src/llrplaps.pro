@@ -15,7 +15,7 @@ TEMPLATE = app
 #ICON = ../qrc/icons/llrplaps.icns
 
 LTKLIBDIR = ../LTK/LTKCPP/Library
-QWTDIR = ../qwt-6.1.2
+
 
 INCLUDEPATH += $$LTKLIBDIR
 
@@ -43,7 +43,7 @@ linux-g++ {
   message(Building for linux-g++)
   QMAKE_CXXFLAGS += -Wno-write-strings
   QMAKE_RPATHDIR = $$LIBDIR
-  QWTBIN == $$QWTDIR-linux
+  QWTDIR == ../qwt-6.1.2-linux
   LIBDIR = ../libs/linux
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
@@ -54,7 +54,7 @@ linux-g++ {
 }
 
 
-INCLUDEPATH += $$QWTBIN/src
+INCLUDEPATH += $$QWTDIR/src
 
   #message(QMAKE_REL_RPATH_BASE: $$QMAKE_REL_RPATH_BASE)
 

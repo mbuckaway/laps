@@ -50,6 +50,18 @@ private:
 };
 
 
+
+class CLapInfo {
+public:
+    CLapInfo(unsigned int dateTime=0, float sec=0., float m=0.);
+    unsigned int dateTime;
+    float lapSec;
+    float lapM;
+    int reportStatus;
+};
+
+
+
 class CLapsDbase : public QFileInfo
 {
 public:
@@ -66,15 +78,19 @@ public:
     int getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, QList<int> *lapsList);
     static unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
+    static QDateTime int2DateTime(unsigned int dateTIme);
+    static unsigned int dateTime2Int(const QDateTime &dateTime);
+//    static double dateTime2Hours(unsigned int dateTime);
     int error(void);
     bool isOpen(void);
-    int getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<unsigned int> *dateTime, QList<float> *sec, QList<float> *m);
+    int getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps);
     QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;
-    QSqlDatabase dBasePrior;
+    QList<QSqlDatabase> dBasePriorList;
 private:
     QString errorTextVal;
+    int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps);
     int getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int insertPriors(const QSqlDatabase &dBase, const QString &tagId, int lapCount, float lapSecTotal, float lapMTotal);
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);

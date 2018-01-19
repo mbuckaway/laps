@@ -451,6 +451,12 @@ bool CMembershipDbase::isOpen(void) {
 
 
 
+CLapInfo::CLapInfo(unsigned int dateTime, float lapSec, float lapM) {
+    this->dateTime = dateTime;
+    this->lapSec = lapSec;
+    this->lapM = lapM;
+    this->reportStatus = 0;
+}
 
 
 
@@ -478,6 +484,7 @@ CLapsDbase::CLapsDbase(void) {
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
 }
+
 
 
 int CLapsDbase::open(const QString &rootName, const QString &username, const QString &password) {
@@ -600,24 +607,44 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     }
 
 
-    // Open previous year dbase if it exists
+    // Make a list of QSqlDatabase structures, one for each prior database file
 
-    connectionName = rootName + s.setNum(currentDate.year() - 1);
-    prior.setFile(connectionName + ".db");
-    if (QFile::exists(prior.absoluteFilePath())) {
-        dBasePrior = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-        dBasePrior.setUserName(username);
-        dBasePrior.setPassword(password);
-        dBasePrior.setDatabaseName(prior.absoluteFilePath());
-        dBasePrior.open();
+    QFileInfo fileInfo;
+    for (int year=currentDate.year() - 1; year>=2000; year--) {
+        connectionName = rootName + s.setNum(year);
+        fileInfo.setFile(connectionName + ".db");
+        if (QFile::exists(fileInfo.absoluteFilePath())) {
+            dBasePriorList.append(QSqlDatabase());
+            dBasePriorList.last() = QSqlDatabase::addDatabase("QSQLITE", connectionName);
+            dBasePriorList.last().setUserName(username);
+            dBasePriorList.last().setPassword(password);
+            dBasePriorList.last().setDatabaseName(fileInfo.absoluteFilePath());
+        }
+        else {
+            break;
+        }
 
-        QSqlQuery queryPrior(dBasePrior);
+    }
 
-        // If required, calculate totals from dBasePrior:lapsTable and put into dBase:priorsTable
 
-        if (calculatePriorsRequired && dBasePrior.isOpen()) {
+    // Open previous year dbase (first entry in dBasePriorList) if it exists
+
+    if (dBasePriorList.size() > 0) {
+
+        if (!dBasePriorList[0].isOpen()) {
+            if (!dBasePriorList[0].open()) {
+                errorTextVal = "Could not open previous year database";
+                errorVal = 1;
+                return errorVal;
+            }
+        }
+
+        // If required, calculate totals from dBasePriorList[0]:lapsTable and put into dBase:priorsTable
+
+        if (calculatePriorsRequired) {
             qDebug() << "Calculating priors";
 
+            QSqlQuery queryPrior(dBasePriorList[0]);
             queryPrior.prepare("SELECT tagId FROM lapsTable");
             if (!queryPrior.exec()) {
                 errorTextVal = queryPrior.lastError().text();
@@ -656,26 +683,22 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
                     lapMTotal[i] += queryPrior.value(idLapM).toFloat();
                     lapCount[i]++;
                 }
-                //qDebug() << "A0" << i << tagIdList[i] << lapCount[i] << lapMTotal[i];
 
                 // Add in priors
 
                 int lapCountPrior = 0;
                 float lapSecPrior = 0.;
                 float lapMPrior = 0.;
-                int rc = getPriors(dBasePrior, tagIdList[i], &lapCountPrior, &lapSecPrior, &lapMPrior);
-                //qDebug() << "A0b" << rc;
+                int rc = getPriors(dBasePriorList[0], tagIdList[i], &lapCountPrior, &lapSecPrior, &lapMPrior);
                 if (rc) {
                     return errorVal;
                 }
                 lapCount[i] += lapCountPrior;
                 lapSecTotal[i] += lapSecPrior;
                 lapMTotal[i] += lapMPrior;
-
-                //qDebug() << "A1 priors" << lapCountPrior << lapSecPrior << lapMPrior;
             }
 
-            //qDebug() << "A2";
+            // Add these priors to the current-year priorsTable
 
             for (int i=0; i<tagIdList.size(); i++) {
                 query.prepare("INSERT INTO priorsTable (tagId, name, lapCount, lapSecTotal, lapMTotal) VALUES (:tagId, :name, :lapCount, :lapSecTotal, :lapMTotal)");
@@ -700,7 +723,12 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
 void CLapsDbase::close(void) {
     dBase.close();
-    dBasePrior.close();
+    for (int i=0; i<dBasePriorList.size(); i++) {
+        if (dBasePriorList[i].isOpen()) {
+            dBasePriorList[i].close();
+        }
+    }
+    dBasePriorList.clear();
 }
 
 
@@ -736,10 +764,8 @@ int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
 
 
 
-int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<unsigned int> *dateTime, QList<float> *sec, QList<float> *m) {
-    dateTime->clear();
-    sec->clear();
-    m->clear();
+int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps) {
+    laps->clear();
 
     if (!dBase.isOpen()) {
         errorTextVal = "CLapsDbase closed";
@@ -786,9 +812,7 @@ int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, uns
         dateTimeVal = query.value(dateTimeIndex).toUInt();
         lapSec = query.value(lapsecIndex).toFloat();
         lapM = query.value(lapmIndex).toFloat();
-        dateTime->append(dateTimeVal);
-        sec->append(lapSec);
-        m->append(lapM);
+        laps->append(CLapInfo(dateTimeVal, lapSec, lapM));
     }
 
     return 0;
@@ -944,7 +968,10 @@ int CLapsDbase::getStatsForCurrentPeriod(const QString &tagId, unsigned int date
 
 
 int CLapsDbase::getStatsForPriorPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats) {
-    return getStatsForPeriod(dBasePrior, tagId, dateTimeStart, dateTimeEnd, reportStatus, stats);
+    if (dBasePriorList.size() > 0)
+        return getStatsForPeriod(dBasePriorList[0], tagId, dateTimeStart, dateTimeEnd, reportStatus, stats);
+    else
+        return 0;
 }
 
 
@@ -1199,9 +1226,22 @@ int CLapsDbase::getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart
 unsigned int CLapsDbase::dateTime2Int(int year, int month, int day, int hour, int minute, int second) {
     if (year < 2000)
         throw("Year < 2000 in dateTime2Int");
-
     unsigned int dateTime = ((year-2000) & 0x3f) << 26 | (month & 0x0f) << 22 | (day & 0x1f) << 17 | (hour & 0x1f) << 12 | (minute & 0x3f) << 6 | (second & 0x3f);
     return dateTime;
+}
+
+
+
+
+QDateTime CLapsDbase::int2DateTime(unsigned int dateTime) {
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
+    int2DateTime(dateTime, &year, &month, &day, &hour, &minute, &second);
+    return QDateTime(QDate(year, month, day), QTime(hour, minute, second));
 }
 
 
@@ -1217,6 +1257,9 @@ void CLapsDbase::int2DateTime(unsigned int dateTime, int *year, int *month, int 
 }
 
 
+unsigned int CLapsDbase::dateTime2Int(const QDateTime &dateTime) {
+    return dateTime2Int(dateTime.date().year(), dateTime.date().month(), dateTime.date().day(), dateTime.time().hour(), dateTime.time().minute(), dateTime.time().second());
+}
 
 
 
@@ -1227,9 +1270,6 @@ QString CLapsDbase::errorText(void) {
 
 
 bool CLapsDbase::isOpen(void) {
-//    if (dBaseList.isEmpty())
-//        return false;
-
     return dBase.isOpen();
 }
 
