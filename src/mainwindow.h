@@ -19,6 +19,7 @@
 #include "creader.h"
 #include "cdbase.h"
 #include "csmtp.h"
+#include "cplot.h"
 
 
 
@@ -172,6 +173,7 @@ private:
     unsigned int dateTimeOfReportStart;
     unsigned int dateTimeOfReportEnd;
     QString getSession(const QDateTime &);
+    QList<cplot *> plotList;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:

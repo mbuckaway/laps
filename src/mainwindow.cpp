@@ -22,6 +22,8 @@
 #include <QStandardItemModel>
 #include <QClipboard>
 
+
+#include <cplot.h>
 #include <stdio.h>
 #include <unistd.h>
 #include "mainwindow.h"
@@ -46,8 +48,9 @@
 #define AT_AVERAGESPEEDTHISMONTH 8
 #define AT_KMLASTMONTH          9
 #define AT_AVERAGESPEEDLASTMONTH 10
-#define AT_KMALLTIME            11
-#define AT_COMMENT              12
+#define AT_LAPCOUNTALLTIME      11
+#define AT_KMALLTIME            12
+#define AT_COMMENT              13
 
 
 // Columns in lap table (listing of all laps)
@@ -63,12 +66,12 @@
 
 // Column widths in each table
 
-#define CW_NAME             150
+#define CW_NAME             125
 #define CW_DATETIME         80
 #define CW_TIMESTAMP        190
 #define CW_LAPCOUNT         60
-#define CW_SEC              80
-#define CW_SPEED            90
+#define CW_SEC              70
+#define CW_SPEED            95
 #define CW_KM               80
 #define CW_MEMBERSHIPNUMBER 80
 #define CW_CAREGISTRATION   80
@@ -592,7 +595,7 @@ int CActiveRidersTableModel::rowCount(const QModelIndex &/*parent*/) const {
 
 
 int CActiveRidersTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 13;
+    return 14;
 }
 
 
@@ -684,6 +687,11 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
                 return rider->lastMonth.totalM / rider->lastMonth.totalSec * 3600. / 1000.;
             else
                 return QString();
+        case AT_LAPCOUNTALLTIME:
+            if (rider->allTime.lapCount > 0)
+                return rider->allTime.lapCount;
+            else
+                return QString();
         case AT_KMALLTIME:
             if (rider->allTime.totalM > 0.)
                 return rider->allTime.totalM / 1000.;
@@ -750,6 +758,8 @@ QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orient
                 return QString("Last M km");
             case AT_AVERAGESPEEDLASTMONTH:
                 return QString("Last M km/h");
+            case AT_LAPCOUNTALLTIME:
+                return QString("Total Laps");
             case AT_KMALLTIME:
                 return QString("Total km");
             case AT_COMMENT:
@@ -1059,6 +1069,12 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     // Open log file
+    // Start by moving the existing log file into a backup
+
+    QDir dir;
+    QStringList filter{"llrplaps*.log"};
+    dir.setNameFilters(filter);
+    QFile::rename("llrplaps.log", s.sprintf("llrplaps%03d.log", dir.entryInfoList().size() - 1));
 
     logFile = new QFile;
     if (!logFile)
@@ -1072,6 +1088,22 @@ MainWindow::MainWindow(QWidget *parent) :
     if (!logTextStream)
         qDebug() << "Error creating log QTextStream";
     logTextStream->setCodec("UTF-8");
+
+
+    // Make backups of lapsyyyy.db and membership.db
+
+    dir.setPath("../data");
+    filter = QStringList{"membership*.db"};
+    dir.setNameFilters(filter);
+    if (dir.entryList().size() > 0)
+        QFile::copy(dir.path() + "/membership.db", dir.path() + s.sprintf("/membership%03d.db", dir.entryList().size() - 1));
+
+    QDate currentDate(QDate::currentDate());
+    QString year = s.setNum(currentDate.year());
+    filter = QStringList{"laps" + year + "*.db"};
+    dir.setNameFilters(filter);
+    if (dir.entryList().size() > 0)
+        QFile::copy(dir.path() + "/laps" + year + ".db", dir.path() + "/laps" + year + s.sprintf("%03d.db", dir.entryList().size() - 1));
 
 
     // tablePurgeInterval is the interval (hours) on which tables are purged of inactive riders.
@@ -1242,6 +1274,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setColumnWidth(AT_NAME, CW_NAME);
     ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNT, CW_LAPCOUNT);
     ui->activeRidersTableView->setColumnWidth(AT_KM, CW_KM);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPSEC, CW_SEC);
     ui->activeRidersTableView->setColumnWidth(AT_LAPSPEED, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_BESTLAPSPEED, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEED, CW_SPEED);
@@ -1249,6 +1282,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_KMLASTMONTH, CW_KM);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
+    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNTALLTIME, CW_LAPCOUNT);
     ui->activeRidersTableView->setColumnWidth(AT_KMALLTIME, CW_KM);
 
     ui->activeRidersTableView->setAlternatingRowColors(true);
@@ -1381,6 +1415,9 @@ void MainWindow::cleanExit(bool /*flag*/) {
     readerThreadList.clear();
     logFile->close();
 
+    for (int i=0; i<plotList.size(); i++) {
+        delete plotList[i];
+    }
     exit(0);
 }
 
@@ -1401,12 +1438,28 @@ void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
 
 
 void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+    QString name = index.data().toString();
+    int tableIndex = -1;
+    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
+        if (name == activeRidersTableModel->activeRidersList[i].name) {
+            tableIndex = i;
+            break;
+        }
+    }
+    if (tableIndex >= 0) {
+        QString tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
+        unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
+        unsigned int endDateTime = CLapsDbase::dateTime2Int(2018, 12, 31, 24, 0, 0);
 
-    QTextEdit *t = new QTextEdit(NULL);
-    t->show();
-    t->insertHtml("<b>" + index.data().toString() + "</b>");
+        QList<unsigned int> dateTime;
+        QList<float> sec;
+        QList<float> m;
+        lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &dateTime, &sec, &m);
+        qDebug() << sec << m;
+        cplot *plot = new cplot(dateTime, sec);
+        plotList.append(plot);
+        plot->show();
+    }
 
 }
 
@@ -1423,6 +1476,8 @@ void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(index.data().toString(), QClipboard::Clipboard);
 }
+
+
 
 
 
@@ -2452,6 +2507,7 @@ void MainWindow::onNamesTableClicked(const QModelIndex &index) {
 
 
 void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
+    qDebug() << index;
     onDbaseClearPushButtonClicked();
     switch (index.column()) {
     case 0:

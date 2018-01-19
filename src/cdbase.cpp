@@ -736,6 +736,67 @@ int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
 
 
 
+int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<unsigned int> *dateTime, QList<float> *sec, QList<float> *m) {
+    dateTime->clear();
+    sec->clear();
+    m->clear();
+
+    if (!dBase.isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 2;
+        return errorVal;
+    }
+
+    QSqlQuery query(dBase);
+    query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":dateTimeStart", dateTimeStart);
+    query.bindValue(":dateTimeEnd", dateTimeEnd);
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        errorVal = 3;
+        return errorVal;
+    }
+
+    int dateTimeIndex = query.record().indexOf("dateTime");
+    if (dateTimeIndex < 0) {
+        errorTextVal = "Could not find dateTime index in getLap";
+        errorVal = 5;
+        return errorVal;
+    }
+
+    int lapsecIndex = query.record().indexOf("lapsec");
+    if (lapsecIndex < 0) {
+        errorTextVal = "Could not find lapsec index in getLap";
+        errorVal = 6;
+        return errorVal;
+    }
+
+    int lapmIndex = query.record().indexOf("lapm");
+    if (lapmIndex < 0) {
+        errorTextVal = "Could not find lapm index in getLap";
+        errorVal = 7;
+        return errorVal;
+    }
+
+    unsigned int dateTimeVal;
+    float lapSec;
+    float lapM;
+    while (query.next()) {
+        dateTimeVal = query.value(dateTimeIndex).toUInt();
+        lapSec = query.value(lapsecIndex).toFloat();
+        lapM = query.value(lapmIndex).toFloat();
+        dateTime->append(dateTimeVal);
+        sec->append(lapSec);
+        m->append(lapM);
+    }
+
+    return 0;
+}
+
+
+
+
 int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *lapSec, float *lapM, int *reportStatus) {
     errorTextVal.clear();
     errorVal = 0;

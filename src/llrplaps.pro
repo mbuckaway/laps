@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT += core widgets gui sql network
+QT += core widgets gui sql network svg
 
 #greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -15,8 +15,11 @@ TEMPLATE = app
 #ICON = ../qrc/icons/llrplaps.icns
 
 LTKLIBDIR = ../LTK/LTKCPP/Library
+QWTDIR = ../qwt-6.1.2
 
 INCLUDEPATH += $$LTKLIBDIR
+
+message($$PWD)
 
 
 win32:!win32-g++ {
@@ -28,8 +31,6 @@ win32:!win32-g++ {
   }
 }
 
-
-
 macx {
   message(Building for macx)
   CONFIG += app_bundle
@@ -38,20 +39,22 @@ macx {
   QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.10
 }
 
-
-message($$PWD)
-
 linux-g++ {
   message(Building for linux-g++)
   QMAKE_CXXFLAGS += -Wno-write-strings
   QMAKE_RPATHDIR = $$LIBDIR
+  QWTBIN == $$QWTDIR-linux
+  LIBDIR = ../libs/linux
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
 #  INCLUDEPATH += /usr/include
 #  LIBS += -L/usr/lib/mysql -lrt
 #  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
+  LIBS += $$LIBDIR/libqwt.a
 }
 
+
+INCLUDEPATH += $$QWTBIN/src
 
   #message(QMAKE_REL_RPATH_BASE: $$QMAKE_REL_RPATH_BASE)
 
@@ -72,13 +75,15 @@ SOURCES += main.cpp\
     creader.cpp \
     cdbase.cpp \
     crider.cpp \
-    csmtp.cpp
+    csmtp.cpp \
+    cplot.cpp
 
 HEADERS  += mainwindow.h \
     creader.h \
     main.h \
     cdbase.h \
     crider.h \
-    csmtp.h
+    csmtp.h \
+    cplot.h
 
 FORMS    += mainwindow.ui

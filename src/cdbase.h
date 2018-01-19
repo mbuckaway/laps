@@ -68,6 +68,7 @@ public:
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     int error(void);
     bool isOpen(void);
+    int getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<unsigned int> *dateTime, QList<float> *sec, QList<float> *m);
     QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;
