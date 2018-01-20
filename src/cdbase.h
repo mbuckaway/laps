@@ -70,7 +70,7 @@ public:
     int open(const QString &connectionName, const QString &username, const QString &password);
     void close(void);
     int addLap(const CRider &rider, unsigned int dateTime);
-    int getLap(int id, QString *tagId, unsigned int *dateTime, float *sec, float *lapm, int *reportStatus);
+    int getLap(int id, QString *tagId, CLapInfo *lapInfo=NULL);
     int getStats(const QString &tagId, CRider *rider);
     int getStatsForCurrentPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
     int getStatsForPriorPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
@@ -80,7 +80,6 @@ public:
     static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
     static QDateTime int2DateTime(unsigned int dateTIme);
     static unsigned int dateTime2Int(const QDateTime &dateTime);
-//    static double dateTime2Hours(unsigned int dateTime);
     int error(void);
     bool isOpen(void);
     int getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps);

@@ -183,18 +183,18 @@ void cplot::wheelEvent(QWheelEvent *event) {
         QPoint pRef = event->pos() - canvasObj->pos();
         QPointF pPlot = QPointF(invTransform(xBottom, pRef.x()), invTransform(yLeft, pRef.y()));
         double factor = 1.;
-        if (delta > 0) factor = sqrt(2.);
-        else if (delta < 0) factor = 1. / sqrt(2.);
+        if (delta > 0) factor = 1. / sqrt(2.);
+        else if (delta < 0) factor = sqrt(2.);
         double oldXMin = axisScaleDiv(QwtPlot::xBottom).lowerBound();
         double oldXMax = axisScaleDiv(QwtPlot::xBottom).upperBound();
-        double oldYMin = axisScaleDiv(QwtPlot::yLeft).lowerBound();
-        double oldYMax = axisScaleDiv(QwtPlot::yLeft).upperBound();
+        //double oldYMin = axisScaleDiv(QwtPlot::yLeft).lowerBound();
+        //double oldYMax = axisScaleDiv(QwtPlot::yLeft).upperBound();
         double newXMin = pPlot.x() - (pPlot.x() - oldXMin) * factor;
         double newXMax = pPlot.x() + (oldXMax - pPlot.x()) * factor;
-        double newYMin = pPlot.y() - (pPlot.y() - oldYMin) * factor;
-        double newYMax = pPlot.y() + (oldYMax - pPlot.y()) * factor;
+        //double newYMin = pPlot.y() - (pPlot.y() - oldYMin) * factor;
+        //double newYMax = pPlot.y() + (oldYMax - pPlot.y()) * factor;
         setAxisScale(QwtPlot::xBottom, newXMin, newXMax);
-        setAxisScale(QwtPlot::yLeft, newYMin, newYMax);
+        //setAxisScale(QwtPlot::yLeft, newYMin, newYMax);
         replot();
     }
 }
@@ -512,7 +512,7 @@ QwtPlotCurve *cplot::addPoints(const QList<CLapInfo> &laps, symbol_t symbol) {
     QDate startDate;
     QDate endDate;
     QVector<double> hours(laps.size());
-    QVector<double> sec(laps.size());
+    QVector<double> speed(laps.size());
     QDateTime base(QDate(2018, 1, 1), QTime(0, 0, 0));
     for (int i=0; i<laps.size(); i++) {
         QDateTime dt(CLapsDbase::int2DateTime(laps[i].dateTime));
@@ -521,7 +521,10 @@ QwtPlotCurve *cplot::addPoints(const QList<CLapInfo> &laps, symbol_t symbol) {
         if (i ==(laps.size() - 1))
             endDate = dt.date();
         hours[i] = (double)base.date().daysTo(dt.date()) * 24. + (double)base.time().secsTo(dt.time()) / 3600.;
-        sec[i] = laps[i].lapSec;
+        if (laps[i].lapSec > 0.)
+            speed[i] = laps[i].lapM / 1000. / (laps[i].lapSec / 3600.);
+        else
+            speed[i] = 0.;
     }
 
     if (startDate.year() == endDate.year())
@@ -529,12 +532,12 @@ QwtPlotCurve *cplot::addPoints(const QList<CLapInfo> &laps, symbol_t symbol) {
     else
         setTitle(title().text() + " " + startDate.toString("MMM yyyy") + " to " + endDate.toString("MMM yyyy"));
 
-    p->setSamples(hours, sec);
+    p->setSamples(hours, speed);
 //    p->setPen(QPen(color, DEFAULT_PENWIDTH, penStyle));
 
     setAxisScaleDraw(QwtPlot::xBottom, new TimeScaleDraw(base));
     p->setRenderHint(QwtPlotItem::RenderAntialiased);
-
+    setAxisTitle(QwtPlot::yLeft, "Speed (km/h)");
     p->setStyle(QwtPlotCurve::NoCurve);
     p->setSymbol(newSymbol(symbol));
     return p;

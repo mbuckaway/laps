@@ -1449,7 +1449,7 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
     if (tableIndex >= 0) {
         QString tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
         unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
-        unsigned int endDateTime = CLapsDbase::dateTime2Int(2018, 12, 31, 24, 0, 0);
+        unsigned int endDateTime = CLapsDbase::dateTime2Int(QDateTime::currentDateTime());
 
         QList<CLapInfo> laps;
         lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
@@ -1770,11 +1770,8 @@ void MainWindow::sendInactiveRiderReports(void) {
                 // Get dateTime for lap and append to tagIdNotReported and dateTimeNotReported
 
                 QString tagId;
-                unsigned int dateTime;
-                float lapSec;
-                float lapM;
-                int reportStatus;
-                rc = lapsDbase.getLap(lapsNotReported[j], &tagId, &dateTime, &lapSec, &lapM, &reportStatus);
+                CLapInfo lap;
+                rc = lapsDbase.getLap(lapsNotReported[j], &tagId);//, &lap);
                 if (rc != 0) {
                     qDebug() << "Error from lapsDbase.getLap()";
                     return;

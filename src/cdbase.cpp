@@ -735,7 +735,7 @@ void CLapsDbase::close(void) {
 
 
 // addLap
-// Add entry to laps database
+// Add lap database
 //
 int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
     errorTextVal.clear();
@@ -764,11 +764,13 @@ int CLapsDbase::addLap(const CRider &rider, unsigned int dateTime) {
 
 
 
-int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps) {
-    laps->clear();
-
+// getLapInfo()
+// Appends CLapInfo list with information from each lap within specified period from specfied database for
+// specified tagId
+//
+int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps) {
     if (!dBase.isOpen()) {
-        errorTextVal = "CLapsDbase closed";
+        errorTextVal = dBase.databaseName() + " closed in getLapInfo";
         errorVal = 2;
         return errorVal;
     }
@@ -805,14 +807,8 @@ int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, uns
         return errorVal;
     }
 
-    unsigned int dateTimeVal;
-    float lapSec;
-    float lapM;
     while (query.next()) {
-        dateTimeVal = query.value(dateTimeIndex).toUInt();
-        lapSec = query.value(lapsecIndex).toFloat();
-        lapM = query.value(lapmIndex).toFloat();
-        laps->append(CLapInfo(dateTimeVal, lapSec, lapM));
+        laps->append(CLapInfo(query.value(dateTimeIndex).toUInt(), query.value(lapsecIndex).toFloat(), query.value(lapmIndex).toFloat()));
     }
 
     return 0;
@@ -820,8 +816,26 @@ int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, uns
 
 
 
+// getLapInfo()
+// Fill ClapsInfo list for all laps in all database files within specified period for specfied tagId
+//
+int CLapsDbase::getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps) {
+    laps->clear();
 
-int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *lapSec, float *lapM, int *reportStatus) {
+    // Look through list of dBases and get lap info from any within time period
+
+    int rc;
+    for (int i=dBasePriorList.size()-1; i>=0; i--) {
+        rc = getLapInfo(dBasePriorList[i], tagId, dateTimeStart, dateTimeEnd, laps);
+    }
+    rc = getLapInfo(dBase, tagId, dateTimeStart, dateTimeEnd, laps);
+    return rc;
+}
+
+
+
+
+int CLapsDbase::getLap(int id, QString *tagId, CLapInfo *lapInfo) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -841,46 +855,50 @@ int CLapsDbase::getLap(int id, QString *tagId, unsigned int *dateTime, float *la
     }
 
     int tagIdIndex = query.record().indexOf("tagId");
+    int dateTimeIndex = query.record().indexOf("dateTime");
+    int lapsecIndex = query.record().indexOf("lapsec");
+    int lapmIndex = query.record().indexOf("lapm");
+    int reportStatusIndex = query.record().indexOf("reportStatus");
+
     if (tagIdIndex < 0) {
         errorTextVal = "Could not find tagId index in getLap";
         errorVal = 4;
         return errorVal;
     }
 
-    int dateTimeIndex = query.record().indexOf("dateTime");
-    if (dateTimeIndex < 0) {
-        errorTextVal = "Could not find dateTime index in getLap";
-        errorVal = 5;
-        return errorVal;
-    }
+    if (lapInfo) {
+        if (dateTimeIndex < 0) {
+            errorTextVal = "Could not find dateTime index in getLap";
+            errorVal = 5;
+            return errorVal;
+        }
 
-    int lapsecIndex = query.record().indexOf("lapsec");
-    if (lapsecIndex < 0) {
-        errorTextVal = "Could not find lapsec index in getLap";
-        errorVal = 6;
-        return errorVal;
-    }
+        if (lapsecIndex < 0) {
+            errorTextVal = "Could not find lapsec index in getLap";
+            errorVal = 6;
+            return errorVal;
+        }
 
-    int lapmIndex = query.record().indexOf("lapm");
-    if (lapmIndex < 0) {
-        errorTextVal = "Could not find lapm index in getLap";
-        errorVal = 7;
-        return errorVal;
-    }
+        if (lapmIndex < 0) {
+            errorTextVal = "Could not find lapm index in getLap";
+            errorVal = 7;
+            return errorVal;
+        }
 
-    int reportStatusIndex = query.record().indexOf("reportStatus");
-    if (reportStatusIndex < 0) {
-        errorTextVal = "Could not find reportStatus index in getLap";
-        errorVal = 8;
-        return errorVal;
+        if (reportStatusIndex < 0) {
+            errorTextVal = "Could not find reportStatus index in getLap";
+            errorVal = 8;
+            return errorVal;
+        }
     }
-
-    while (query.next()) {
+    if (query.next()) {
         *tagId = query.value(tagIdIndex).toString();
-        *dateTime = query.value(dateTimeIndex).toUInt();
-        *lapSec = query.value(lapsecIndex).toFloat();
-        *lapM = query.value(lapmIndex).toFloat();
-        *reportStatus = query.value(reportStatusIndex).toInt();
+        if (lapInfo) {
+            lapInfo->dateTime = query.value(dateTimeIndex).toUInt();
+            lapInfo->lapSec = query.value(lapsecIndex).toFloat();
+            lapInfo->lapM = query.value(lapmIndex).toFloat();
+            lapInfo->reportStatus = query.value(reportStatusIndex).toInt();
+        }
     }
 
     return 0;
