@@ -1072,15 +1072,17 @@ MainWindow::MainWindow(QWidget *parent) :
     // Open log file
     // Start by moving the existing log file into a backup
 
-    QDir dir;
+    QDir binDir;
+    binDir.setCurrent(QDir::homePath() + "/laps/bin");
     QStringList filter{"llrplaps*.log"};
-    dir.setNameFilters(filter);
-    QFile::rename("llrplaps.log", s.sprintf("llrplaps%03d.log", dir.entryInfoList().size() - 1));
+    binDir.setNameFilters(filter);
+    qDebug() << binDir.absolutePath();
+    QFile::rename(binDir.absolutePath() + "/llrplaps.log", binDir.absolutePath() + s.sprintf("/llrplaps%03d.log", binDir.entryInfoList().size() - 1));
 
     logFile = new QFile;
     if (!logFile)
         qDebug() << "Error creating log QFile";
-    logFile->setFileName("llrplaps.log");
+    logFile->setFileName(binDir.absolutePath() + "/llrplaps.log");
     int rc = logFile->open(QIODevice::Append | QIODevice::Text);
     if (!rc) {
         qDebug() << "log file not opened";
@@ -1093,18 +1095,22 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Make backups of lapsyyyy.db and membership.db
 
-    dir.setPath("../data");
+    QDir dataDir;
+    dataDir.setPath(QDir::homePath() + "/laps/data");
     filter = QStringList{"membership*.db"};
-    dir.setNameFilters(filter);
-    if (dir.entryList().size() > 0)
-        QFile::copy(dir.path() + "/membership.db", dir.path() + s.sprintf("/membership%03d.db", dir.entryList().size() - 1));
+    dataDir.setNameFilters(filter);
+    qDebug() << dataDir.absolutePath();
+
+    if (dataDir.entryList().size() > 0)
+        QFile::copy(dataDir.absolutePath() + "/membership.db", dataDir.absolutePath() + s.sprintf("/membership-%03d.db", dataDir.entryList().size() - 1));
 
     QDate currentDate(QDate::currentDate());
     QString year = s.setNum(currentDate.year());
     filter = QStringList{"laps" + year + "*.db"};
-    dir.setNameFilters(filter);
-    if (dir.entryList().size() > 0)
-        QFile::copy(dir.path() + "/laps" + year + ".db", dir.path() + "/laps" + year + s.sprintf("%03d.db", dir.entryList().size() - 1));
+    dataDir.setNameFilters(filter);
+    if (dataDir.entryList().size() > 0)
+        QFile::copy(dataDir.absolutePath() + "/laps" + year + ".db", dataDir.absolutePath() + "/laps" + year + s.sprintf("-%03d.db", dataDir.entryList().size() - 1));
+
 
 
     // tablePurgeInterval is the interval (hours) on which tables are purged of inactive riders.
@@ -1185,7 +1191,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // This should be opened before lapsdbase because the membershipdbase is used when a new lapsdbase is created
     // at the start of a new year.
 
-    QString membershipDbaseRootName("../data/membership");
+    QString membershipDbaseRootName(dataDir.absolutePath() + "/membership");
     QString membershipDbaseUserName("fcv");
     QString membershipDbasePassword("fcv");
     rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
@@ -1198,7 +1204,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // lapsDbase contains a record of all laps for all riders.
     // Each file contains data for one year.
 
-    QString lapsDbaseRootName("../data/laps");
+    QString lapsDbaseRootName(dataDir.absolutePath() + "/laps");
     QString lapsDbaseUserName("fcv");
     QString lapsDbasePassword("fcv");
     rc = lapsDbase.open(lapsDbaseRootName, lapsDbaseUserName, lapsDbasePassword);
