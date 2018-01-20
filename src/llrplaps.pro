@@ -77,6 +77,7 @@ SOURCES += main.cpp\
     crider.cpp \
     csmtp.cpp \
     cplot.cpp
+#    cplotform.cpp
 
 HEADERS  += mainwindow.h \
     creader.h \
@@ -85,5 +86,7 @@ HEADERS  += mainwindow.h \
     crider.h \
     csmtp.h \
     cplot.h
+#    cplotform.h
 
 FORMS    += mainwindow.ui
+#    cplotform.ui

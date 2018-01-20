@@ -24,6 +24,7 @@
 
 
 #include <cplot.h>
+//#include <cplotform.h>
 #include <stdio.h>
 #include <unistd.h>
 #include "mainwindow.h"
@@ -976,7 +977,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         if (rider->lapType == CRider::regularCrossing) {
             QDateTime currentDateTime(QDateTime::currentDateTime());
-            unsigned int dateTime = CLapsDbase::dateTime2Int(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
+            CDateTime dateTime(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
             mainWindow->lapsDbase.addLap(*rider, dateTime);
         }
 
@@ -1052,7 +1053,7 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersProxyModel = NULL;
     logFile = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.2");
+    QCoreApplication::setApplicationVersion("0.3");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1448,15 +1449,23 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
     }
     if (tableIndex >= 0) {
         QString tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
-        unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
-        unsigned int endDateTime = CLapsDbase::dateTime2Int(QDateTime::currentDateTime());
+        CDateTime startDateTime(0, 0, 0, 0, 0, 0);
+        CDateTime endDateTime(QDateTime::currentDateTime());
+
+//        CPlotForm *plotForm = new CPlotForm();
+//        plotForm->show();
 
         QList<CLapInfo> laps;
         lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
-        cplot *plot = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name);
-        plot->addPoints(laps);
-        plot->show();
-        plotList.append(plot);
+        cplot *plotLapSpeed = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name + " Lap Speed", cplot::enableAll, NULL);
+        plotLapSpeed->addPoints(laps);
+        plotLapSpeed->show();
+        plotList.append(plotLapSpeed);
+
+//        cplot *plotAverageSpeed = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name + " Average Speed", cplot::enableAll, NULL);
+//        plotAverageSpeed->addPoints(laps);
+//        plotAverageSpeed->show();
+//        plotList.append(plotAverageSpeed);
     }
 
 }
@@ -1487,13 +1496,12 @@ void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
     CMembershipInfo info;
     membershipDbase.getAllFromId(id, &info);
 
-    unsigned int startDateTime = CLapsDbase::dateTime2Int(2000, 0, 0, 0, 0, 0);
-    unsigned int endDateTime = CLapsDbase::dateTime2Int(2018, 12, 31, 24, 0, 0);
+    CDateTime startDateTime(0, 0, 0, 0, 0, 0);
+    CDateTime endDateTime(QDateTime::currentDateTime());
 
     QList<CLapInfo> laps;
     lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
     cplot *plot = new cplot(info.firstName + " " + info.lastName);
-//    plot->addCurve(laps);
     plot->addPoints(laps);
     plot->show();
     plotList.append(plot);
@@ -1746,8 +1754,8 @@ void MainWindow::sendInactiveRiderReports(void) {
     membershipInfoNotReported.clear();
     QDate currentDate(QDate::currentDate());
     QDate dateStart = currentDate.addDays(-7);
-    dateTimeOfReportStart = CLapsDbase::dateTime2Int(dateStart.year(), dateStart.month(), dateStart.day(), 0, 0, 0);
-    dateTimeOfReportEnd = CLapsDbase::dateTime2Int(currentDate.year(), currentDate.month(), currentDate.day(), 24, 0, 0);
+    dateTimeOfReportStart = QDateTime(dateStart, QTime(0, 0, 0));
+    dateTimeOfReportEnd = QDateTime(currentDate, QTime(24, 0, 0));
 
     for (int i=0; i<infoList.size(); i++) {
         bool tagInActiveRidersList = false;
@@ -1760,7 +1768,7 @@ void MainWindow::sendInactiveRiderReports(void) {
 
         if (infoList[i].sendReports && !infoList[i].eMail.isEmpty() && !tagInActiveRidersList) {
             QList<int> lapsNotReported;
-            int rc = lapsDbase.getLapsInPeriod(infoList[i].tagId, dateTimeOfReportStart, dateTimeOfReportEnd, CLapsDbase::reportPending, &lapsNotReported);
+            int rc = lapsDbase.getLaps(infoList[i].tagId, dateTimeOfReportStart, dateTimeOfReportEnd, CLapsDbase::reportPending, &lapsNotReported);
             if (rc != 0) {
                 qDebug() << "Error from lapsDbase.getLapsInPeriod()";
                 return;
@@ -1829,10 +1837,10 @@ void MainWindow::prepareNextReport(void) {
 
         // Stats for entire day
 
-        unsigned int reportPeriodStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
-        unsigned int reportPeriodEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
+        CDateTime reportPeriodStart(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
+        CDateTime reportPeriodEnd(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
         CStats statsForDay;
-        int rc = lapsDbase.getStatsForCurrentPeriod(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
+        int rc = lapsDbase.getStats(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
             qDebug() << "Error from lapsDbase.getStatsForPeriod in sendNextReport";
             return;
@@ -1850,10 +1858,10 @@ void MainWindow::prepareNextReport(void) {
                     QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
                     QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
                     sessionEndTime.addSecs(-1);
-                    unsigned int sessionStart = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
-                    unsigned int sessionEnd = CLapsDbase::dateTime2Int(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
+                    CDateTime sessionStart(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
+                    CDateTime sessionEnd(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
                     CStats stats;
-                    rc = lapsDbase.getStatsForCurrentPeriod(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
+                    rc = lapsDbase.getStats(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
                     statsForSession.append(stats);
                     sessionList.append(ui->sessionsTableWidget->item(i, 1)->text());
                 }

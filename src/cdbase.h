@@ -51,6 +51,35 @@ private:
 
 
 
+class CDateTime {
+public:
+    CDateTime(int year, int month, int day, int hour, int minute, int second);
+    CDateTime(const QDateTime &);
+    CDateTime(const QDate &, int hour, int minute, int second);
+    CDateTime(unsigned int dateTime);
+    int year() const;
+    int month() const;
+    int day() const;
+    int hour() const;
+    int minute() const;
+    int second() const;
+    unsigned int toUInt() const;
+    QDateTime toQDateTime(void) const;
+    QDate toQDate(void) const;
+    QTime toQTime(void) const;
+private:
+    int yearVal;
+    int monthVal;
+    int dayVal;
+    int hourVal;
+    int minuteVal;
+    int secondVal;
+    unsigned int intVal;
+    void calculateUIntVal(void);
+};
+
+
+
 class CLapInfo {
 public:
     CLapInfo(unsigned int dateTime=0, float sec=0., float m=0.);
@@ -69,28 +98,23 @@ public:
     CLapsDbase(void);
     int open(const QString &connectionName, const QString &username, const QString &password);
     void close(void);
-    int addLap(const CRider &rider, unsigned int dateTime);
+    int addLap(const CRider &rider, const CDateTime &dateTime);
     int getLap(int id, QString *tagId, CLapInfo *lapInfo=NULL);
     int getStats(const QString &tagId, CRider *rider);
-    int getStatsForCurrentPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
-    int getStatsForPriorPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
-    int setReportStatus(reportStatus_t reportStatus, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd);
-    int getLapsInPeriod(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, QList<int> *lapsList);
-    static unsigned int dateTime2Int(int year, int month, int day, int hour, int minute, int second);
-    static void int2DateTime(unsigned int dateTime, int *year, int *month, int *day, int *hour, int *minute, int *second);
-    static QDateTime int2DateTime(unsigned int dateTIme);
-    static unsigned int dateTime2Int(const QDateTime &dateTime);
+    int getStats(const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, CStats *stats);
+    int setReportStatus(reportStatus_t reportStatus, const QString &tagId, const CDateTime &start, const CDateTime &end);
+    int getLaps(const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, QList<int> *lapsList);
     int error(void);
     bool isOpen(void);
-    int getLapInfo(const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps);
+    int getLapInfo(const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps);
     QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;
     QList<QSqlDatabase> dBasePriorList;
 private:
     QString errorTextVal;
-    int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, QList<CLapInfo> *laps);
-    int getStatsForPeriod(const QSqlDatabase &dBase, const QString &tagId, unsigned int dateTimeStart, unsigned int dateTimeEnd, reportStatus_t reportStatus, CStats *stats);
+    int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps);
+    int getStats(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, CStats *stats);
     int insertPriors(const QSqlDatabase &dBase, const QString &tagId, int lapCount, float lapSecTotal, float lapMTotal);
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);
     int errorVal;

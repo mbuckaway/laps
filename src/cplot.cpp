@@ -41,18 +41,6 @@
 
 
 
-cplot::cplot(QString title, QWidget *parent)
-    : QwtPlot(parent)
-{
-    initializeDefaultWidget(enableDefault);
-    setWindowTitle(title);
-    setTitle(title);
-    setAutoReplot(false);
-    //setMouseTracking(false);
-}
-
-
-
 cplot::cplot(QString title, options_t options, QWidget *parent)
     : QwtPlot(parent)
 {
@@ -60,34 +48,6 @@ cplot::cplot(QString title, options_t options, QWidget *parent)
     setWindowTitle(title);
     setTitle(title);
     setAutoReplot(false);
-    //setMouseTracking(false);
-}
-
-
-
-cplot::cplot(QString title, QFont *font, options_t options, QWidget *parent)
-    : QwtPlot(parent)
-{
-    initializeDefaultWidget(options);
-    setWindowTitle(title);
-    QwtText s(title);
-    if (font) s.setFont(*font);
-    QwtPlot::setTitle(s);
-    setAutoReplot(false);
-    //setMouseTracking(false);
-}
-
-
-
-cplot::cplot(const QList<CLapInfo> &laps, options_t options, QWidget *parent)
-    : QwtPlot(parent)
-{
-    initializeDefaultWidget(options);
-    if (laps.size() == 0)
-        return;
-    addCurve(laps, Qt::SolidLine, Qt::blue, curveStyle_t::lines);
-    setAutoReplot(false);
-    //setMouseTracking(false);
 }
 
 
@@ -121,8 +81,6 @@ void cplot::initializeDefaultWidget(options_t options) {
     zoomerObj->setRubberBandPen(QPen(Qt::red, 2, Qt::DotLine));
     zoomerObj->setTrackerPen(QPen(Qt::red));
     zoomerObj->setEnabled(false);
-    //magnifierObj = new QwtPlotMagnifier(canvas());
-    //magnifierObj->setWheelModifiers(Qt::KeyboardModifier::ControlModifier);
     pannerObj = new QwtPlotPanner(canvasObj);
     pannerObj->setMouseButton(Qt::MouseButton::LeftButton, Qt::KeyboardModifier::ControlModifier);
 
@@ -187,13 +145,13 @@ void cplot::wheelEvent(QWheelEvent *event) {
         else if (delta < 0) factor = sqrt(2.);
         double oldXMin = axisScaleDiv(QwtPlot::xBottom).lowerBound();
         double oldXMax = axisScaleDiv(QwtPlot::xBottom).upperBound();
-        //double oldYMin = axisScaleDiv(QwtPlot::yLeft).lowerBound();
-        //double oldYMax = axisScaleDiv(QwtPlot::yLeft).upperBound();
         double newXMin = pPlot.x() - (pPlot.x() - oldXMin) * factor;
         double newXMax = pPlot.x() + (oldXMax - pPlot.x()) * factor;
+        setAxisScale(QwtPlot::xBottom, newXMin, newXMax);
+        //double oldYMin = axisScaleDiv(QwtPlot::yLeft).lowerBound();
+        //double oldYMax = axisScaleDiv(QwtPlot::yLeft).upperBound();
         //double newYMin = pPlot.y() - (pPlot.y() - oldYMin) * factor;
         //double newYMax = pPlot.y() + (oldYMax - pPlot.y()) * factor;
-        setAxisScale(QwtPlot::xBottom, newXMin, newXMax);
         //setAxisScale(QwtPlot::yLeft, newYMin, newYMax);
         replot();
     }
@@ -256,12 +214,12 @@ QwtPlotCurve *cplot::addCurve(const QList<CLapInfo> &laps, Qt::PenStyle penStyle
     QVector<double> sec(laps.size());
     QDateTime base(QDate(2018, 1, 1), QTime(0, 0, 0));
     for (int i=0; i<laps.size(); i++) {
-        QDateTime dt(CLapsDbase::int2DateTime(laps[i].dateTime));
+        CDateTime dt(laps[i].dateTime);
         if (i == 0)
-            startDate = dt.date();
+            startDate = dt.toQDateTime().date();
         if (i ==(laps.size() - 1))
-            endDate = dt.date();
-        hours[i] = (double)base.date().daysTo(dt.date()) * 24. + (double)base.time().secsTo(dt.time()) / 3600.;
+            endDate = dt.toQDateTime().date();
+        hours[i] = (double)base.date().daysTo(dt.toQDate()) * 24. + (double)base.time().secsTo(dt.toQTime()) / 3600.;
         sec[i] = laps[i].lapSec;
     }
 
@@ -306,100 +264,6 @@ QwtPlotCurve *cplot::addCurve(const QList<CLapInfo> &laps, Qt::PenStyle penStyle
 
 
 
-
-
-
-
-//QwtPlotCurve *cplot::addCurve(const CVector &vY, Qt::PenStyle penStyle, Qt::GlobalColor color, curveStyle_t curveStyle) {
-//    QwtPlotCurve *p = new QwtPlotCurve();
-//    p->attach(this);
-//    int size = vY.size();
-//    CVector vX(size, CVector::Zeros);
-//    for (int i=0; i<size; i++) {
-//        vX.data[i] = (double)i;
-//    }
-//    curveList.append(p);
-//    switch (curveStyle) {
-//    case lines:
-//        p->setSamples(vX.data, vY.data, size);
-//        break;
-//    case steps:
-//    {
-//        CVector x2(size*2 + 2, CVector::Zeros);
-//        CVector y2(size*2 + 2, CVector::Zeros);
-//        double step = vX.data[1] - vX.data[0];
-//        int j=0;
-//        x2.data[j] = vX.data[0] - step / 2.;
-//        y2.data[j] = 0.;
-//        for (int i=0; i<size; i++) {
-//            j++;
-//            x2.data[j] = vX.data[i] - step / 2.;
-//            y2.data[j] = vY.data[i];
-//            j++;
-//            x2.data[j] = vX.data[i] + step / 2.;
-//            y2.data[j] = vY.data[i];
-//        }
-//        j++;
-//        x2.data[j] = x2.data[j-1];
-//        y2.data[j] = 0.;
-//        p->setSamples(x2.data, y2.data, x2.size());
-//    }
-//        break;
-//    case noLine:
-//        break;
-//    }
-//    p->setPen(QPen(color, DEFAULT_PENWIDTH, penStyle));
-//    p->setRenderHint(QwtPlotItem::RenderAntialiased);
-//    return p;
-//}
-
-
-
-//QwtPlotCurve *cplot::addCurve(const CVector &vY, QPen pen, curveStyle_t curveStyle) {
-//    QwtPlotCurve *p = new QwtPlotCurve();
-//    p->attach(this);
-//    int size = vY.size();
-//    CVector vX(size, CVector::Zeros);
-//    for (int i=0; i<size; i++) {
-//        vX.data[i] = (double)i;
-//    }
-//    curveList.append(p);
-//    switch (curveStyle) {
-//    case lines:
-//        p->setSamples(vX.data, vY.data, size);
-//        break;
-//    case steps:
-//    {
-//        CVector x2(size*2 + 2, CVector::Zeros);
-//        CVector y2(size*2 + 2, CVector::Zeros);
-//        double step = vX.data[1] - vX.data[0];
-//        int j=0;
-//        x2.data[j] = vX.data[0] - step / 2.;
-//        y2.data[j] = 0.;
-//        for (int i=0; i<size; i++) {
-//            j++;
-//            x2.data[j] = vX.data[i] - step / 2.;
-//            y2.data[j] = vY.data[i];
-//            j++;
-//            x2.data[j] = vX.data[i] + step / 2.;
-//            y2.data[j] = vY.data[i];
-//        }
-//        j++;
-//        x2.data[j] = x2.data[j-1];
-//        y2.data[j] = 0.;
-//        p->setSamples(x2.data, y2.data, x2.size());
-//    }
-//        break;
-//    case noLine:
-//        break;
-//    }
-//    p->setPen(QPen(pen));
-//    p->setRenderHint(QwtPlotItem::RenderAntialiased);
-//    return p;
-//}
-
-
-
 void cplot::removeCurves(void) {
     for (int i=curveList.size()-1; i>= 0; i--) {
         curveList[i]->detach();
@@ -421,7 +285,7 @@ QwtPlotMarker *cplot::addLabel(double x, double y, const QString &s, QFont *font
 
 
 
-QwtPlotMarker *cplot::addVLine(double x, const QString &s, QFont *font, Qt::Alignment alignment) {
+QwtPlotMarker *cplot::addVerticalLine(double x, const QString &s, QFont *font, Qt::Alignment alignment) {
     QwtPlotMarker *marker = new QwtPlotMarker();
     QwtText text(s);
     if (font) text.setFont(*font);
@@ -515,7 +379,7 @@ QwtPlotCurve *cplot::addPoints(const QList<CLapInfo> &laps, symbol_t symbol) {
     QVector<double> speed(laps.size());
     QDateTime base(QDate(2018, 1, 1), QTime(0, 0, 0));
     for (int i=0; i<laps.size(); i++) {
-        QDateTime dt(CLapsDbase::int2DateTime(laps[i].dateTime));
+        QDateTime dt(CDateTime(laps[i].dateTime).toQDateTime());
         if (i == 0)
             startDate = dt.date();
         if (i ==(laps.size() - 1))
@@ -537,7 +401,7 @@ QwtPlotCurve *cplot::addPoints(const QList<CLapInfo> &laps, symbol_t symbol) {
 
     setAxisScaleDraw(QwtPlot::xBottom, new TimeScaleDraw(base));
     p->setRenderHint(QwtPlotItem::RenderAntialiased);
-    setAxisTitle(QwtPlot::yLeft, "Speed (km/h)");
+    setAxisTitle(QwtPlot::yLeft, "Lap Speed (km/h)");
     p->setStyle(QwtPlotCurve::NoCurve);
     p->setSymbol(newSymbol(symbol));
     return p;
@@ -566,8 +430,4 @@ QwtPlotCurve *cplot::addHiddenPoint(double x, double y) {
     curveList[listIndex]->attach(this);
     return curveList[listIndex];
 }
-
-
-
-
 

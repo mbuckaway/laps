@@ -170,8 +170,8 @@ private:
     void prepareNextReport(void);
     void sendReport(const CMembershipInfo &info, const QString &body);
     QList<CMembershipInfo> membershipInfoNotReported;
-    unsigned int dateTimeOfReportStart;
-    unsigned int dateTimeOfReportEnd;
+    QDateTime dateTimeOfReportStart;
+    QDateTime dateTimeOfReportEnd;
     QString getSession(const QDateTime &);
     QList<cplot *> plotList;
 signals:
