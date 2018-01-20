@@ -148,11 +148,6 @@ void cplot::wheelEvent(QWheelEvent *event) {
         double newXMin = pPlot.x() - (pPlot.x() - oldXMin) * factor;
         double newXMax = pPlot.x() + (oldXMax - pPlot.x()) * factor;
         setAxisScale(QwtPlot::xBottom, newXMin, newXMax);
-        //double oldYMin = axisScaleDiv(QwtPlot::yLeft).lowerBound();
-        //double oldYMax = axisScaleDiv(QwtPlot::yLeft).upperBound();
-        //double newYMin = pPlot.y() - (pPlot.y() - oldYMin) * factor;
-        //double newYMax = pPlot.y() + (oldYMax - pPlot.y()) * factor;
-        //setAxisScale(QwtPlot::yLeft, newYMin, newYMax);
         replot();
     }
 }
@@ -186,14 +181,17 @@ public:
 TimeScaleDraw(const QDateTime &base) : base(base) {
     setLabelRotation(0);
     setLabelAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    setSpacing(20);
+    setSpacing(25);
 }
 virtual QwtText label(double hours) const {
-    QDateTime dateTime;
-    int days = (int)hours / 24.;
-    dateTime = base.addDays(days);
+    int days = (int)(hours / 24.);
+    QDateTime dateTime(base.addDays(days));
     dateTime = dateTime.addSecs((hours - (double)days * 24.) * 3600.);
-    return dateTime.toString("MMM.dd\nhh:mm");
+    double hoursRange = scaleDiv().upperBound() - scaleDiv().lowerBound();
+    if (hoursRange > 100.)
+        return dateTime.toString("MMM.dd\nyyyy");
+    else
+        return dateTime.toString("hh:mm\nMMM.dd\nyyyy");
 }
 private:
 QDateTime base;
@@ -255,10 +253,8 @@ QwtPlotCurve *cplot::addCurve(const QList<CLapInfo> &laps, Qt::PenStyle penStyle
         break;
     }
     p->setPen(QPen(color, DEFAULT_PENWIDTH, penStyle));
-//    qDebug() << axisScaleDiv(QwtPlot::xBottom).lowerBound() << axisScaleDiv(QwtPlot::xBottom);
-
-    setAxisScaleDraw(QwtPlot::xBottom, new TimeScaleDraw(base));
     p->setRenderHint(QwtPlotItem::RenderAntialiased);
+    setAxisScaleDraw(QwtPlot::xBottom, new TimeScaleDraw(base));
     return p;
 }
 

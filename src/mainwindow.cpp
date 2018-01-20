@@ -1073,10 +1073,10 @@ MainWindow::MainWindow(QWidget *parent) :
     // Start by moving the existing log file into a backup
 
     QDir binDir;
-    binDir.setCurrent(QDir::homePath() + "/laps/bin");
+    binDir.setPath("../bin");
     QStringList filter{"llrplaps*.log"};
     binDir.setNameFilters(filter);
-    qDebug() << binDir.absolutePath();
+    //qDebug() << binDir.absolutePath();
     QFile::rename(binDir.absolutePath() + "/llrplaps.log", binDir.absolutePath() + s.sprintf("/llrplaps%03d.log", binDir.entryInfoList().size() - 1));
 
     logFile = new QFile;
@@ -1096,10 +1096,10 @@ MainWindow::MainWindow(QWidget *parent) :
     // Make backups of lapsyyyy.db and membership.db
 
     QDir dataDir;
-    dataDir.setPath(QDir::homePath() + "/laps/data");
+    dataDir.setPath("../data");
     filter = QStringList{"membership*.db"};
     dataDir.setNameFilters(filter);
-    qDebug() << dataDir.absolutePath();
+    //qDebug() << dataDir.absolutePath();
 
     if (dataDir.entryList().size() > 0)
         QFile::copy(dataDir.absolutePath() + "/membership.db", dataDir.absolutePath() + s.sprintf("/membership-%03d.db", dataDir.entryList().size() - 1));
