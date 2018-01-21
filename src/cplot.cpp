@@ -27,10 +27,11 @@
 
 
 
-#define DEFAULT_WIDGETWIDTH     512
+#define DEFAULT_WIDGETWIDTH     640
+#define DEFAULT_WIDGETHEIGHT    512
 
 #define DEFAULT_CIRCLESIZE		12.
-#define DEFAULT_DOTSIZE			10.
+#define DEFAULT_DOTSIZE			8.
 #define DEFAULT_CROSSSIZE		12.
 #define DEFAULT_PENWIDTH		3.
 #define SMALL_DOTSIZE           5.
@@ -96,7 +97,7 @@ void cplot::initializeDefaultWidget(options_t options) {
         setContentsMargins(0, 0, 0, 0);
     }
     curveList.clear();
-    resize(QSize(DEFAULT_WIDGETWIDTH, DEFAULT_WIDGETWIDTH));
+    resize(QSize(DEFAULT_WIDGETWIDTH, DEFAULT_WIDGETHEIGHT));
     doubleClickSignalEnabled = false;
     zoomEnabled = false;
     if (options == enableDefault) {
@@ -418,11 +419,16 @@ QwtPlotCurve *cplot::addPoint(double x, double y, symbol_t symbol) {
 
 
 QwtPlotCurve *cplot::addHiddenPoint(double x, double y) {
+    QDateTime base(QDate(2018, 1, 1), QTime(0, 0, 0));
+    CDateTime dt(QDateTime::currentDateTime());
+    double hours = (double)base.date().daysTo(dt.toQDate()) * 24. + (double)base.time().secsTo(dt.toQTime()) / 3600.;
+    double speed = 0.;
+
     curveList.append(new QwtPlotCurve());
     int listIndex = curveList.size()-1;
     curveList[listIndex]->setStyle(QwtPlotCurve::NoCurve);
     curveList[listIndex]->setSymbol(NULL);
-    curveList[listIndex]->setSamples(&x, &y, 1);
+    curveList[listIndex]->setSamples(&hours, &speed, 1);
     curveList[listIndex]->attach(this);
     return curveList[listIndex];
 }
