@@ -1130,8 +1130,8 @@ MainWindow::MainWindow(QWidget *parent) :
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
 
 
-//    QDir binDir;
-//    binDir.setPath("../bin");
+    // The default directory must be set to the bin directory containing the executable and start-up script.
+    // Ensure the log and data directories exist
 
 
 
@@ -1140,6 +1140,10 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QDir logDir;
     logDir.setPath("../log");
+    if (!logDir.mkpath(logDir.absolutePath())) {
+        guiCritical("Could not create directory " + logDir.absolutePath());
+        exit(1);
+    }
     QStringList filter{"llrplaps*.log"};
     logDir.setNameFilters(filter);
     QFile::rename(logDir.absolutePath() + "/llrplaps.log", logDir.absolutePath() + s.sprintf("/llrplaps%03d.log", logDir.entryInfoList().size() - 1));
@@ -1162,6 +1166,10 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QDir dataDir;
     dataDir.setPath("../data");
+    if (!dataDir.mkpath(dataDir.absolutePath())) {
+        guiCritical("Could not create directory " + dataDir.absolutePath());
+        exit(1);
+    }
     filter = QStringList{"membership*.db"};
     dataDir.setNameFilters(filter);
 
