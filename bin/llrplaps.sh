@@ -3,11 +3,11 @@
 # Script to run llrplaps and resolve run-time dependencies.
 #
 
-llrplapspath=/home/icunning/laps
+llrplapspath=/home/icunning/laps/bin
 
 # set default directory to llrplaps bin directory
 
-cd $llrplapspath/bin;
+cd $llrplapspath;
 
 if [ ! -x llrplaps ]
   then

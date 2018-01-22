@@ -907,7 +907,10 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                 rider->inDbase = true;
                 mainWindow->membershipDbase.getAllFromId(id, &info);
                 rider->tagId = info.tagId;
-                rider->name = info.firstName + " " + info.lastName;
+                if (info.firstName.isEmpty())
+                    rider->name = info.lastName;
+                else
+                    rider->name = info.firstName + " " + info.lastName;
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
 
@@ -1127,19 +1130,24 @@ MainWindow::MainWindow(QWidget *parent) :
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
 
 
+//    QDir binDir;
+//    binDir.setPath("../bin");
+
+
+
     // Open log file
     // Start by moving the existing log file into a backup
 
-    QDir binDir;
-    binDir.setPath("../bin");
+    QDir logDir;
+    logDir.setPath("../log");
     QStringList filter{"llrplaps*.log"};
-    binDir.setNameFilters(filter);
-    QFile::rename(binDir.absolutePath() + "/llrplaps.log", binDir.absolutePath() + s.sprintf("/llrplaps%03d.log", binDir.entryInfoList().size() - 1));
+    logDir.setNameFilters(filter);
+    QFile::rename(logDir.absolutePath() + "/llrplaps.log", logDir.absolutePath() + s.sprintf("/llrplaps%03d.log", logDir.entryInfoList().size() - 1));
 
     logFile = new QFile;
     if (!logFile)
         qDebug() << "Error creating log QFile";
-    logFile->setFileName(binDir.absolutePath() + "/llrplaps.log");
+    logFile->setFileName(logDir.absolutePath() + "/llrplaps.log");
     int rc = logFile->open(QIODevice::Append | QIODevice::Text);
     if (!rc) {
         qDebug() << "log file not opened";
@@ -1150,7 +1158,7 @@ MainWindow::MainWindow(QWidget *parent) :
     logTextStream->setCodec("UTF-8");
 
 
-    // Make backups of lapsyyyy.db and membership.db
+    // Make backup of membership.db
 
     QDir dataDir;
     dataDir.setPath("../data");
@@ -1159,6 +1167,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     if (dataDir.entryList().size() > 0)
         QFile::copy(dataDir.absolutePath() + "/membership.db", dataDir.absolutePath() + s.sprintf("/membership-%03d.db", dataDir.entryList().size() - 1));
+
+
+    // Make backups of lapsyyyy.db database
 
     QDate currentDate(QDate::currentDate());
     QString year = s.setNum(currentDate.year());
@@ -1200,6 +1211,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // Default to showing messages during connection to reader
 
     ui->tabWidget->setCurrentIndex(2);
+
 
 
     // Populate antenna power comboBoxes (enabled when reader connects)
@@ -1363,8 +1375,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->activeRidersTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onActiveRidersTableClicked(const QModelIndex &)));
     connect(ui->activeRidersTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onActiveRidersTableDoubleClicked(const QModelIndex &)));
-
-    connect(ui->activeRidersClearushButton, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableClearPushButtonClicked(bool)));
 
 
 
@@ -2224,8 +2234,7 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Process tag (lapsTable updated from activeRidersTable)
 
-    //lapsTableModel->add(*rider);
-    activeRidersTableModel->newTag(tagInfo);
+    activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
 
 }
 
@@ -2371,7 +2380,10 @@ void MainWindow::onDbaseAddPushButtonClicked(void) {
 
     for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
         if (activeRidersTableModel->activeRidersList[i].tagId == info.tagId) {
-            activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
+            if (info.firstName.isEmpty())
+                activeRidersTableModel->activeRidersList[i].name = info.lastName;
+            else
+                activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
             break;
         }
     }
@@ -2457,6 +2469,20 @@ void MainWindow::onDbaseUpdatePushButtonClicked(void) {
         guiCritical("Could not update membershipTable");
         return;
     }
+
+
+    // Update name in activeRidersList so it appears in activeRidersTable
+
+    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
+        if (activeRidersTableModel->activeRidersList[i].tagId == info.tagId) {
+            if (info.firstName.isEmpty())
+                activeRidersTableModel->activeRidersList[i].name = info.lastName;
+            else
+                activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
+            break;
+        }
+    }
+
 
     entryEdited = false;
     onDbaseClearPushButtonClicked();

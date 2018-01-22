@@ -38,18 +38,17 @@ macx {
 linux-g++ {
   message(Building for linux-g++)
   QWTDIR = ../qwt-6.1.2-linux
-  LIBDIR = ../lib/linux
+  LIBDIR = ../libs/linux
 #  LIBS += $$LIBDIR
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
+  LIBS += -ldl
 #  INCLUDEPATH += /usr/include
 #  LIBS += -L/usr/lib/mysql -lrt
 #  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
   LIBS += $$QWTDIR/lib/libqwt.a
   QMAKE_CXXFLAGS += -Wall -Wno-write-strings
-#  QMAKE_LFLAGS += -Wl,-L/home/icunning/Qt5.7.0/5.7/gcc_64/libs
-#  QMAKE_LFLAGS += '-Wl,-rpath,\'\$$ORIGIN/../lib/linux\''
-  QMAKE_RPATHDIR += $$LIBDIR $$LIBDIR/platforms
+  QMAKE_RPATHDIR += $$LIBDIR #$$LIBDIR/platforms
 }
 
 message(QMAKE_RPATHDIR: $$QMAKE_RPATHDIR);
@@ -61,12 +60,6 @@ INCLUDEPATH += $$QWTDIR/src
   message(INCLUDE: $$INCLUDEPATH)
   message(LIBS: $$LIBS)
   #message(PATH: $$PATH)
-
-
-
-
-
-
 
 
 
