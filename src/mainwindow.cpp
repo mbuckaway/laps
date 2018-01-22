@@ -584,6 +584,9 @@ void CLapsTableModel::purgeTable(void) {
 //
 CActiveRidersTableModel::CActiveRidersTableModel(QObject *parent) : QAbstractTableModel(parent) {
     mainWindow = (MainWindow *)parent;
+    bestM = 0.;
+    bestLapMPS = 0.;
+    bestLapSec = 1e10;
 }
 
 
@@ -703,7 +706,18 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             case CRider::firstCrossing:
                 return QString("first lap");
             case CRider::regularCrossing:
-                return rider->comment;
+//                if (!rider->name.isEmpty()) {
+//                    if (rider->totalM >= bestM)
+//                        return "Longest Ride";
+//                    else if (rider->bestLapM/rider->bestLapSec > bestLapMPS)
+//                        return "Best Speed";
+//                    else if (rider->bestLapSec < bestLapSec)
+//                        return "Fastest Lap";
+//                    else
+//                        return rider->comment;
+//                }
+//                else
+                    return rider->comment;
             case CRider::onBreak:
                 return QString("on break");
             case CRider::firstCrossingAfterBreak:
@@ -714,6 +728,12 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
         }
         break;
     case Qt::FontRole:
+//        if (col == AT_COMMENT) {
+//            if (rider->totalM >= bestM)
+//                return QFont();
+//            else
+//                return QFont();
+//        }
         break;
     case Qt::BackgroundRole:
         break;
@@ -918,7 +938,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
                 rider->totalSec += rider->lapSec;
                 rider->totalM += rider->lapM;
 
-                // Update monthly and all-time stats only if rider is in dbase
+                // Update monthly and all-time stats only if rider name is in dbase
 
                 if (rider->inDbase) {
                     rider->thisMonth.lapCount++;
@@ -927,19 +947,28 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
                     rider->allTime.lapCount++;
                     rider->allTime.totalM += rider->lapM;
+
+                    if (!rider->name.isEmpty()) {
+                        if (rider->totalM > bestM)
+                            bestM = rider->totalM;
+                        if (rider->lapM/rider->lapSec > bestLapMPS)
+                            bestLapMPS = rider->lapM/rider->lapSec;
+                        if (rider->lapSec < bestLapSec)
+                            bestLapSec = rider->lapSec;
+                    }
                 }
                 rider->nextLapType = CRider::regularCrossing;
             }
 
-            // Check for session bests
+//            // Check for session bests
 
-            if (rider->lapSec > 0.) {
-                float lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
-                if (lapSpeed > mainWindow->bestLapSpeedInSession)
-                    mainWindow->bestLapSpeedInSession = lapSpeed;
-            }
-            if (rider->lapCount > mainWindow->bestLapCountInSession)
-                mainWindow->bestLapCountInSession = rider->lapCount;
+//            if (rider->lapSec > 0.) {
+//                float lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
+//                if (lapSpeed > mainWindow->bestLapSpeedInSession)
+//                    mainWindow->bestLapSpeedInSession = lapSpeed;
+//            }
+//            if (rider->lapCount > mainWindow->bestLapCountInSession)
+//                mainWindow->bestLapCountInSession = rider->lapCount;
             break;
 
         case CRider::onBreak:
@@ -1026,6 +1055,13 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
         mainWindow->ui->activeRidersTableView->scrollToBottom();
 
     mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+
+    if (activeRidersList.isEmpty()) {
+        bestLapMPS = 0.;
+        bestM = 0.;
+        bestLapSec = 1e10;
+    }
+
     return purgedRiders;
 }
 
@@ -1076,7 +1112,6 @@ MainWindow::MainWindow(QWidget *parent) :
     binDir.setPath("../bin");
     QStringList filter{"llrplaps*.log"};
     binDir.setNameFilters(filter);
-    //qDebug() << binDir.absolutePath();
     QFile::rename(binDir.absolutePath() + "/llrplaps.log", binDir.absolutePath() + s.sprintf("/llrplaps%03d.log", binDir.entryInfoList().size() - 1));
 
     logFile = new QFile;
@@ -1099,7 +1134,6 @@ MainWindow::MainWindow(QWidget *parent) :
     dataDir.setPath("../data");
     filter = QStringList{"membership*.db"};
     dataDir.setNameFilters(filter);
-    //qDebug() << dataDir.absolutePath();
 
     if (dataDir.entryList().size() > 0)
         QFile::copy(dataDir.absolutePath() + "/membership.db", dataDir.absolutePath() + s.sprintf("/membership-%03d.db", dataDir.entryList().size() - 1));

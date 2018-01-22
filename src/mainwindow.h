@@ -76,6 +76,9 @@ public:
     QList<CRider> purgeTable(void);
 private:
     MainWindow *mainWindow;
+    float bestM;
+    float bestLapMPS;
+    float bestLapSec;
 private slots:
 signals:
 };
