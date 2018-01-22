@@ -41,7 +41,7 @@ public:
     void removeCurves(void);
     QwtPlotCurve *addPoints(const QList<CLapInfo> &laps, symbol_t=blueDot);
     QwtPlotCurve *addPoint(double x, double y, symbol_t=blueDot);
-    QwtPlotCurve *addHiddenPoint(double x, double y);
+    QwtPlotCurve *addHiddenPoint(const QDateTime &, double y);
     QwtPlotMarker *addLabel(double x, double y, const QString &text, QFont *font=NULL, Qt::Alignment=Qt::AlignRight | Qt::AlignTop);
     QwtPlotMarker *addVerticalLine(double x, const QString &text, QFont* =NULL, Qt::Alignment=Qt::AlignLeft | Qt::AlignBottom);
     void setOptions(options_t options);

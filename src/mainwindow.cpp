@@ -1526,6 +1526,8 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
         lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
         cplot *plotLapSpeed = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name + " Lap Speed", cplot::enableAll, NULL);
         plotLapSpeed->addPoints(laps);
+        plotLapSpeed->addHiddenPoint(QDateTime::currentDateTime(), 0.);
+        plotLapSpeed->addHiddenPoint(QDateTime::currentDateTime(), 30.);
         plotLapSpeed->show();
         plotList.append(plotLapSpeed);
 
@@ -1570,6 +1572,8 @@ void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
     lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
     cplot *plot = new cplot(info.firstName + " " + info.lastName);
     plot->addPoints(laps);
+    plot->addHiddenPoint(QDateTime::currentDateTime(), 0.);
+    plot->addHiddenPoint(QDateTime::currentDateTime(), 30.);
     plot->show();
     plotList.append(plot);
 }

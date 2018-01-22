@@ -418,11 +418,10 @@ QwtPlotCurve *cplot::addPoint(double x, double y, symbol_t symbol) {
 
 
 
-QwtPlotCurve *cplot::addHiddenPoint(double x, double y) {
+QwtPlotCurve *cplot::addHiddenPoint(const QDateTime &dateTime, double y) {
     QDateTime base(QDate(2018, 1, 1), QTime(0, 0, 0));
-    CDateTime dt(QDateTime::currentDateTime());
-    double hours = (double)base.date().daysTo(dt.toQDate()) * 24. + (double)base.time().secsTo(dt.toQTime()) / 3600.;
-    double speed = 0.;
+    double hours = (double)base.date().daysTo(dateTime.date()) * 24. + (double)base.time().secsTo(dateTime.time()) / 3600.;
+    double speed = y;
 
     curveList.append(new QwtPlotCurve());
     int listIndex = curveList.size()-1;
