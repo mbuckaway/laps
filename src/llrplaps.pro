@@ -5,9 +5,6 @@
 #-------------------------------------------------
 
 QT += core widgets gui sql network svg
-
-#greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-
 TARGET = llrplaps
 TEMPLATE = app
 #RESOURCES = ../qrc/llrplaps.qrc
@@ -15,7 +12,6 @@ TEMPLATE = app
 #ICON = ../qrc/icons/llrplaps.icns
 
 LTKLIBDIR = ../LTK/LTKCPP/Library
-
 
 INCLUDEPATH += $$LTKLIBDIR
 
@@ -41,23 +37,27 @@ macx {
 
 linux-g++ {
   message(Building for linux-g++)
-  QMAKE_CXXFLAGS += -Wno-write-strings
-  QMAKE_RPATHDIR = $$LIBDIR
-  QWTDIR == ../qwt-6.1.2-linux
-  LIBDIR = ../libs/linux
+  QWTDIR = ../qwt-6.1.2-linux
+  LIBDIR = ../lib/linux
+#  LIBS += $$LIBDIR
   LIBS += $$LTKLIBDIR/libltkcpp.a
   LIBS += /usr/lib64/libxml2.so.2
 #  INCLUDEPATH += /usr/include
 #  LIBS += -L/usr/lib/mysql -lrt
 #  LIBS += -L/home/icunning/Qt5.7.0/5.7/gcc_64/plugins/sqldrivers
-  LIBS += $$LIBDIR/libqwt.a
+  LIBS += $$QWTDIR/lib/libqwt.a
+  QMAKE_CXXFLAGS += -Wall -Wno-write-strings
+#  QMAKE_LFLAGS += -Wl,-L/home/icunning/Qt5.7.0/5.7/gcc_64/libs
+#  QMAKE_LFLAGS += '-Wl,-rpath,\'\$$ORIGIN/../lib/linux\''
+  QMAKE_RPATHDIR += $$LIBDIR $$LIBDIR/platforms
 }
 
+message(QMAKE_RPATHDIR: $$QMAKE_RPATHDIR);
+message($$QMAKE_REL_RPATH_BASE);
 
 INCLUDEPATH += $$QWTDIR/src
 
-  #message(QMAKE_REL_RPATH_BASE: $$QMAKE_REL_RPATH_BASE)
-
+  message(LFLAGS: $$QMAKE_LFLAGS)
   message(INCLUDE: $$INCLUDEPATH)
   message(LIBS: $$LIBS)
   #message(PATH: $$PATH)

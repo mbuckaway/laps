@@ -1592,6 +1592,8 @@ void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
     if (!laps.isEmpty()) {
         cplot *plotLapSpeed = new cplot(name + " Lap Speed", cplot::enableAll, NULL);
         plotLapSpeed->addPoints(laps);
+        plotLapSpeed->addHiddenPoint(QDateTime::currentDateTime(), 0.);
+        plotLapSpeed->addHiddenPoint(QDateTime::currentDateTime(), 30.);
         plotLapSpeed->show();
         plotList.append(plotLapSpeed);
     }
