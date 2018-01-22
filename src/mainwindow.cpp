@@ -1330,6 +1330,10 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->activeRidersTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onActiveRidersTableClicked(const QModelIndex &)));
     connect(ui->activeRidersTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onActiveRidersTableDoubleClicked(const QModelIndex &)));
 
+    connect(ui->activeRidersClearushButton, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableClearPushButtonClicked(bool)));
+
+
+
     connect(ui->lapsTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onLapsTableClicked(const QModelIndex &)));
     connect(ui->lapsTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onLapsTableDoubleClicked(const QModelIndex &)));
 
@@ -1432,6 +1436,13 @@ MainWindow::~MainWindow() {
 
 
 
+void MainWindow::onActiveRidersTableClearPushButtonClicked(bool) {
+    activeRidersTableModel->purgeTable();
+}
+
+
+
+
 void MainWindow::cleanExit(bool /*flag*/) {
     onNewLogMessage("Clean exit requested");
 
@@ -1470,8 +1481,11 @@ void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
 
 void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
 
-//    qDebug() << index.row() << activeRidersProxyModel->index(index.row(), index.column());
+    //qDebug() << index.row() << ui->activeRidersTableView->itemDelegate()->  //index(index.row(), index.column());
 
+    // Check whether name is in activeRidersTable - if yes, get tagId and show plot
+
+    QString tagId;
     QString name = index.data().toString();
     int tableIndex = -1;
     for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
@@ -1481,7 +1495,7 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
         }
     }
     if (tableIndex >= 0) {
-        QString tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
+        tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
         CDateTime startDateTime(0, 0, 0, 0, 0, 0);
         CDateTime endDateTime(QDateTime::currentDateTime());
 
@@ -1513,8 +1527,38 @@ void MainWindow::onLapsTableClicked(const QModelIndex &index) {
 
 
 void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(index.data().toString(), QClipboard::Clipboard);
+    QString tagId;
+
+    // Check whether name is in activeRidersTable - if yes, get tagId
+
+    QString name = index.data().toString();
+    int tableIndex = -1;
+    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
+        if (name == activeRidersTableModel->activeRidersList[i].name) {
+            tableIndex = i;
+            if (tagId >= 0)
+                tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
+            break;
+        }
+    }
+
+    // If tagId not found, treat name as tagId
+
+    if (tagId.isEmpty())
+        tagId = index.data().toString();
+
+    // Search dbase for tagId and plot if found
+
+    QList<CLapInfo> laps;
+    CDateTime startDateTime(0, 0, 0, 0, 0, 0);
+    CDateTime endDateTime(QDateTime::currentDateTime());
+    lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+    if (!laps.isEmpty()) {
+        cplot *plotLapSpeed = new cplot(name + " Lap Speed", cplot::enableAll, NULL);
+        plotLapSpeed->addPoints(laps);
+        plotLapSpeed->show();
+        plotList.append(plotLapSpeed);
+    }
 }
 
 

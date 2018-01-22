@@ -222,6 +222,7 @@ private slots:
     void onNamesTableDoubleClicked(const QModelIndex &);
     void onHelpAbout(bool);
     void cleanExit(bool flag=false);
+    void onActiveRidersTableClearPushButtonClicked(bool);
 };
 
 #endif // MAINWINDOW_H
