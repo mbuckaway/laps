@@ -3,7 +3,7 @@
 # Script to run llrplaps and resolve run-time dependencies.
 #
 
-llrplapspath=/home/icunning/laps/bin
+llrplapspath=/home/sessions/laps/bin
 
 # set default directory to llrplaps bin directory
 
