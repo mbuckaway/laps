@@ -1,0 +1,335 @@
+#!/bin/bash
+#
+# makerelease
+#
+# Script to create linux distribution tar file with release.
+
+
+VERSION="0"
+UPDATE="3"
+RCVERSION=""	# eg "" for release,  "-rc1" for release candidate
+
+QTDIR="/home/icunning/Qt5.7.0/5.7/gcc_64"
+QTLIB="${QTDIR}/lib"
+QTPLUGINS="${QTDIR}/plugins"
+TARBALLROOT="linux"
+EXEC="llrplaps" #-${VERSION}.${UPDATE}"
+RELEASESPARENT="../releases"
+RELEASEDIR="${RELEASESPARENT}/llrplaps"
+TARBALLDIR="${RELEASEDIR}/${TARBALLROOT}/${EXEC}"
+
+LIBRARIES="../libs/linux"
+
+TARFILE="llrplaps-${VERSION}.${UPDATE}${RCVERSION}.tar.gz"
+
+
+
+echo ""
+echo "Creating new release tar file for linux llrplaps-${VERSION}.${UPDATE}${RCVERSION}"
+
+
+echo "RELEASEDIR=${RELEASEDIR}"
+echo "TARBALLDIR=${TARBALLDIR}"
+echo "TARFLE=${TARFILE}"
+
+
+
+# Create release folder if necessary
+
+echo ""
+echo "1. Creating release folder ${RELEASEDIR}..."
+if [ -d ${RELEASEDIR} ]; then
+	echo "already exists"
+else
+	mkdir -pv ${RELEASEDIR}
+	if [ $? != 0 ]; then
+		echo Error terminated script
+		exit 1
+	fi
+	echo "done"
+fi
+
+
+# Create folder that will contain copies of all files going into the tar filename
+
+echo ""
+echo "2. Creating folder for contents of tar file ${TARBALLDIR}..."
+if [ -d ${TARBALLDIR} ]; then
+	echo "already exists"
+else
+	mkdir -pv ${TARBALLDIR}
+	if [ $? != 0 ]; then
+		echo Error terminated script
+		exit 2
+	fi
+	echo "done"
+fi
+
+# echo ""
+echo "2b. Creating folder ${TARBALLDIR}/platforms..."
+if [ -d ${TARBALLDIR}/platforms ]; then
+	echo "already exists"
+else
+	mkdir -pv ${TARBALLDIR}/platforms
+	if [ $? != 0 ]; then
+		echo Error terminated script
+		exit 2
+	fi
+	echo "done"
+fi
+
+echo "2c. Creating folder ${TARBALLDIR}/sqldrivers..."
+if [ -d ${TARBALLDIR}/platforms ]; then
+	echo "already exists"
+else
+	mkdir -pv ${TARBALLDIR}/platforms
+	if [ $? != 0 ]; then
+		echo Error terminated script
+		exit 2
+	fi
+	echo "done"
+fi
+
+
+# Remove old executable versions from release folder
+
+echo ""
+echo "3. Removing old files from releases folder..."
+rm -fv ${TARBALLDIR}/*
+
+
+
+# Copy latest executable to include version
+
+echo ""
+echo "4. Creating copy of new release executable ${EXEC}..."
+#rm -rf ${EXEC}
+#if [ -e ${EXEC} ]; then
+# 	cp -fv ${EXEC} ${EXEC}
+# if [ $? != 0 ]; then
+#   	echo Error terminated script
+#   		exit 4
+#   	fi
+#   else
+#   	echo "${EXEC} executable does not exist in build folder"
+#   	exit 4
+#   fi
+
+
+
+# Copy new executable into release folder
+
+echo ""
+echo "5. Copying new executable into releases folder..."
+cp -v ${EXEC} ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 5
+fi
+
+
+
+# Copy current firmware and misc files into release folder
+
+echo ""
+echo "6. Copying install script and other files into releases folder..."
+#   cp -v ${RELEASESPARENT}/${FIRMWARE3} ${TARBALLDIR}
+#   if [ $? != 0 ]; then
+#     	echo Error terminated script
+#     	exit 6
+#     fi
+#     cp -v ${RELEASESPARENT}/${FIRMWARE4} ${TARBALLDIR}
+#     if [ $? != 0 ]; then
+#       	echo Error terminated script
+#       	exit 6
+#       fi
+#       cp -v ${RELEASESPARENT}/D-64.png ${TARBALLDIR}
+#       if [ $? != 0 ]; then
+#         	echo Error terminated script
+#         	exit 6
+#         fi
+#         cp -v ${RELEASEDIR}/UserManual.pdf ${TARBALLDIR}
+#         if [ $? != 0 ]; then
+#           	echo Error terminated script
+#           	exit 6
+#           fi
+#           cp -v ${RELEASEDIR}/License.rtf ${TARBALLDIR}
+#           if [ $? != 0 ]; then
+#             	echo Error terminated script
+#             	exit 6
+#             fi
+cp -v ${RELEASEDIR}/README.txt ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 6
+fi
+cp -v ${RELEASEDIR}/install ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 6
+fi
+chmod -v +x ${TARBALLDIR}/install
+cp -v ${RELEASEDIR}/${EXEC} ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 6
+fi
+chmod -v +x ${TARBALLDIR}/${EXEC}
+#cp -v ${RELEASEDIR}/DQENano ${TARBALLDIR}
+#if [ $? != 0 ]; then
+# 	echo Error terminated script
+# exit 6
+# fi
+# chmod -v +x ${TARBALLDIR}/DQENano
+
+
+exit
+
+# Copy libraries into release folder
+
+echo ""
+echo "7. Copying libraries into releases folder..."
+#               cp -v ${LIBRARIES}/libfreeimage.so.3 ${TARBALLDIR}
+#               if [ $? != 0 ]; then
+#                 	echo Error terminated script
+#                 	exit 7
+#                 fi
+
+#                 cp -v ${LIBRARIES}/libxl.so ${TARBALLDIR}
+#                 if [ $? != 0 ]; then
+#                   	echo Error terminated script
+#                   	exit 7
+#                   fi
+
+cp -v ${QTLIB}/libQt5PrintSupport.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Svg.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Widgets.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Gui.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Xml.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Network.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Core.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5DBus.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5XcbQpa.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Concurrent.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libQt5Sql.so.5 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libicui18n.so.56 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libicuuc.so.56 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+cp -v ${QTLIB}/libicudata.so.56 ${TARBALLDIR}
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+chmod -x ${TARBALLDIR}/lib*
+if [ $?  != 0 ]; then
+  echo Error terminated script
+  exit 7
+fi
+
+cp -v ${QTPLUGINS}/platforms/libqxcb.so ${TARBALLDIR}/platforms
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+chmod -x ${TARBALLDIR}/platforms/lib*
+if [ $?  != 0 ]; then
+  echo Error terminated script
+  exit 7
+fi
+
+# chmod -x ${TARBALLDIR}/platforms/lib*
+#if [ $?  != 0 ]; then
+#  echo Error terminated script
+#  exit 7
+#fi
+
+cp -v ${QTPLUGINS}/sqldrivers/libqsqlite.so ${TARBALLDIR}/sqldrivers
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 7
+fi
+
+exit
+# Create tar file including update number in tar-file filename
+
+echo ""
+echo "8. Create new release tar file ${TARFILE}..."
+cd ${RELEASEDIR}
+cd ${TARBALLROOT}
+pwd
+tar cvzf ../${TARFILE} --dereference ${DQEPROEXEC}/UserManual.pdf ${DQEPROEXEC}/${DQEPROEXEC} ${DQEPROEXEC}/install ${DQEPROEXEC}/DQEPro ${DQEPROEXEC}/D-64.png ${DQEPROEXEC}/lib* ${DQEPROEXEC}/License.rtf ${DQEPROEXEC}/${FIRMWARE} ${DQEPROEXEC}/README.txt ${DQEPROEXEC}/platforms ${DQEPROEXEC}/sqldrivers
+if [ $? != 0 ]; then
+	echo Error terminated script
+	exit 8
+fi
+
+
+echo ""
+echo "Release file ${RELEASEDIR}/${TARFILE} created successfully."
+
+

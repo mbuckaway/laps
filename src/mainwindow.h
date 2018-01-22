@@ -72,7 +72,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
-    void newTrackTag(const CTagInfo &tagInfo);
+    void newTag(const CTagInfo &tagInfo);
     QList<CRider> purgeTable(void);
 private:
     MainWindow *mainWindow;
@@ -88,9 +88,10 @@ class CLapsTableModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     CLapsTableModel(QObject *parent);
-    bool add(CRider rider);
     QStringList nameList;
     QList<int> lapList;
+    QList<int> readerIdList;
+    QList<int> antennaIdList;
     QStringList timeList;
     QList<long long> timeStampList;
     QList<float> lapSecList;
@@ -104,6 +105,7 @@ public:
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
     void purgeTable(void);
+    void newTag(CRider rider);
 private:
     MainWindow *mainWindow;
 private slots:

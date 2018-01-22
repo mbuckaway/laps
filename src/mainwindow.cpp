@@ -60,9 +60,11 @@
 #define LT_NAME             1
 #define LT_DATETIME         2
 #define LT_LAPCOUNT         3
-#define LT_LAPTIME          4
-#define LT_LAPSPEED         5
-#define LT_COMMENT          6
+#define LT_READER           4
+#define LT_ANTENNA          5
+#define LT_LAPTIME          6
+#define LT_LAPSPEED         7
+#define LT_COMMENT          8
 
 
 // Column widths in each table
@@ -78,6 +80,8 @@
 #define CW_CAREGISTRATION   80
 #define CW_EMAIL            80
 #define CW_INDEX            50
+#define CW_ANTENNA          60
+#define CW_READER           60
 
 
 // Personal records to note (?):
@@ -367,7 +371,7 @@ int CLapsTableModel::rowCount(const QModelIndex &/*parent*/) const {
 
 
 int CLapsTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 7;
+    return 9;
 }
 
 
@@ -378,6 +382,8 @@ bool CLapsTableModel::insertRows(int position, int count, const QModelIndex &/*p
     for (int row=0; row<count; row++) {
         nameList.insert(position, QString());
         lapList.insert(position, 0);
+        readerIdList.insert(position, 0);
+        antennaIdList.insert(position, 0);
         timeList.insert(position, QString());
         timeStampList.insert(position, 0);
         lapSecList.insert(position, 0.);
@@ -397,6 +403,8 @@ bool CLapsTableModel::removeRows(int position, int count, const QModelIndex &/*p
     for (int i=0; i<count; i++) {
         nameList.removeAt(position);
         lapList.removeAt(position);
+        readerIdList.removeAt(position);
+        antennaIdList.removeAt(position);
         timeList.removeAt(position);
         timeStampList.removeAt(position);
         lapSecList.removeAt(position);
@@ -430,6 +438,10 @@ QVariant CLapsTableModel::data(const QModelIndex &index, int role) const {
             return timeList[row];
         case LT_LAPCOUNT:
             return lapList[row];
+        case LT_READER:
+            return readerIdList[row];
+        case LT_ANTENNA:
+            return antennaIdList[row];
         case LT_LAPTIME:
             if (lapSecList[row] == 0.) return QString();
             else return lapSecList[row];
@@ -472,6 +484,10 @@ QVariant CLapsTableModel::headerData(int section, Qt::Orientation orientation, i
                 return QString("Time");
             case LT_LAPCOUNT:
                 return QString("Lap");
+            case LT_READER:
+                return QString("Reader");
+            case LT_ANTENNA:
+                return QString("Antenna");
             case LT_LAPTIME:
                 return QString("Lap Sec");
             case LT_LAPSPEED:
@@ -494,7 +510,7 @@ Qt::ItemFlags CLapsTableModel::flags(const QModelIndex &index) const {
 
 
 
-bool CLapsTableModel::add(CRider rider) {
+void CLapsTableModel::newTag(CRider rider) {
     QString time = QTime::currentTime().toString();
     float speed = 0.;
     if (rider.lapSec > 0.) speed = rider.lapM / rider.lapSec / 1000. * 3600.;
@@ -519,11 +535,15 @@ bool CLapsTableModel::add(CRider rider) {
         lapList[row] = rider.lapCount;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
+        readerIdList[row] = rider.readerId;
+        antennaIdList[row] = rider.antennaId;
         lapSecList[row] = rider.lapSec;
         lapSpeedList[row] = speed;
     }
     else {
         lapList[row] = rider.lapCount;
+        readerIdList[row] = rider.readerId;
+        antennaIdList[row] = rider.antennaId;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
         lapSecList[row] = 0.;
@@ -550,8 +570,6 @@ bool CLapsTableModel::add(CRider rider) {
         commentList[row] = QString("unknown lap type");
         break;
     }
-
-    return true;
 }
 
 
@@ -819,7 +837,7 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 // Tags are assumed to be from valid read events (already filtered for uninitialized antennas), but may be
 // a null tag (used to update tables).
 
-void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
+void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
     try {
         bool nullTag = tagInfo.tagId.isEmpty();
 
@@ -882,7 +900,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         case CRider::firstCrossing:
 
-            // In first lap try getting name and prior stats from dbases
+            // On first crossing, try getting name and prior stats from dbases
 
             id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
             if (id > 0) {
@@ -914,7 +932,7 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
 
         case CRider::regularCrossing:
 
-            // In riding lap update lap stats and thisMonth stats
+            // On regular crossing, update lap stats and thisMonth stats
 
             lapSec = (float)(tagInfo.timeStampUSec - rider->previousTimeStampUSec) / 1.e6;
 
@@ -994,6 +1012,11 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
             break;
         }
 
+
+        // Update members of rider that change with each lap
+
+        rider->readerId = tagInfo.readerId;
+        rider->antennaId = tagInfo.antennaId;
         rider->previousTimeStampUSec = tagInfo.timeStampUSec;
 
 
@@ -1011,9 +1034,8 @@ void CActiveRidersTableModel::newTrackTag(const CTagInfo &tagInfo) {
         }
 
 
-        // Add to lapsTableView
+        mainWindow->lapsTableModel->newTag(*rider);
 
-        mainWindow->lapsTableModel->add(*rider);
 
         // lapCount is total laps all riders
 
@@ -1089,7 +1111,7 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersProxyModel = NULL;
     logFile = NULL;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.3");
+    QCoreApplication::setApplicationVersion("0.4");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1287,6 +1309,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->lapsTableView->setColumnWidth(LT_TIMESTAMP, CW_TIMESTAMP);
     ui->lapsTableView->setColumnWidth(LT_NAME, CW_NAME);
     ui->lapsTableView->setColumnWidth(LT_LAPCOUNT, CW_LAPCOUNT);
+    ui->lapsTableView->setColumnWidth(LT_READER, CW_READER);
+    ui->lapsTableView->setColumnWidth(LT_ANTENNA, CW_ANTENNA);
     ui->lapsTableView->setColumnWidth(LT_DATETIME, CW_DATETIME);
     ui->lapsTableView->setColumnWidth(LT_LAPTIME, CW_SPEED);
     ui->lapsTableView->setColumnWidth(LT_LAPSPEED, CW_SPEED);
@@ -1394,9 +1418,9 @@ MainWindow::MainWindow(QWidget *parent) :
     // and 1 desk reader.
 
     int readerCounter = 0;
-    trackReader = new CReader(ui->trackReaderIpLineEdit->text(), readerCounter++, CReader::track);
+    trackReader = new CReader(ui->trackReaderIpLineEdit->text(), ++readerCounter, CReader::track);
 
-    deskReader = new CReader(ui->deskReaderIpLineEdit->text(), readerCounter++, CReader::desk);
+    deskReader = new CReader(ui->deskReaderIpLineEdit->text(), ++readerCounter, CReader::desk);
 
 
     // Move CReader objects to separate threads and start
@@ -1479,6 +1503,9 @@ void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
 
 
 void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
+
+//    qDebug() << index.row() << activeRidersProxyModel->index(index.row(), index.column());
+
     QString name = index.data().toString();
     int tableIndex = -1;
     for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
@@ -2145,12 +2172,10 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
         return;
     }
 
-    // Process tag
+    // Process tag (lapsTable updated from activeRidersTable)
 
-    activeRidersTableModel->newTrackTag(tagInfo);
-
-//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->data(activeRidersTableModel->index(0,3)).toString();
-//    qDebug() << activeRidersTableModel->rowCount() << activeRidersTableModel->  data(activeRidersTableModel->index(0,3)).toString();
+    //lapsTableModel->add(*rider);
+    activeRidersTableModel->newTag(tagInfo);
 
 }
 
@@ -2409,7 +2434,16 @@ void MainWindow::onDbaseReadPushButtonClicked(bool state) {
 
 
 void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
-    if (tagInfo.antennaId <= 0) return;
+    QString s;
+
+    // Add string to messages window
+
+    if (ui->detailedMessagesCheckBox->isChecked())
+        onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
+
+    if (tagInfo.antennaId <= 0)
+        return;
+
     deskReader->blockSignals(true);
     onDbaseClearPushButtonClicked();
     ui->deskTagIdLineEdit->setText(tagInfo.tagId);
@@ -2495,9 +2529,9 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskSearchPushButton->setEnabled(false);
 
 
-    // Add is enabled when all fields are filled, tagInDbase is false, and with email optional
+    // Add is enabled when all fields (except firstname) are filled, tagInDbase is false, and with email optional
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !tagInDbase)
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !tagInDbase)
         ui->deskAddPushButton->setEnabled(true);
 
     else
@@ -2513,18 +2547,18 @@ void MainWindow::updateDbaseButtons(void) {
         ui->deskClearPushButton->setEnabled(false);
 
 
-    // Remove is enabled when tadId and first name and last name are filled, and tagInDbase is true
+    // Remove is enabled when tadId and last name are filled, and tagInDbase is true
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && tagInDbase)
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && tagInDbase)
         ui->deskRemovePushButton->setEnabled(true);
 
     else
         ui->deskRemovePushButton->setEnabled(false);
 
 
-    // Update is enabled when all fields (email optional) are filled, and tagInDbase is true and entryChanged is true
+    // Update is enabled when all fields (firstname and email optional) are filled, and tagInDbase is true and entryChanged is true
 
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase && entryEdited)
+    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase && entryEdited)
         ui->deskUpdatePushButton->setEnabled(true);
 
     else

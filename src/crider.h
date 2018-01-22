@@ -21,7 +21,7 @@ public:
 };
 
 
-class CRider {//: public CStats {
+class CRider {
 public:
     enum lap_t {unknown=0, firstCrossing=1, regularCrossing=2, onBreak=3, firstCrossingAfterBreak=4};
     CRider(void);
@@ -47,6 +47,8 @@ public:
     lap_t nextLapType;
     int reportStatus;       // 0 if lap should not be included in email report, 1 if it should
     bool inDbase;
+    int readerId;
+    int antennaId;
 };
 
 

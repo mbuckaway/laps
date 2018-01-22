@@ -42,6 +42,8 @@ void CRider::clear(void) {
     lapCount = 0;
     lapSec = 0.;
     lapM = 0.;
+    readerId = 0;
+    antennaId = 0;
     totalSec = 0.;
     totalM = 0.;
     bestLapSec = 0.;
