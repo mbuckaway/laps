@@ -669,6 +669,8 @@ CLapsDbase::CLapsDbase(void) {
     errorVal = 0;
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
+
+    allTimeBestLapKph = 0.;
 }
 
 
@@ -898,6 +900,14 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
     }
 
+    // Read through all databases and calculate bests
+
+    QList<CLapInfo> laps;
+    getLapInfo(QString(), QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
+//    qDebug() << laps.size();
+//    for (int i=0; i<laps.size(); i++) {
+//        qDebug() << laps[i].;
+//    }
     return 0;
 }
 
@@ -958,10 +968,17 @@ int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, cons
     }
 
     QSqlQuery query(dBase);
-    query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
-    query.bindValue(":tagId", tagId);
-    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
-    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
+    if (tagId.isEmpty()) {
+        query.prepare("SELECT * FROM lapsTable WHERE dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+        query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+        query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
+    }
+    else {
+        query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+        query.bindValue(":tagId", tagId);
+        query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+        query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
+    }
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
         errorVal = 3;

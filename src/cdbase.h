@@ -116,6 +116,8 @@ public:
     QString errorText(void);
     QSqlDatabase dBase;
     QList<QSqlDatabase> dBasePriorList;
+    float allTimeBestLapKph;
+    QString allTimeBestLapKphName;
 private:
     QString errorTextVal;
     int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps);
