@@ -740,7 +740,9 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
             float lapSec = query.value(idLapSec).toFloat();
             float lapM = query.value(idLapM).toFloat();
             int reportStatus = query.value(idReportStatus).toInt();
-            qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime.toUInt(), dateTime.year(), dateTime.month(), dateTime.day(), dateTime.hour(), dateTime.minute(), dateTime.second(), lapSec, lapM, reportStatus);
+            if (query.value(idTagId).toString() == "201600000002") {
+                qDebug("id=%d tagId=%s dateTime=%u (%d %d %d %d %d %d) lapSec=%f lapM=%f reportStatus=%d", query.value(id).toInt(), query.value(idTagId).toString().toLatin1().data(), dateTime.toUInt(), dateTime.year(), dateTime.month(), dateTime.day(), dateTime.hour(), dateTime.minute(), dateTime.second(), lapSec, lapM, reportStatus);
+            }
         }
     }
 
@@ -805,8 +807,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     }
 
-
-    // Open previous year dbase (first entry in dBasePriorList) if it exists
+    // If previous year dbase (first entry in dBasePriorList) exists, open and calculate totals if required
 
     if (dBasePriorList.size() > 0) {
 
@@ -877,7 +878,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
                 lapMTotal[i] += lapMPrior;
             }
 
-            // Add these priors to the current-year priorsTable
+            // Write these priors to the current-year priorsTable
 
             for (int i=0; i<tagIdList.size(); i++) {
                 query.prepare("INSERT INTO priorsTable (tagId, name, lapCount, lapSecTotal, lapMTotal) VALUES (:tagId, :name, :lapCount, :lapSecTotal, :lapMTotal)");
@@ -916,7 +917,7 @@ void CLapsDbase::close(void) {
 // addLap
 // Add lap database
 //
-int CLapsDbase::addLap(const CRider &rider, const CDateTime &dateTime) {
+int CLapsDbase::addLap(const CRider &rider, const QDateTime &dateTime) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -929,7 +930,7 @@ int CLapsDbase::addLap(const CRider &rider, const CDateTime &dateTime) {
     QSqlQuery query(dBase);
     query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm, reportStatus) VALUES (:tagId, :dateTime, :lapsec, :lapm, :reportStatus)");
     query.bindValue(":tagId", rider.tagId);
-    query.bindValue(":dateTime", dateTime.toUInt());
+    query.bindValue(":dateTime", CDateTime(dateTime).toUInt());
     query.bindValue(":lapsec", rider.lapSec);
     query.bindValue(":lapm", rider.lapM);
     query.bindValue(":reportStatus", rider.reportStatus);
@@ -1097,6 +1098,10 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
         return errorVal;
     }
 
+    rider->thisMonth.clear();
+    rider->lastMonth.clear();
+    rider->allTime.clear();
+
     QDateTime dateTime(QDateTime::currentDateTime());
     int thisMonthYear = dateTime.date().year();
     int thisMonthMonth = dateTime.date().month();
@@ -1104,16 +1109,13 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     int lastMonthYear = lastMonthDateTime.date().year();
     int lastMonthMonth = lastMonthDateTime.date().month();
 
-    rider->thisMonth.clear();
-    rider->lastMonth.clear();
-    rider->allTime.clear();
-
     // Get stats for this month
 
     CDateTime dateTimeStart(thisMonthYear, thisMonthMonth, 0, 0, 0, 0);
     CDateTime dateTimeEnd(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
 
     errorVal = getStats(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->thisMonth);
+//    qDebug() << "rc=" << errorVal << rider->tagId << "thisMonth M S =" << rider->thisMonth.totalM << rider->thisMonth.totalSec;
     if (errorVal) return errorVal;
 
     // Get stats for last month
@@ -1151,13 +1153,29 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 
 
 
-// Get stats for period from specified database
+// Get stats from all database files for specified tag and period
 //
 int CLapsDbase::getStats(const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, CStats *stats) {
-    if (dBasePriorList.size() > 0)
-        return getStats(dBase, tagId, start, end, reportStatus, stats);
-    else
-        return 0;
+    stats->clear();
+    int rc = getStats(dBase, tagId, start, end, reportStatus, stats);
+    if (rc > 0) return rc;
+    for (int i=0; i<dBasePriorList.size(); i++) {
+        CStats newStats;
+        rc = getStats(dBasePriorList[i], tagId, start, end, reportStatus, &newStats);
+        if (rc > 0) return rc;
+        stats->lapCount += newStats.lapCount;
+        stats->totalM += newStats.totalM;
+        stats->totalSec += newStats.totalSec;
+        float statsSpeed = 0.;
+        if (stats->bestLapSec > 0.) statsSpeed = stats->bestLapM / 1000. / stats->bestLapSec * 3600.;
+        float newSpeed = 0.;
+        if (newStats.bestLapSec > 0.) newSpeed = newStats.bestLapM / 1000. / newStats.bestLapSec * 3600.;
+        if (newSpeed > statsSpeed) {
+            stats->bestLapM = newStats.bestLapM;
+            stats->bestLapSec = newStats.bestLapSec;
+        }
+    }
+    return 0;
 }
 
 

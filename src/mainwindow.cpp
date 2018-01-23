@@ -900,7 +900,7 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
 
         case CRider::firstCrossing:
 
-            // On first crossing, try getting name and prior stats from dbases
+            // On first crossing, try getting name from dbases
 
             id = mainWindow->membershipDbase.getIdFromTagId(tagInfo.tagId);
             if (id > 0) {
@@ -913,15 +913,12 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                     rider->name = info.firstName + " " + info.lastName;
                 if (info.sendReports && !info.eMail.isEmpty())
                     rider->reportStatus = 1;
-
-                // Get stats
-
-                mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
             }
             else {
                 rider->inDbase = false;
                 rider->name.clear();
             }
+
             rider->lapCount = 0;
             rider->lapSec = 0.;
             rider->lapM = 0.;
@@ -930,6 +927,44 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
             rider->totalSec = 0.;
             rider->totalM = 0.;
             rider->tagId = tagInfo.tagId;
+
+            // If rider is in dBase, get past stats
+
+            if (rider->inDbase) {
+                mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
+            }
+
+                // Check to see if there are any laps in dBase from current workout (will happen if application is
+                // stopped and restarted)
+
+        {
+                QList<CLapInfo> lapsInWorkout;
+                QDateTime now(QDateTime::currentDateTime());
+                CDateTime end(now);
+                CDateTime start(now.addSecs(-3 * 3600));
+                mainWindow->lapsDbase.getLapInfo(rider->tagId, start, end, &lapsInWorkout);
+
+                // Loop through laps and update current rider info
+
+                float bestSpeed = 0.;
+                if (rider->bestLapSec > 0.) {
+                    bestSpeed = rider->bestLapM / 1000. / rider->bestLapSec * 3600.;
+                }
+                for (int i=0; i<lapsInWorkout.size(); i++) {
+                    rider->lapCount++;
+                    rider->totalM += lapsInWorkout[i].lapM;
+                    rider->totalSec += lapsInWorkout[i].lapSec;
+                    float speed = 0.;
+                    if (lapsInWorkout[i].lapSec > 0.) {
+                        speed = lapsInWorkout[i].lapM / 1000. / lapsInWorkout[i].lapSec * 3600.;
+                    }
+                    if (speed > bestSpeed) {
+                        rider->bestLapM = lapsInWorkout[i].lapM;
+                        rider->bestLapSec = lapsInWorkout[i].lapSec;
+                    }
+                }
+            }
+
             rider->nextLapType = CRider::regularCrossing;
             break;
 
@@ -1032,8 +1067,7 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
 
         if (rider->lapType == CRider::regularCrossing) {
             QDateTime currentDateTime(QDateTime::currentDateTime());
-            CDateTime dateTime(currentDateTime.date().year(), currentDateTime.date().month(), currentDateTime.date().day(), currentDateTime.time().hour(), currentDateTime.time().minute(), currentDateTime.time().second());
-            mainWindow->lapsDbase.addLap(*rider, dateTime);
+            mainWindow->lapsDbase.addLap(*rider, currentDateTime);
         }
 
 
@@ -1278,7 +1312,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     // lapsDbase contains a record of all laps for all riders.
-    // Each file contains data for one year.
+    // Each file contains data for one year.  Each file consists of two database tables.  The first is
+    // lapsTable and keeps track of laps as they are recorded.  The second is priorsTable and contains a
+    // summary of totals from all previous years, exclusive of laps in lapsTable.
 
     QString lapsDbaseRootName(dataDir.absolutePath() + "/laps");
     QString lapsDbaseUserName("fcv");
@@ -1972,8 +2008,8 @@ void MainWindow::prepareNextReport(void) {
 
         // Stats for entire day
 
-        CDateTime reportPeriodStart(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
-        CDateTime reportPeriodEnd(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
+        QDateTime reportPeriodStart(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
+        QDateTime reportPeriodEnd(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
         CStats statsForDay;
         int rc = lapsDbase.getStats(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
