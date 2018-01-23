@@ -950,7 +950,7 @@ int CLapsDbase::addLap(const CRider &rider, const QDateTime &dateTime) {
 // Appends CLapInfo list with information from each lap within specified period from specfied database for
 // specified tagId
 //
-int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps) {
+int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps) {
     if (!dBase.isOpen()) {
         errorTextVal = dBase.databaseName() + " closed in getLapInfo";
         errorVal = 2;
@@ -960,8 +960,8 @@ int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, cons
     QSqlQuery query(dBase);
     query.prepare("SELECT * FROM lapsTable WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
-    query.bindValue(":dateTimeStart", start.toUInt());
-    query.bindValue(":dateTimeEnd", end.toUInt());
+    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
         errorVal = 3;
@@ -1001,7 +1001,7 @@ int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, cons
 // getLapInfo()
 // Fill ClapsInfo list for all laps in all database files within specified period for specfied tagId
 //
-int CLapsDbase::getLapInfo(const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps) {
+int CLapsDbase::getLapInfo(const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps) {
     laps->clear();
 
     // Look through list of dBases and get lap info from any within time period
@@ -1104,37 +1104,29 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     rider->lastMonth.clear();
     rider->allTime.clear();
 
-    QDateTime dateTime(QDateTime::currentDateTime());
-    int thisMonthYear = dateTime.date().year();
-    int thisMonthMonth = dateTime.date().month();
-    QDateTime lastMonthDateTime(dateTime.addMonths(-1));
-    int lastMonthYear = lastMonthDateTime.date().year();
-    int lastMonthMonth = lastMonthDateTime.date().month();
+    QDate thisMonth(QDate::currentDate());
+    QDate lastMonth(thisMonth.addMonths(-1));
 
     // Get stats for this month
 
-    CDateTime dateTimeStart(thisMonthYear, thisMonthMonth, 0, 0, 0, 0);
-    CDateTime dateTimeEnd(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
+    QDateTime dateTimeStart(QDate(thisMonth.year(), thisMonth.month(), 1), QTime(0, 0, 0));
 
-    errorVal = getStats(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->thisMonth);
-//    qDebug() << "rc=" << errorVal << rider->tagId << "thisMonth M S =" << rider->thisMonth.totalM << rider->thisMonth.totalSec;
+    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->thisMonth);
     if (errorVal) return errorVal;
 
     // Get stats for last month
 
-    dateTimeStart = CDateTime(lastMonthYear, lastMonthMonth, 0, 0, 0, 0);
-    dateTimeEnd = CDateTime(lastMonthYear, lastMonthMonth, 31, 24, 0, 0);
+    dateTimeStart = QDateTime(QDate(lastMonth.year(), lastMonth.month(), 1), QTime(0, 0, 0));
 
-    errorVal = getStats(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->lastMonth);
+    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->lastMonth);
     if (errorVal) return errorVal;
 
 
     // Get stats for all time
 
-    dateTimeStart = CDateTime(0, 0, 0, 0, 0, 0);
-    dateTimeEnd = CDateTime(thisMonthYear, thisMonthMonth, 31, 24, 0, 0);
+    dateTimeStart = QDateTime::currentDateTime().addYears(-100);
 
-    errorVal = getStats(tagId, dateTimeStart, dateTimeEnd, CLapsDbase::reportAny, &rider->allTime);
+    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->allTime);
     if (errorVal)
         return errorVal;
 
@@ -1157,14 +1149,15 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 
 // Get stats from all database files for specified tag and period
 //
-int CLapsDbase::getStats(const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, CStats *stats) {
+int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats) {
     stats->clear();
     int rc = getStats(dBase, tagId, start, end, reportStatus, stats);
     if (rc > 0) return rc;
     for (int i=0; i<dBasePriorList.size(); i++) {
         CStats newStats;
         rc = getStats(dBasePriorList[i], tagId, start, end, reportStatus, &newStats);
-        if (rc > 0) return rc;
+        if (rc > 0)
+            return rc;
         stats->lapCount += newStats.lapCount;
         stats->totalM += newStats.totalM;
         stats->totalSec += newStats.totalSec;
@@ -1185,7 +1178,7 @@ int CLapsDbase::getStats(const QString &tagId, const CDateTime &start, const CDa
 
 // Get stats from specified dbase for specified tagId and time period
 //
-int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &dateTimeStart, const CDateTime &dateTimeEnd, reportStatus_t reportStatus, CStats *stats) {
+int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &dateTimeStart, const QDateTime &dateTimeEnd, reportStatus_t reportStatus, CStats *stats) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -1195,15 +1188,11 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
         return errorVal;
     }
 
-    if (dateTimeStart.toUInt() > dateTimeEnd.toUInt()) {
+    if (dateTimeStart > dateTimeEnd) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
         errorVal = 3;
         return errorVal;
     }
-
-    // Determine minimum time difference in dateTimeInt that separates workouts
-
-    unsigned int workoutDateTimeSeparation = CDateTime(2000, 0, 0, 12, 0, 0).toUInt() - CDateTime(2000, 0, 0, 0, 0, 0).toUInt();
 
     QSqlQuery query(dBase);
     if (reportStatus == reportPending) {
@@ -1214,8 +1203,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     }
     query.bindValue(":tagId", tagId);
     query.bindValue(":reportStatus", CLapsDbase::reportPending);
-    query.bindValue(":dateTimeStart", dateTimeStart.toUInt());
-    query.bindValue(":dateTimeEnd", dateTimeEnd.toUInt());
+    query.bindValue(":dateTimeStart", CDateTime(dateTimeStart).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(dateTimeEnd).toUInt());
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
         errorVal = 3;
@@ -1248,7 +1237,7 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
 
     float localBestLapSec = -1.;
     float localBestLapM = 0.;
-    unsigned int previousDateTime = 0;
+    QDateTime previousLapDateTime = QDateTime::currentDateTime().addYears(-100);
     int localWorkoutCount = 0;
     int localLapCount = 0;
     float localTotalSec = 0.;
@@ -1256,7 +1245,7 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     while (query.next()) {
         float lapSec = query.value(lapsecIndex).toFloat();
         float lapM = query.value(lapmIndex).toFloat();
-        unsigned int dateTime = query.value(dateTimeIndex).toUInt();
+        QDateTime lapDateTime = CDateTime(query.value(dateTimeIndex).toUInt()).toQDateTime();
         if (localBestLapSec <= 0.) {
             localBestLapSec = lapSec;
             localBestLapM = lapM;
@@ -1268,11 +1257,10 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
         localTotalSec += lapSec;
         localLapCount++;
         localTotalM += lapM;
-        unsigned int dateTimeDif = dateTime - previousDateTime;
-        if (dateTimeDif > workoutDateTimeSeparation) {
+        if (previousLapDateTime.secsTo(lapDateTime) > (4 * 3600)) {
             localWorkoutCount++;
         }
-        previousDateTime = dateTime;
+        previousLapDateTime = lapDateTime;
     }
 
     stats->lapCount = localLapCount;
@@ -1345,7 +1333,7 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
 
 // Set reportStatus for specified tagId and time period
 //
-int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagId, const CDateTime &start, const CDateTime &end) {
+int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagId, const QDateTime &start, const QDateTime &end) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -1355,7 +1343,7 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
         return errorVal;
     }
 
-    if (start.toUInt() > end.toUInt()) {
+    if (start > end) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
         errorVal = 3;
         return errorVal;
@@ -1365,8 +1353,8 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
     query.prepare("UPDATE lapsTable SET reportStatus = :reportStatus WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
     query.bindValue(":reportStatus", reportStatus);
-    query.bindValue(":dateTimeStart", start.toUInt());
-    query.bindValue(":dateTimeEnd", end.toUInt());
+    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
     if (!query.exec()) {
         errorTextVal = "Could not update database.";
         return 4;
@@ -1379,7 +1367,7 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
 
 // Get stats for specified tagId and time period from dbase
 //
-int CLapsDbase::getLaps(const QString &tagId, const CDateTime &start, const CDateTime &end, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {
+int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDateTime &end, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {
     errorTextVal.clear();
     errorVal = 0;
 
@@ -1389,7 +1377,7 @@ int CLapsDbase::getLaps(const QString &tagId, const CDateTime &start, const CDat
         return errorVal;
     }
 
-    if (start.toUInt() > end.toUInt()) {
+    if (start > end) {
         errorTextVal = "dateTimeStart > dateTimeEnd in getLapsInPeriod";
         errorVal = 3;
         return errorVal;
@@ -1398,8 +1386,8 @@ int CLapsDbase::getLaps(const QString &tagId, const CDateTime &start, const CDat
     QSqlQuery query(dBase);
     query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
-    query.bindValue(":dateTimeStart", start.toUInt());
-    query.bindValue(":dateTimeEnd", end.toUInt());
+    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
     query.bindValue(":reportStatus", reportStatus);
     if (!query.exec()) {
         errorTextVal = query.lastError().text();

@@ -836,8 +836,9 @@ Qt::ItemFlags CActiveRidersTableModel::flags(const QModelIndex &index) const {
 // This routine processes each tag as it arrives, calculating lap times, speed etc.
 // Tags are assumed to be from valid read events (already filtered for uninitialized antennas), but may be
 // a null tag (used to update tables).
+// Returns pointer to entry in activeRidersList.
 
-void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
+CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
     try {
         bool nullTag = tagInfo.tagId.isEmpty();
 
@@ -853,7 +854,7 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                     setData(createIndex(i, 0), 0, Qt::EditRole);
                 }
             }
-            return;
+            return NULL;
         }
 
 
@@ -934,15 +935,12 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
             }
 
-                // Check to see if there are any laps in dBase from current workout (will happen if application is
-                // stopped and restarted)
+            // Check to see if there are any laps in dBase from current workout (will happen if application is
+            // stopped and restarted)
 
-        {
+            {
                 QList<CLapInfo> lapsInWorkout;
-                QDateTime now(QDateTime::currentDateTime());
-                CDateTime end(now);
-                CDateTime start(now.addSecs(-3 * 3600));
-                mainWindow->lapsDbase.getLapInfo(rider->tagId, start, end, &lapsInWorkout);
+                mainWindow->lapsDbase.getLapInfo(rider->tagId, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), &lapsInWorkout);
 
                 // Loop through laps and update current rider info
 
@@ -1015,16 +1013,6 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                 }
                 rider->nextLapType = CRider::regularCrossing;
             }
-
-//            // Check for session bests
-
-//            if (rider->lapSec > 0.) {
-//                float lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
-//                if (lapSpeed > mainWindow->bestLapSpeedInSession)
-//                    mainWindow->bestLapSpeedInSession = lapSpeed;
-//            }
-//            if (rider->lapCount > mainWindow->bestLapCountInSession)
-//                mainWindow->bestLapCountInSession = rider->lapCount;
             break;
 
         case CRider::onBreak:
@@ -1078,15 +1066,18 @@ void CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
 
         QString s;
         mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
+
+        return rider;
     }
 
     catch (const QString &s) {
         mainWindow->guiCritical(s);
+        return NULL;
     }
     catch (const char *p) {
         mainWindow->guiCritical(QString(*p));
+        return NULL;
     }
-
 }
 
 
@@ -1147,8 +1138,16 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersTableModel = NULL;
     activeRidersProxyModel = NULL;
     logFile = NULL;
+    trackAllTimeBestLapS = 0.;
+    trackAllTimeBestLapKmph = 0.;
+    trackAllTimeBestKS = 0.;
+    trackMonthBestLapS = 0.;
+    trackMonthBestLapKmph = 0.;
+    trackMonthBestKS = 0.;
+    trackSessionBestLapKmph = 0.;
+    trackSessionBestLapS = 0.;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.4");
+    QCoreApplication::setApplicationVersion("0.5");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1569,8 +1568,6 @@ void MainWindow::onActiveRidersTableClicked(const QModelIndex &index) {
 
 void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
 
-    //qDebug() << index.row() << ui->activeRidersTableView->itemDelegate()->  //index(index.row(), index.column());
-
     // Check whether name is in activeRidersTable - if yes, get tagId and show plot
 
     QString tagId;
@@ -1584,14 +1581,12 @@ void MainWindow::onActiveRidersTableDoubleClicked(const QModelIndex &index) {
     }
     if (tableIndex >= 0) {
         tagId = activeRidersTableModel->activeRidersList[tableIndex].tagId;
-        CDateTime startDateTime(0, 0, 0, 0, 0, 0);
-        CDateTime endDateTime(QDateTime::currentDateTime());
 
 //        CPlotForm *plotForm = new CPlotForm();
 //        plotForm->show();
 
         QList<CLapInfo> laps;
-        lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+        lapsDbase.getLapInfo(tagId, QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
         cplot *plotLapSpeed = new cplot(activeRidersTableModel->activeRidersList[tableIndex].name + " Lap Speed", cplot::enableAll, NULL);
         plotLapSpeed->addPoints(laps);
         plotLapSpeed->addHiddenPoint(QDateTime::currentDateTime(), 0.);
@@ -1640,9 +1635,7 @@ void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
     // Search dbase for tagId and plot if found
 
     QList<CLapInfo> laps;
-    CDateTime startDateTime(0, 0, 0, 0, 0, 0);
-    CDateTime endDateTime(QDateTime::currentDateTime());
-    lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+    lapsDbase.getLapInfo(tagId, QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
     if (!laps.isEmpty()) {
         cplot *plotLapSpeed = new cplot(name + " Lap Speed", cplot::enableAll, NULL);
         plotLapSpeed->addPoints(laps);
@@ -1665,11 +1658,8 @@ void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
     CMembershipInfo info;
     membershipDbase.getAllFromId(id, &info);
 
-    CDateTime startDateTime(0, 0, 0, 0, 0, 0);
-    CDateTime endDateTime(QDateTime::currentDateTime());
-
     QList<CLapInfo> laps;
-    lapsDbase.getLapInfo(tagId, startDateTime, endDateTime, &laps);
+    lapsDbase.getLapInfo(tagId, QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
     cplot *plot = new cplot(info.firstName + " " + info.lastName);
     plot->addPoints(laps);
     plot->addHiddenPoint(QDateTime::currentDateTime(), 0.);
@@ -2008,8 +1998,8 @@ void MainWindow::prepareNextReport(void) {
 
         // Stats for entire day
 
-        QDateTime reportPeriodStart(reportDate.year(), reportDate.month(), reportDate.day(), 0, 0, 0);
-        QDateTime reportPeriodEnd(reportDate.year(), reportDate.month(), reportDate.day(), 24, 0, 0);
+        QDateTime reportPeriodStart(reportDate, QTime(0, 0, 0));
+        QDateTime reportPeriodEnd(reportDate.addDays(1), QTime(0, 0, 0));
         CStats statsForDay;
         int rc = lapsDbase.getStats(memberToReport->tagId, reportPeriodStart, reportPeriodEnd, CLapsDbase::reportAny, &statsForDay);
         if (rc != 0) {
@@ -2029,8 +2019,8 @@ void MainWindow::prepareNextReport(void) {
                     QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
                     QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
                     sessionEndTime.addSecs(-1);
-                    CDateTime sessionStart(reportDate.year(), reportDate.month(), reportDate.day(), sessionStartTime.hour(), sessionStartTime.minute(), sessionStartTime.second());
-                    CDateTime sessionEnd(reportDate.year(), reportDate.month(), reportDate.day(), sessionEndTime.hour(), sessionEndTime.minute(), sessionEndTime.second());
+                    QDateTime sessionStart(reportDate, sessionStartTime);
+                    QDateTime sessionEnd(reportDate, sessionEndTime);
                     CStats stats;
                     rc = lapsDbase.getStats(memberToReport->tagId, sessionStart, sessionEnd, CLapsDbase::reportAny, &stats);
                     statsForSession.append(stats);
@@ -2278,7 +2268,23 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Process tag (lapsTable updated from activeRidersTable)
 
-    activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
+    CRider *rider = activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
+    if (rider) {
+        float kph = 0.;
+        if (rider->lapSec > 0.)
+            kph = rider->lapM / 1000. / rider->lapSec * 3600.;
+        if (!rider->name.isEmpty()) {
+            if (kph > trackSessionBestLapKmph) {
+                trackSessionBestLapKmph = kph;
+                trackSessionBestLapKmphName = rider->name;
+                ui->sessionBestLapLineEdit->setText(rider->name + s.sprintf(" (%.2f km/h)", kph));
+            }
+            if (kph > trackAllTimeBestLapKmph) {
+                trackAllTimeBestLapKmph = kph;
+                trackAllTimeBestLapKmphName = rider->name;
+            }
+        }
+    }
 
 }
 

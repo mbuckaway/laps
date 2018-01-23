@@ -52,6 +52,9 @@ private:
 
 
 
+// CDateTime
+// Format for dateTime used in database where dateTime is encoded into a single unsigned int (32 bits)
+//
 class CDateTime {
 public:
     CDateTime(int year, int month, int day, int hour, int minute, int second);
@@ -104,19 +107,19 @@ public:
     int getLap(int id, QString *tagId, CLapInfo *lapInfo=NULL);
     int getStats(const QString &tagId, CRider *rider);
     int getStats(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats);
-    int setReportStatus(reportStatus_t reportStatus, const QString &tagId, const CDateTime &start, const CDateTime &end);
-    int getLaps(const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, QList<int> *lapsList);
+    int setReportStatus(reportStatus_t reportStatus, const QString &tagId, const QDateTime &start, const QDateTime &end);
+    int getLaps(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, QList<int> *lapsList);
     int error(void);
     bool isOpen(void);
-    int getLapInfo(const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps);
+    int getLapInfo(const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps);
     QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;
     QList<QSqlDatabase> dBasePriorList;
 private:
     QString errorTextVal;
-    int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &start, const CDateTime &end, QList<CLapInfo> *laps);
-    int getStats(const QSqlDatabase &dBase, const QString &tagId, const CDateTime &start, const CDateTime &end, reportStatus_t reportStatus, CStats *stats);
+    int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps);
+    int getStats(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats);
     int insertPriors(const QSqlDatabase &dBase, const QString &tagId, int lapCount, float lapSecTotal, float lapMTotal);
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);
     int errorVal;

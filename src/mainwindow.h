@@ -72,7 +72,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const Q_DECL_OVERRIDE;
     bool insertRows(int position, int rows, const QModelIndex &index=QModelIndex());
     bool removeRows(int position, int rows, const QModelIndex &index=QModelIndex());
-    void newTag(const CTagInfo &tagInfo);
+    CRider *newTag(const CTagInfo &tagInfo);
     QList<CRider> purgeTable(void);
 private:
     MainWindow *mainWindow;
@@ -179,6 +179,22 @@ private:
     QDateTime dateTimeOfReportEnd;
     QString getSession(const QDateTime &);
     QList<cplot *> plotList;
+    float trackAllTimeBestLapS;
+    float trackAllTimeBestLapKmph;
+    float trackAllTimeBestKS;
+    float trackMonthBestLapS;
+    float trackMonthBestLapKmph;
+    float trackMonthBestKS;
+    float trackSessionBestLapKmph;
+    float trackSessionBestLapS;
+    QString trackAllTimeBestLapSName;
+    QString trackAllTimeBestLapKmphName;
+    QString trackAllTimeBestKSName;
+    QString trackMonthBestLapSName;
+    QString trackMonthBestLapKmphName;
+    QString trackMonthBestSName;
+    QString trackSessionBestLapKmphName;
+    QString trackSessionSestLapSName;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
