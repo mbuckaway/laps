@@ -2,6 +2,7 @@
 #define CDBASE_H
 
 #include <QString>
+#include <QObject>
 #include <QtSql/QtSql>
 #include <QSqlDatabase>
 #include <QAbstractTableModel>
@@ -93,6 +94,7 @@ public:
 
 class CLapsDbase : public QFileInfo
 {
+//    Q_OBJECT
 public:
     enum reportStatus_t {reportDisabled=0, reportPending=1, reportCompleted=2, reportAny=3};
     CLapsDbase(void);
@@ -119,7 +121,7 @@ private:
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);
     int errorVal;
 signals:
-    void newLogMessage(QString);
+//    void newLogMessage(QString);
 };
 
 #endif // CDBASE_H

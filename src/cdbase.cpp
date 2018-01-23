@@ -711,7 +711,8 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     // Make sure lapsTable exists in dbase
 
     if (!dBase.tables().contains("lapsTable")) {
-        qDebug() << "Creating new lapsTable in " + absoluteFilePath();
+//        qDebug() << "Creating new lapsTable in " + absoluteFilePath();
+//        emit newLogMessage(QString("Creating new lapsTable"));
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -747,7 +748,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     // Make sure priorsTable exists in dbase and create if not
 
-    bool calculatePriorsRequired = false;
+    bool calculatePriorsRequired = true;//false;
     if (!dBase.tables().contains("priorsTable")) {
         qDebug() << "Creating new priorsTable in " + prior.absoluteFilePath();
         query.prepare("create table priorsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapCount INTEGER, lapSecTotal FLOAT, lapMTotal FLOAT)");
@@ -793,6 +794,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         connectionName = rootName + s.setNum(year);
         fileInfo.setFile(connectionName + ".db");
         if (QFile::exists(fileInfo.absoluteFilePath())) {
+            qDebug() << fileInfo.absoluteFilePath();
             dBasePriorList.append(QSqlDatabase());
             dBasePriorList.last() = QSqlDatabase::addDatabase("QSQLITE", connectionName);
             dBasePriorList.last().setUserName(username);
