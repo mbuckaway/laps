@@ -650,17 +650,18 @@ void CDateTime::calculateUIntVal(void) {
 
 // ***************************************************************************************************
 // Database files are associated with one year of data, with names like laps2018.db etc.
-// Each file contains two tables.  The first, lapsTable, is a raw listing of each lap:
-//   id: index id
-//   tagId: character string showing tagId
-//   dateTime: unsigned integer with timestamp
-//   lapSec: time duration (s) of completed lap
-//   lapM: distance of completed lap (m)
-//   reportStatus: 0=not reported in email (yet), 1=reported
+// Each file contains two tables.  The first, lapsTable, is a listing of raw lap data:
+//   id: table index id
+//   tagId: character string tagId
+//   dateTime: unsigned integer timestamp
+//   lapSec: float time duration (s) of completed lap
+//   lapM: float distance of completed lap (m)
+//   reportStatus: integer 0=not reported in email (yet), 1=reported
 //
-// The second table, priorsTable, is a summary of all laps in previous years:
+// The second table, priorsTable, is a summary of all laps in previous years (wip):
 //   id:
 //   tagId:
+//   name:
 //   lapSecTotal: sum of all lap times (s) completed before start of lapsTable
 //   lapMTotal: sum of all lap distances (m) completed before start of lapsTable
 //
@@ -670,49 +671,18 @@ CLapsDbase::CLapsDbase(void) {
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
 
     allTimeBestLapKph = 0.;
+    dBaseCurrentYear = 0;
 }
 
 
 
-int CLapsDbase::open(const QString &rootName, const QString &username, const QString &password) {
-    errorTextVal.clear();
-    errorVal = 0;
-    QString s;
-
+int CLapsDbase::prepare(QSqlDatabase *dBase) {
+    QSqlQuery query(*dBase);
     bool showContents = false;
-    QDate currentDate(QDate::currentDate());
-
-    // Close dbase if already open
-
-    close();
-
-
-    // Determine database file name (rootName + year + ".db")
-
-    QString connectionName = rootName + s.setNum(currentDate.year());
-    setFile(connectionName + ".db");
-
-
-    // Make sure dbase for current year exists and create if necessary.
-
-    dBase = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-    dBase.setUserName(username);
-    dBase.setPassword(password);
-    dBase.setDatabaseName(absoluteFilePath());
-
-    if (!dBase.open()) {
-        errorTextVal = dBase.lastError().text();
-        errorVal = 1;
-        return errorVal;
-    }
-
-    QSqlQuery query(dBase);
-
 
     // Make sure lapsTable exists in dbase
 
-    if (!dBase.tables().contains("lapsTable")) {
-//        emit newLogMessage(QString("Creating new lapsTable"));
+    if (!dBase[0].tables().contains("lapsTable")) {
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
             errorTextVal = query.lastError().text();
@@ -746,11 +716,9 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
     }
 
-
     // Make sure priorsTable exists in dbase and create if not
 
-    bool calculatePriorsRequired = false;
-    if (!dBase.tables().contains("priorsTable")) {
+    if (!dBase[0].tables().contains("priorsTable")) {
         qDebug() << "Creating new priorsTable in " + prior.absoluteFilePath();
         query.prepare("create table priorsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapCount INTEGER, lapSecTotal FLOAT, lapMTotal FLOAT)");
         if (!query.exec()) {
@@ -758,7 +726,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
             errorVal = 5;
             return errorVal;
         }
-        calculatePriorsRequired = true;
         qDebug() << "  Created new priorsTable";
     }
 
@@ -787,33 +754,75 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         }
     }
 
+    return 0;
+}
 
-    // Make a list of QSqlDatabase structures, one for each prior database file (one for each year other than current year)
+
+
+int CLapsDbase::open(const QString &rootName, const QString &username, const QString &password) {
+    errorTextVal.clear();
+    errorVal = 0;
+    QString s;
+
+    bool showContents = false;
+    QDate currentDate(QDate::currentDate());
+
+    // Close dbase if already open
+
+    close();
+
+
+    // Determine database file name (rootName + year + ".db")
+
+    QString connectionName = rootName + s.setNum(currentDate.year());
+    setFile(connectionName + ".db");
+
+
+    // Make sure dbase for current year exists and create if necessary.
+
+    dBaseCurrentYear = 0;
+    dBase.append(QSqlDatabase::addDatabase("QSQLITE", connectionName));
+    dBase[0].setUserName(username);
+    dBase[0].setPassword(password);
+    dBase[0].setDatabaseName(absoluteFilePath());
+
+    if (!dBase[0].open()) {
+        errorTextVal = dBase[0].lastError().text();
+        dBase.removeAt(0);
+        errorVal = 1;
+        return errorVal;
+    }
+
+    dBaseCurrentYear = currentDate.year();
+    prepare(&dBase[0]);
+
+    // Add databases for prior years to list
 
     QFileInfo fileInfo;
-    for (int year=currentDate.year() - 1; year>=2000; year--) {
+    for (int year=currentDate.year()-1; year>=2000; year--) {
         connectionName = rootName + s.setNum(year);
         fileInfo.setFile(connectionName + ".db");
         if (QFile::exists(fileInfo.absoluteFilePath())) {
-            dBasePriorList.append(QSqlDatabase());
-            dBasePriorList.last() = QSqlDatabase::addDatabase("QSQLITE", connectionName);
-            dBasePriorList.last().setUserName(username);
-            dBasePriorList.last().setPassword(password);
-            dBasePriorList.last().setDatabaseName(fileInfo.absoluteFilePath());
+            dBase.append(QSqlDatabase::addDatabase("QSQLITE", connectionName));
+            dBase.last().setUserName(username);
+            dBase.last().setPassword(password);
+            dBase.last().setDatabaseName(fileInfo.absoluteFilePath());
         }
         else {
             break;
         }
     }
 
-    // If previous year dbase (first entry in dBasePriorList) exists, open for processing
+    // If previous year dbase (second entry in dBase list) exists, open for processing
 
-    if (dBasePriorList.size() > 0) {
+    bool calculatePriorsRequired = false;
 
-        if (!dBasePriorList[0].isOpen()) {
-            if (!dBasePriorList[0].open()) {
+    if (dBase.size() >= 2) {
+        if (!dBase[1].isOpen()) {
+            if (!dBase[1].open()) {
                 errorTextVal = "Could not open previous year database";
                 errorVal = 1;
+                dBase.removeAt(1);
                 return errorVal;
             }
         }
@@ -823,7 +832,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         if (calculatePriorsRequired) {
             qDebug() << "Calculating priors";
 
-            QSqlQuery queryPrior(dBasePriorList[0]);
+            QSqlQuery queryPrior(dBase[1]);
             queryPrior.prepare("SELECT tagId FROM lapsTable");
             if (!queryPrior.exec()) {
                 errorTextVal = queryPrior.lastError().text();
@@ -868,7 +877,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
                 int lapCountPrior = 0;
                 float lapSecPrior = 0.;
                 float lapMPrior = 0.;
-                int rc = getPriors(dBasePriorList[0], tagIdList[i], &lapCountPrior, &lapSecPrior, &lapMPrior);
+                int rc = getPriors(dBase[1], tagIdList[i], &lapCountPrior, &lapSecPrior, &lapMPrior);
                 if (rc) {
                     return errorVal;
                 }
@@ -879,6 +888,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
             // Write these priors to the current-year priorsTable
 
+            QSqlQuery query(dBase[0]);
             for (int i=0; i<tagIdList.size(); i++) {
                 query.prepare("INSERT INTO priorsTable (tagId, name, lapCount, lapSecTotal, lapMTotal) VALUES (:tagId, :name, :lapCount, :lapSecTotal, :lapMTotal)");
                 query.bindValue(":tagId", tagIdList[i]);
@@ -897,25 +907,22 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     // Read through all databases and calculate bests
 
-    QList<CLapInfo> laps;
-    getLapInfo(QString(), QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
-    qDebug() << laps.size();
-//    for (int i=0; i<laps.size(); i++) {
-//        qDebug() << laps[i].dateTime;
-//    }
+//    QList<CLapInfo> laps;
+//    getLapInfo(QString(), QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
+
     return 0;
 }
 
 
 
 void CLapsDbase::close(void) {
-    dBase.close();
-    for (int i=0; i<dBasePriorList.size(); i++) {
-        if (dBasePriorList[i].isOpen()) {
-            dBasePriorList[i].close();
+    for (int i=0; i<dBase.size(); i++) {
+        if (dBase[i].isOpen()) {
+            dBase[i].close();
+            dBase.removeAt(i);
         }
     }
-    dBasePriorList.clear();
+    dBase.clear();
 }
 
 
@@ -928,13 +935,19 @@ int CLapsDbase::addLap(const CRider &rider, const QDateTime &dateTime) {
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase is closed";
         errorVal = 2;
         return errorVal;
     }
 
-    QSqlQuery query(dBase);
+    // Check whether year has changed since last lap added to dBase and create new dBase if necessary
+
+    if (QDate::currentDate().year() != dBaseCurrentYear) {
+
+    }
+
+    QSqlQuery query(dBase[0]);
     query.prepare("INSERT INTO lapsTable (tagId, dateTime, lapsec, lapm, reportStatus) VALUES (:tagId, :dateTime, :lapsec, :lapm, :reportStatus)");
     query.bindValue(":tagId", rider.tagId);
     query.bindValue(":dateTime", CDateTime(dateTime).toUInt());
@@ -1014,15 +1027,20 @@ int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, cons
 // Fill ClapsInfo list for all laps in all database files within specified period for specified tagId
 //
 int CLapsDbase::getLapInfo(const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps) {
+    errorTextVal.clear();
+    errorVal = 0;
     laps->clear();
 
     // Look through list of dBases and get lap info from any within time period
 
-    int rc;
-    for (int i=dBasePriorList.size()-1; i>=0; i--) {
-        rc = getLapInfo(dBasePriorList[i], tagId, start, end, laps);
+    int rc = 0;
+    int year = QDate::currentDate().year();
+    for (int i=0; i<dBase.size(); i++) {
+        if ((year >= start.date().year()) && (year <= end.date().year())) {
+            rc = getLapInfo(dBase[i], tagId, start, end, laps);
+        }
+        year--;
     }
-    rc = getLapInfo(dBase, tagId, start, end, laps);
     return rc;
 }
 
@@ -1033,13 +1051,13 @@ int CLapsDbase::getLap(int id, QString *tagId, CLapInfo *lapInfo) {
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase closed";
-        errorVal = 2;
+        errorVal = 9;
         return errorVal;
     }
 
-    QSqlQuery query(dBase);
+    QSqlQuery query(dBase[0]);
     query.prepare("SELECT * FROM lapsTable WHERE id = :id");
     query.bindValue(":id", id);
     if (!query.exec()) {
@@ -1106,7 +1124,7 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase is closed";
         errorVal = 2;
         return errorVal;
@@ -1160,11 +1178,9 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
 //
 int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats) {
     stats->clear();
-    int rc = getStats(dBase, tagId, start, end, reportStatus, stats);
-    if (rc > 0) return rc;
-    for (int i=0; i<dBasePriorList.size(); i++) {
+    for (int i=0; i<dBase.size(); i++) {
         CStats newStats;
-        rc = getStats(dBasePriorList[i], tagId, start, end, reportStatus, &newStats);
+        int rc = getStats(dBase[i], tagId, start, end, reportStatus, &newStats);
         if (rc > 0)
             return rc;
         stats->lapCount += newStats.lapCount;
@@ -1191,7 +1207,7 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase closed";
         errorVal = 2;
         return errorVal;
@@ -1294,7 +1310,7 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
     *lapSecTotal = 0.;
     *lapMTotal = 0.;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "Database not open";
         errorVal = 1;
         return errorVal;
@@ -1346,7 +1362,7 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase closed";
         errorVal = 2;
         return errorVal;
@@ -1358,7 +1374,7 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
         return errorVal;
     }
 
-    QSqlQuery query(dBase);
+    QSqlQuery query(dBase[0]);
     query.prepare("UPDATE lapsTable SET reportStatus = :reportStatus WHERE tagId = :tagId AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
     query.bindValue(":reportStatus", reportStatus);
@@ -1380,7 +1396,7 @@ int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDat
     errorTextVal.clear();
     errorVal = 0;
 
-    if (!dBase.isOpen()) {
+    if (!isOpen()) {
         errorTextVal = "CLapsDbase closed";
         errorVal = 2;
         return errorVal;
@@ -1392,7 +1408,7 @@ int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDat
         return errorVal;
     }
 
-    QSqlQuery query(dBase);
+    QSqlQuery query(dBase[0]);
     query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
     query.bindValue(":tagId", tagId);
     query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
@@ -1425,8 +1441,11 @@ QString CLapsDbase::errorText(void) {
 
 
 
+// isOpen()
+// Return true if at least one database is open
+//
 bool CLapsDbase::isOpen(void) {
-    return dBase.isOpen();
+    return !dBase.isEmpty() && dBase[0].isOpen();
 }
 
 

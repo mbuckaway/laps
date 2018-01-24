@@ -114,17 +114,18 @@ public:
     int error(void);
     QFileInfo prior;
     QString errorText(void);
-    QSqlDatabase dBase;
-    QList<QSqlDatabase> dBasePriorList;
     float allTimeBestLapKph;
     QString allTimeBestLapKphName;
 private:
     QString errorTextVal;
+    int prepare(QSqlDatabase *dBase);
     int getLapInfo(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps);
     int getStats(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats);
     int insertPriors(const QSqlDatabase &dBase, const QString &tagId, int lapCount, float lapSecTotal, float lapMTotal);
     int getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal);
     int errorVal;
+    int dBaseCurrentYear;           // year of current dbase (first element in dBase)
+    QList<QSqlDatabase> dBase;      // list of databases, going backwards in time, current year is first element
 signals:
 //    void newLogMessage(QString);
 };
