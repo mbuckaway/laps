@@ -103,15 +103,15 @@ public:
     CLapsDbase(void);
     int open(const QString &connectionName, const QString &username, const QString &password);
     void close(void);
+    bool isOpen(void);
     int addLap(const CRider &rider, const QDateTime &dateTime);
     int getLap(int id, QString *tagId, CLapInfo *lapInfo=NULL);
     int getStats(const QString &tagId, CRider *rider);
     int getStats(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats);
     int setReportStatus(reportStatus_t reportStatus, const QString &tagId, const QDateTime &start, const QDateTime &end);
     int getLaps(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, QList<int> *lapsList);
-    int error(void);
-    bool isOpen(void);
     int getLapInfo(const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps);
+    int error(void);
     QFileInfo prior;
     QString errorText(void);
     QSqlDatabase dBase;

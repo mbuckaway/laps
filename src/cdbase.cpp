@@ -664,7 +664,6 @@ void CDateTime::calculateUIntVal(void) {
 //   lapSecTotal: sum of all lap times (s) completed before start of lapsTable
 //   lapMTotal: sum of all lap distances (m) completed before start of lapsTable
 //
-
 CLapsDbase::CLapsDbase(void) {
     errorVal = 0;
     if (!QSqlDatabase::drivers().contains("QSQLITE"))
@@ -713,7 +712,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     // Make sure lapsTable exists in dbase
 
     if (!dBase.tables().contains("lapsTable")) {
-//        qDebug() << "Creating new lapsTable in " + absoluteFilePath();
 //        emit newLogMessage(QString("Creating new lapsTable"));
         query.prepare("create table lapsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20), dateTime UNSIGNED INTEGER, lapsec FLOAT, lapm FLOAT, reportStatus INTEGER)");
         if (!query.exec()) {
@@ -721,7 +719,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
             errorVal = 3;
             return errorVal;
         }
-        qDebug() << "  Created new lapsTable";
     }
 
     if (showContents) {
@@ -752,7 +749,7 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     // Make sure priorsTable exists in dbase and create if not
 
-    bool calculatePriorsRequired = true;//false;
+    bool calculatePriorsRequired = false;
     if (!dBase.tables().contains("priorsTable")) {
         qDebug() << "Creating new priorsTable in " + prior.absoluteFilePath();
         query.prepare("create table priorsTable (id INTEGER PRIMARY KEY AUTOINCREMENT, tagId VARCHAR(20) UNIQUE, name VARCHAR(20), lapCount INTEGER, lapSecTotal FLOAT, lapMTotal FLOAT)");
@@ -791,14 +788,13 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     }
 
 
-    // Make a list of QSqlDatabase structures, one for each prior database file
+    // Make a list of QSqlDatabase structures, one for each prior database file (one for each year other than current year)
 
     QFileInfo fileInfo;
     for (int year=currentDate.year() - 1; year>=2000; year--) {
         connectionName = rootName + s.setNum(year);
         fileInfo.setFile(connectionName + ".db");
         if (QFile::exists(fileInfo.absoluteFilePath())) {
-            qDebug() << fileInfo.absoluteFilePath();
             dBasePriorList.append(QSqlDatabase());
             dBasePriorList.last() = QSqlDatabase::addDatabase("QSQLITE", connectionName);
             dBasePriorList.last().setUserName(username);
@@ -808,10 +804,9 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
         else {
             break;
         }
-
     }
 
-    // If previous year dbase (first entry in dBasePriorList) exists, open and calculate totals if required
+    // If previous year dbase (first entry in dBasePriorList) exists, open for processing
 
     if (dBasePriorList.size() > 0) {
 
@@ -904,9 +899,9 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
 
     QList<CLapInfo> laps;
     getLapInfo(QString(), QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
-//    qDebug() << laps.size();
+    qDebug() << laps.size();
 //    for (int i=0; i<laps.size(); i++) {
-//        qDebug() << laps[i].;
+//        qDebug() << laps[i].dateTime;
 //    }
     return 0;
 }
@@ -1016,7 +1011,7 @@ int CLapsDbase::getLapInfo(const QSqlDatabase &dBase, const QString &tagId, cons
 
 
 // getLapInfo()
-// Fill ClapsInfo list for all laps in all database files within specified period for specfied tagId
+// Fill ClapsInfo list for all laps in all database files within specified period for specified tagId
 //
 int CLapsDbase::getLapInfo(const QString &tagId, const QDateTime &start, const QDateTime &end, QList<CLapInfo> *laps) {
     laps->clear();
@@ -1121,43 +1116,40 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     rider->lastMonth.clear();
     rider->allTime.clear();
 
-    QDate thisMonth(QDate::currentDate());
-    QDate lastMonth(thisMonth.addMonths(-1));
+    QDateTime currentDateTime(QDateTime::currentDateTime());
+    QDateTime startOfThisMonth(QDate(currentDateTime.date().year(), currentDateTime.date().month(), 1), QTime(0, 0, 0));
+    QDateTime startOfLastMonth(startOfThisMonth.addMonths(-1));
+    QDateTime startOfTime(currentDateTime.addYears(-100));
 
     // Get stats for this month
 
-    QDateTime dateTimeStart(QDate(thisMonth.year(), thisMonth.month(), 1), QTime(0, 0, 0));
-
-    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->thisMonth);
-    if (errorVal) return errorVal;
+    errorVal = getStats(tagId, startOfThisMonth, currentDateTime, CLapsDbase::reportAny, &rider->thisMonth);
+    if (errorVal)
+        return errorVal;
 
     // Get stats for last month
 
-    dateTimeStart = QDateTime(QDate(lastMonth.year(), lastMonth.month(), 1), QTime(0, 0, 0));
-
-    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->lastMonth);
-    if (errorVal) return errorVal;
-
+    errorVal = getStats(tagId, startOfLastMonth, startOfThisMonth.addMSecs(-1), CLapsDbase::reportAny, &rider->lastMonth);
+    if (errorVal)
+        return errorVal;
 
     // Get stats for all time
 
-    dateTimeStart = QDateTime::currentDateTime().addYears(-100);
-
-    errorVal = getStats(tagId, dateTimeStart, QDateTime::currentDateTime(), CLapsDbase::reportAny, &rider->allTime);
+    errorVal = getStats(tagId, startOfTime, currentDateTime, CLapsDbase::reportAny, &rider->allTime);
     if (errorVal)
         return errorVal;
 
     // Add priors
 
-    int lapCountPrior = 0;
-    float lapSecTotalPrior = 0.;
-    float lapMTotalPrior = 0.;
-    errorVal = getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
-    if (errorVal)
-        return errorVal;
-    rider->allTime.lapCount += lapCountPrior;
-    rider->allTime.totalSec += lapSecTotalPrior;
-    rider->allTime.totalM += lapMTotalPrior;
+//    int lapCountPrior = 0;
+//    float lapSecTotalPrior = 0.;
+//    float lapMTotalPrior = 0.;
+//    errorVal = getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
+//    if (errorVal)
+//        return errorVal;
+//    rider->allTime.lapCount += lapCountPrior;
+//    rider->allTime.totalSec += lapSecTotalPrior;
+//    rider->allTime.totalM += lapMTotalPrior;
 
     return 0;
 }

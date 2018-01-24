@@ -724,18 +724,7 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             case CRider::firstCrossing:
                 return QString("first lap");
             case CRider::regularCrossing:
-//                if (!rider->name.isEmpty()) {
-//                    if (rider->totalM >= bestM)
-//                        return "Longest Ride";
-//                    else if (rider->bestLapM/rider->bestLapSec > bestLapMPS)
-//                        return "Best Speed";
-//                    else if (rider->bestLapSec < bestLapSec)
-//                        return "Fastest Lap";
-//                    else
-//                        return rider->comment;
-//                }
-//                else
-                    return rider->comment;
+                return rider->comment;
             case CRider::onBreak:
                 return QString("on break");
             case CRider::firstCrossingAfterBreak:
@@ -747,7 +736,6 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
         break;
     case Qt::FontRole:
 //        if (col == AT_COMMENT) {
-//            if (rider->totalM >= bestM)
 //                return QFont();
 //            else
 //                return QFont();
@@ -1147,7 +1135,7 @@ MainWindow::MainWindow(QWidget *parent) :
     trackSessionBestLapKmph = 0.;
     trackSessionBestLapS = 0.;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.5");
+    QCoreApplication::setApplicationVersion("0.6");
 
     initializeSettingsPanel();
     bool initialized = true;
