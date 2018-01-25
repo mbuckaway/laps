@@ -1133,7 +1133,7 @@ int CLapsDbase::getLap(int id, QString *tagId, CLapInfo *lapInfo) {
 
 
 
-// Calculate stats for specified tagId
+// Calculate allTime stats for specified tagId
 //
 int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     errorTextVal.clear();
@@ -1152,7 +1152,7 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     QDateTime currentDateTime(QDateTime::currentDateTime());
     QDateTime startOfThisMonth(QDate(currentDateTime.date().year(), currentDateTime.date().month(), 1), QTime(0, 0, 0));
     QDateTime startOfLastMonth(startOfThisMonth.addMonths(-1));
-    QDateTime startOfTime(currentDateTime.addYears(-100));
+    QDateTime startOfTime(QDate(2000, 1, 1), QTime(0, 0, 0));
 
     // Get stats for this month
 
@@ -1172,62 +1172,50 @@ int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
     if (errorVal)
         return errorVal;
 
-    // Add priors
-
-//    int lapCountPrior = 0;
-//    float lapSecTotalPrior = 0.;
-//    float lapMTotalPrior = 0.;
-//    errorVal = getPriors(dBase, tagId, &lapCountPrior, &lapSecTotalPrior, &lapMTotalPrior);
-//    if (errorVal)
-//        return errorVal;
-//    rider->allTime.lapCount += lapCountPrior;
-//    rider->allTime.totalSec += lapSecTotalPrior;
-//    rider->allTime.totalM += lapMTotalPrior;
-
     return 0;
 }
 
 
 
-// Get stats from all database files for specified tag and period
+// Get stats for specified tag and period by combining stats from each year's database
 //
 int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats) {
     stats->clear();
+    int year = yearOfCurrentDbase;
     for (int i=0; i<dBase.size(); i++) {
-        CStats newStats;
-        int rc = getStats(dBase[i], tagId, start, end, reportStatus, &newStats);
-        if (rc > 0)
-            return rc;
-        asdf
-        stats->lapCount += newStats.lapCount;
-        stats->totalM += newStats.totalM;
-        stats->totalSec += newStats.totalSec;
-        if (stats->totalSec > 0.)
-            stats->averageKph = stats->totalM / 1000. / stats->totalSec * 3600.;
-        else
-            stats->averageKph = 0.;
-        if (stats->averageKph > stats->bestLapKph)
-        if (stats->bestLapSec > 0.)
-            stats->bestLapKph = stats->bestLapM / 1000. / stats->bestLapSec * 3600.;
-        else
-            stats->bestLapKph = 0.;
-        if (stats.bestLapSec > 0.) newSpeed = newStats.bestLapM / 1000. / newStats.bestLapSec * 3600.;
-        if (newSpeed > statsSpeed) {
-            stats->bestLapM = newStats.bestLapM;
-            stats->bestLapSec = newStats.bestLapSec;
+        if ((start.date().year() <= year) && (end.date().year() >= year)) {
+            CStats yearStats;
+            int rc = getStats(dBase[i], tagId, start, end, reportStatus, &yearStats);
+            if (rc > 0)
+                return rc;
+            stats->lapCount += yearStats.lapCount;
+            stats->totalM += yearStats.totalM;
+            stats->totalSec += yearStats.totalSec;
+
+            if (yearStats.bestLapKph > stats->bestLapKph) {
+                stats->bestLapM = yearStats.bestLapM;
+                stats->bestLapSec = yearStats.bestLapSec;
+                stats->bestLapKph = yearStats.bestLapKph;
+            }
         }
+        year--;
     }
+
+    if (stats->totalSec > 0.)
+        stats->averageKph = stats->totalM / 1000. / stats->totalSec * 3600.;
+
     return 0;
 }
 
 
 
 
-// Get stats from specified dbase for specified tagId and time period
+// Get stats from specified dbase (year) for specified tagId and time period
 //
-int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &dateTimeStart, const QDateTime &dateTimeEnd, reportStatus_t reportStatus, CStats *stats) {
+int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const QDateTime &start, const QDateTime &end, reportStatus_t reportStatus, CStats *stats) {
     errorTextVal.clear();
     errorVal = 0;
+    stats->clear();
 
     if (!isOpen()) {
         errorTextVal = "CLapsDbase closed";
@@ -1235,8 +1223,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
         return errorVal;
     }
 
-    if (dateTimeStart > dateTimeEnd) {
-        errorTextVal = "dateTimeStart > dateTimeEnd in getStatsForPeriod";
+    if (start > end) {
+        errorTextVal = "start > end in getStatsForPeriod";
         errorVal = 3;
         return errorVal;
     }
@@ -1250,8 +1238,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     }
     query.bindValue(":tagId", tagId);
     query.bindValue(":reportStatus", CLapsDbase::reportPending);
-    query.bindValue(":dateTimeStart", CDateTime(dateTimeStart).toUInt());
-    query.bindValue(":dateTimeEnd", CDateTime(dateTimeEnd).toUInt());
+    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
     if (!query.exec()) {
         errorTextVal = query.lastError().text();
         errorVal = 3;
@@ -1282,40 +1270,44 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
 
     // Determine workout count, lap count, average lap time, best lap time, distance
 
-    float localBestLapSec = -1.;
-    float localBestLapM = 0.;
+    int workoutCount = 0;
+    int lapCount = 0;
+    float totalSec = 0.;
+    float totalM = 0.;
+    float bestLapSec = 0.;
+    float bestLapM = 0.;
+    float bestLapKph = 0.;
     QDateTime previousLapDateTime = QDateTime::currentDateTime().addYears(-100);
-    int localWorkoutCount = 0;
-    int localLapCount = 0;
-    float localTotalSec = 0.;
-    float localTotalM = 0.;
     while (query.next()) {
+        QDateTime lapDateTime = CDateTime(query.value(dateTimeIndex).toUInt()).toQDateTime();
         float lapSec = query.value(lapsecIndex).toFloat();
         float lapM = query.value(lapmIndex).toFloat();
-        QDateTime lapDateTime = CDateTime(query.value(dateTimeIndex).toUInt()).toQDateTime();
-        if (localBestLapSec <= 0.) {
-            localBestLapSec = lapSec;
-            localBestLapM = lapM;
+        float lapKph = 0.;
+        if (lapSec > 0.)
+            lapKph = lapM / 1000. / lapSec * 3600.;
+
+        if (lapKph > bestLapKph) {
+            bestLapSec = lapSec;
+            bestLapM = lapM;
+            bestLapKph = lapKph;
         }
-        else if (lapSec < localBestLapSec) {
-            localBestLapSec = lapSec;
-            localBestLapM = lapM;
-        }
-        localTotalSec += lapSec;
-        localLapCount++;
-        localTotalM += lapM;
-        if (previousLapDateTime.secsTo(lapDateTime) > (4 * 3600)) {
-            localWorkoutCount++;
+
+        lapCount++;
+        totalM += lapM;
+        totalSec += lapSec;
+        if (previousLapDateTime.secsTo(lapDateTime) > (3 * 3600)) {
+            workoutCount++;
         }
         previousLapDateTime = lapDateTime;
     }
 
-    stats->lapCount = localLapCount;
-    stats->workoutCount = localWorkoutCount;
-    stats->bestLapSec = localBestLapSec;
-    stats->bestLapM = localBestLapM;
-    stats->totalSec = localTotalSec;
-    stats->totalM = localTotalM;
+    stats->lapCount = lapCount;
+    stats->workoutCount = workoutCount;
+    stats->totalM = totalM;
+    stats->totalSec = totalSec;
+    stats->bestLapSec = bestLapSec;
+    stats->bestLapM = bestLapM;
+    stats->bestLapKph = bestLapKph;
 
     return 0;
 }
@@ -1324,13 +1316,13 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
 
 // Get stats from specified dbase for specified tagId and time period
 //
-int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *lapSecTotal, float *lapMTotal) {
+int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *lapCount, float *totalLapSec, float *totalLapM) {
     errorTextVal.clear();
     errorVal = 0;
 
     *lapCount = 0;
-    *lapSecTotal = 0.;
-    *lapMTotal = 0.;
+    *totalLapSec = 0.;
+    *totalLapM = 0.;
 
     if (!isOpen()) {
         errorTextVal = "Database not open";
@@ -1370,8 +1362,8 @@ int CLapsDbase::getPriors(const QSqlDatabase &dBase, const QString &tagId, int *
 
     while (query.next()) {
         *lapCount = query.value(lapCountIndex).toInt();
-        *lapSecTotal = query.value(lapSecTotalIndex).toFloat();
-        *lapMTotal = query.value(lapMTotalIndex).toFloat();
+        *totalLapSec = query.value(lapSecTotalIndex).toFloat();
+        *totalLapM = query.value(lapMTotalIndex).toFloat();
     }
     return 0;
 }
@@ -1449,9 +1441,9 @@ int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDat
         return errorVal;
     }
 
-    while (query.next()) {
+    while (query.next())
         lapsList->append(query.value(idIndex).toInt());
-    }
+
     return 0;
 }
 

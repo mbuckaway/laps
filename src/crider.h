@@ -14,12 +14,12 @@ public:
     void clear(void);
     int workoutCount;
     int lapCount;
-    float bestLapSec;
-    float bestLapM;
-    float bestLapKph;
     float totalSec;
     float totalM;
     float averageKph;
+    float bestLapSec;
+    float bestLapM;
+    float bestLapKph;
 };
 
 
@@ -29,7 +29,6 @@ public:
     CRider(void);
     ~CRider(void);
     void clear();
-//    int tagCount;
     QString tagId;          // from reader
     QString name;           // from dBase if available
     unsigned long long previousTimeStampUSec;   // timestamp from reader, updated with each lap

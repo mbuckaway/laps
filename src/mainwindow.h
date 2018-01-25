@@ -76,9 +76,6 @@ public:
     QList<CRider> purgeTable(void);
 private:
     MainWindow *mainWindow;
-    float bestM;
-    float bestLapMPS;
-    float bestLapSec;
 private slots:
 signals:
 };
@@ -149,6 +146,7 @@ public:
     QTextStream *logTextStream;
     int bestLapCountInSession;
     float bestLapSpeedInSession;
+    float kph(float m, float sec);
 private:
     CSmtp *smtp;
     QList<CRider> purgedRiders;
@@ -166,7 +164,6 @@ private:
     bool lapsTableSortingEnabled;
     bool activeRidersTableSortingEnabled;
     int lapsTableMaxSizeWithSort;
-    float lapSpeed(float lapSec, float lapM);
     QSettings settings;
     void initializeSettingsPanel(void);
     bool tagInDbase;

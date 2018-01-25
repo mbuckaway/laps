@@ -512,8 +512,6 @@ Qt::ItemFlags CLapsTableModel::flags(const QModelIndex &index) const {
 
 void CLapsTableModel::newTag(CRider rider) {
     QString time = QTime::currentTime().toString();
-    float speed = 0.;
-    if (rider.lapSec > 0.) speed = rider.lapM / rider.lapSec / 1000. * 3600.;
 
     bool scrollToBottomRequired = false;
     if (mainWindow->ui->lapsTableView->verticalScrollBar()->sliderPosition() == mainWindow->ui->lapsTableView->verticalScrollBar()->maximum())
@@ -532,18 +530,18 @@ void CLapsTableModel::newTag(CRider rider) {
         nameList[row] = rider.tagId;
 
     if (rider.lapType == CRider::regularCrossing) {
+        readerIdList[row] = rider.readerId;
+        antennaIdList[row] = rider.antennaId;
         lapList[row] = rider.lapCount;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
-        readerIdList[row] = rider.readerId;
-        antennaIdList[row] = rider.antennaId;
         lapSecList[row] = rider.lapSec;
-        lapSpeedList[row] = speed;
+        lapSpeedList[row] = rider.lapKph;
     }
     else {
-        lapList[row] = rider.lapCount;
         readerIdList[row] = rider.readerId;
         antennaIdList[row] = rider.antennaId;
+        lapList[row] = rider.lapCount;
         timeList[row] = time;
         timeStampList[row] = rider.previousTimeStampUSec;
         lapSecList[row] = 0.;
@@ -602,9 +600,6 @@ void CLapsTableModel::purgeTable(void) {
 //
 CActiveRidersTableModel::CActiveRidersTableModel(QObject *parent) : QAbstractTableModel(parent) {
     mainWindow = (MainWindow *)parent;
-    bestM = 0.;
-    bestLapMPS = 0.;
-    bestLapSec = 1e10;
 }
 
 
@@ -925,32 +920,33 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
             if (rider->inDbase)
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
 
-            // Check to see if there are any laps in dBase from current workout (will happen if application is
-            // stopped and restarted)
+
+            // Any laps already in dBase from current session (will happen if application is stopped and restarted)
+            // will be included in the above calculation of past stats but must now be added to current session stats
 
             {
                 QList<CLapInfo> lapsInWorkout;
                 mainWindow->lapsDbase.getLapInfo(rider->tagId, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), &lapsInWorkout);
 
-                // Loop through laps and update current rider info
+                // Loop through laps for current session
 
-                float bestLapSpeed = 0.;
                 for (int i=0; i<lapsInWorkout.size(); i++) {
+                    float lapKph = mainWindow->kph(lapsInWorkout[i].lapM, lapsInWorkout[i].lapSec);
+
                     rider->lapCount++;
                     rider->totalM += lapsInWorkout[i].lapM;
                     rider->totalSec += lapsInWorkout[i].lapSec;
-                    float lapSpeed = 0.;
-                    if (lapsInWorkout[i].lapSec > 0.) {
-                        lapSpeed = lapsInWorkout[i].lapM / 1000. / lapsInWorkout[i].lapSec * 3600.;
-                    }
-                    if (lapSpeed > bestLapSpeed) {
+
+                    if (rider->lapKph > rider->bestLapKph) {
                         rider->bestLapM = lapsInWorkout[i].lapM;
                         rider->bestLapSec = lapsInWorkout[i].lapSec;
-                        bestLapSpeed = lapSpeed;
+                        rider->bestLapKph = lapKph;
                     }
                 }
 
+                rider->averageKph = mainWindow->kph(rider->totalM, rider->totalSec);
             }
+
             rider->nextLapType = CRider::regularCrossing;
             break;
 
@@ -966,6 +962,7 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
             if (lapSec > mainWindow->maxAcceptableLapSec) {
                 rider->lapSec = 0.;
                 rider->lapM = 0.;
+                rider->lapKph = 0.;
                 rider->lapType = CRider::firstCrossingAfterBreak;
                 rider->nextLapType = CRider::regularCrossing;
             }
@@ -973,42 +970,41 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                 rider->lapCount++;
                 rider->lapSec = lapSec;
                 rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
+                rider->lapKph = mainWindow->kph(rider->lapM, rider->lapSec);
+
                 rider->totalSec += rider->lapSec;
                 rider->totalM += rider->lapM;
+                rider->averageKph = mainWindow->kph(rider->totalM, rider->totalSec);
 
-                // Compare lapSpeed with bestLapSpeed
-
-                float lapSpeed = 0.;
-                if (rider->lapSec > 0.) {
-                    lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
-                    float bestLapSpeed = 0.;
-                    if (rider->bestLapSec > 0.)
-                        bestLapSpeed = rider->bestLapM / 1000. / rider->bestLapSec * 3600.;
-                    if (lapSpeed > bestLapSpeed) {
-                        rider->bestLapSec = rider->lapSec;
-                        rider->bestLapM = rider->lapM;
-                    }
+                if (rider->lapKph > rider->bestLapKph) {
+                    rider->bestLapSec = rider->lapSec;
+                    rider->bestLapM = rider->lapM;
+                    rider->bestLapKph = rider->lapKph;
                 }
 
                 // Update monthly and all-time stats only if rider name is in dbase
 
                 if (rider->inDbase) {
+
+                    // Update thisMonth stats
+
                     rider->thisMonth.lapCount++;
                     rider->thisMonth.totalSec += rider->lapSec;
                     rider->thisMonth.totalM += rider->lapM;
+                    rider->thisMonth.averageKph = mainWindow->kph(rider->thisMonth.totalM, rider->thisMonth.totalSec);
+                    if (rider->lapKph > rider->thisMonth.bestLapKph)
+                        rider->thisMonth.bestLapKph = rider->lapKph;
+
+                    // Update allTime stats
 
                     rider->allTime.lapCount++;
+                    rider->allTime.totalSec += rider->lapSec;
                     rider->allTime.totalM += rider->lapM;
-
-                    if (!rider->name.isEmpty()) {
-                        if (rider->totalM > bestM)
-                            bestM = rider->totalM;
-                        if (rider->lapM/rider->lapSec > bestLapMPS)
-                            bestLapMPS = rider->lapM/rider->lapSec;
-                        if (rider->lapSec < bestLapSec)
-                            bestLapSec = rider->lapSec;
-                    }
+                    rider->allTime.averageKph = mainWindow->kph(rider->allTime.totalM, rider->allTime.totalSec);
+                    if (rider->lapKph > rider->allTime.bestLapKph)
+                        rider->allTime.bestLapKph = rider->lapKph;
                 }
+
                 rider->nextLapType = CRider::regularCrossing;
             }
             break;
@@ -1104,12 +1100,6 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
 
     mainWindow->ui->activeRiderCountLineEdit->setText(s.setNum(activeRidersList.size()));
 
-    if (activeRidersList.isEmpty()) {
-        bestLapMPS = 0.;
-        bestM = 0.;
-        bestLapSec = 1e10;
-    }
-
     return purgedRiders;
 }
 
@@ -1145,7 +1135,7 @@ MainWindow::MainWindow(QWidget *parent) :
     trackSessionBestLapKmph = 0.;
     trackSessionBestLapS = 0.;
     QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.6");
+    QCoreApplication::setApplicationVersion("0.7");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1522,7 +1512,11 @@ MainWindow::~MainWindow() {
 
 
 void MainWindow::onActiveRidersTableClearPushButtonClicked(bool) {
-    activeRidersTableModel->purgeTable();
+    if (activeRidersTableModel)
+        activeRidersTableModel->purgeTable();
+    ui->sessionBestLapLineEdit->clear();
+    trackSessionBestLapKmph = 0.;
+    trackSessionBestLapKmphName.clear();
 }
 
 
@@ -2128,6 +2122,10 @@ void MainWindow::onPurgeActiveRidersList(void) {
     if (lapsTableModel)
         lapsTableModel->purgeTable();
 
+    ui->sessionBestLapLineEdit->clear();
+    trackSessionBestLapKmph = 0.;
+    trackSessionBestLapKmphName.clear();
+
 }
 
 
@@ -2268,17 +2266,15 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     CRider *rider = activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
     if (rider) {
-        float kph = 0.;
-        if (rider->lapSec > 0.)
-            kph = rider->lapM / 1000. / rider->lapSec * 3600.;
+        float lapKph = kph(rider->lapM, rider->lapSec);
         if (!rider->name.isEmpty()) {
-            if (kph > trackSessionBestLapKmph) {
-                trackSessionBestLapKmph = kph;
+            if (lapKph > trackSessionBestLapKmph) {
+                trackSessionBestLapKmph = lapKph;
                 trackSessionBestLapKmphName = rider->name;
-                ui->sessionBestLapLineEdit->setText(rider->name + s.sprintf(" (%.2f km/h)", kph));
+                ui->sessionBestLapLineEdit->setText(rider->name + s.sprintf(" %.2f km/h", lapKph));
             }
-            if (kph > trackAllTimeBestLapKmph) {
-                trackAllTimeBestLapKmph = kph;
+            if (lapKph > trackAllTimeBestLapKmph) {
+                trackAllTimeBestLapKmph = lapKph;
                 trackAllTimeBestLapKmphName = rider->name;
             }
         }
@@ -2288,11 +2284,11 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
 
 
-float MainWindow::lapSpeed(float lapSec, float lapM) {
-    double lapSpeed = 0.;
+float MainWindow::kph(float lapM, float lapSec) {
+    float kph = 0.;
     if (lapSec > 0.)
-        lapSpeed = lapM / (lapSec / 3600.) / 1000.;
-    return lapSpeed;
+        kph = lapM / 1000. / lapSec * 3600.;
+    return kph;
 }
 
 
