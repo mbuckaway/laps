@@ -16,8 +16,10 @@ public:
     int lapCount;
     float bestLapSec;
     float bestLapM;
+    float bestLapKph;
     float totalSec;
     float totalM;
+    float averageKph;
 };
 
 
@@ -27,18 +29,20 @@ public:
     CRider(void);
     ~CRider(void);
     void clear();
-    int tagCount;
+//    int tagCount;
     QString tagId;          // from reader
     QString name;           // from dBase if available
     unsigned long long previousTimeStampUSec;   // timestamp from reader, updated with each lap
     float lapSec;
     float lapM;
-    float lapSpeed;
+    float lapKph;
     int lapCount;
     float totalSec;    // used to calculate average time
     float totalM;
+    float averageKph;
     float bestLapSec;
     float bestLapM;
+    float bestLapKph;
     CStats thisMonth;
     CStats lastMonth;
     CStats allTime;

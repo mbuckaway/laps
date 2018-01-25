@@ -1183,13 +1183,20 @@ int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDa
         int rc = getStats(dBase[i], tagId, start, end, reportStatus, &newStats);
         if (rc > 0)
             return rc;
+        asdf
         stats->lapCount += newStats.lapCount;
         stats->totalM += newStats.totalM;
         stats->totalSec += newStats.totalSec;
-        float statsSpeed = 0.;
-        if (stats->bestLapSec > 0.) statsSpeed = stats->bestLapM / 1000. / stats->bestLapSec * 3600.;
-        float newSpeed = 0.;
-        if (newStats.bestLapSec > 0.) newSpeed = newStats.bestLapM / 1000. / newStats.bestLapSec * 3600.;
+        if (stats->totalSec > 0.)
+            stats->averageKph = stats->totalM / 1000. / stats->totalSec * 3600.;
+        else
+            stats->averageKph = 0.;
+        if (stats->averageKph > stats->bestLapKph)
+        if (stats->bestLapSec > 0.)
+            stats->bestLapKph = stats->bestLapM / 1000. / stats->bestLapSec * 3600.;
+        else
+            stats->bestLapKph = 0.;
+        if (stats.bestLapSec > 0.) newSpeed = newStats.bestLapM / 1000. / newStats.bestLapSec * 3600.;
         if (newSpeed > statsSpeed) {
             stats->bestLapM = newStats.bestLapM;
             stats->bestLapSec = newStats.bestLapSec;
