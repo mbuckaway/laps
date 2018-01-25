@@ -671,7 +671,7 @@ CLapsDbase::CLapsDbase(void) {
         qDebug() << "QSqlDatabase drivers:" << QSqlDatabase::drivers() << "does not contain QSQLITE";
 
     allTimeBestLapKph = 0.;
-    dBaseCurrentYear = 0;
+    yearOfCurrentDbase = 0;
 }
 
 
@@ -778,28 +778,11 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     setFile(connectionName + ".db");
 
 
-    // Make sure dbase for current year exists and create if necessary.
-
-    dBaseCurrentYear = 0;
-    dBase.append(QSqlDatabase::addDatabase("QSQLITE", connectionName));
-    dBase[0].setUserName(username);
-    dBase[0].setPassword(password);
-    dBase[0].setDatabaseName(absoluteFilePath());
-
-    if (!dBase[0].open()) {
-        errorTextVal = dBase[0].lastError().text();
-        dBase.removeAt(0);
-        errorVal = 1;
-        return errorVal;
-    }
-
-    dBaseCurrentYear = currentDate.year();
-    prepare(&dBase[0]);
-
-    // Add databases for prior years to list
+    // Make a list of databases for each year
 
     QFileInfo fileInfo;
-    for (int year=currentDate.year()-1; year>=2000; year--) {
+    yearOfCurrentDbase = currentDate.year();       // year of current database
+    for (int year=yearOfCurrentDbase; year>=2000; year--) {
         connectionName = rootName + s.setNum(year);
         fileInfo.setFile(connectionName + ".db");
         if (QFile::exists(fileInfo.absoluteFilePath())) {
@@ -809,14 +792,45 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
             dBase.last().setDatabaseName(fileInfo.absoluteFilePath());
         }
         else {
+            // Create dbase for current year if necessary
+
+            if (year == yearOfCurrentDbase) {
+                dBase.append(QSqlDatabase::addDatabase("QSQLITE", connectionName));
+                dBase.last().setUserName(username);
+                dBase.last().setPassword(password);
+                dBase.last().setDatabaseName(fileInfo.absoluteFilePath());
+            }
             break;
         }
     }
 
+    // The dBase list must now have at least one entry (current year)
+
+    if (dBase.isEmpty()) {
+        errorTextVal = "Could not open dBase for current year or any other";
+        errorVal = 1;
+        return errorVal;
+    }
+
+    // Open dbase for current year
+
+    if (!dBase[0].open()) {
+        errorTextVal = dBase[0].lastError().text();
+        errorVal = 1;
+        for (int i=0; i<dBase.size(); i++) {
+            dBase.removeAt(i);
+        }
+        dBase.clear();
+        return errorVal;
+    }
+
+    // Ensure current year dBase has the required tables
+
+    prepare(&dBase[0]);
+
     // If previous year dbase (second entry in dBase list) exists, open for processing
 
     bool calculatePriorsRequired = false;
-
     if (dBase.size() >= 2) {
         if (!dBase[1].isOpen()) {
             if (!dBase[1].open()) {
@@ -929,7 +943,8 @@ void CLapsDbase::close(void) {
 
 
 // addLap
-// Add lap database
+// Add lap to database.
+// If the year has changed since the previous lap, open new dbase and make the previous current dbase the new previous
 //
 int CLapsDbase::addLap(const CRider &rider, const QDateTime &dateTime) {
     errorTextVal.clear();
@@ -943,7 +958,7 @@ int CLapsDbase::addLap(const CRider &rider, const QDateTime &dateTime) {
 
     // Check whether year has changed since last lap added to dBase and create new dBase if necessary
 
-    if (QDate::currentDate().year() != dBaseCurrentYear) {
+    if (QDate::currentDate().year() != yearOfCurrentDbase) {
 
     }
 
