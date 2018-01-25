@@ -675,18 +675,18 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_LAPSPEED:
-            if (rider->lapSec > 0.)
-                return rider->lapM / rider->lapSec * 3600. / 1000.;
+            if (rider->lapKph > 0.)
+                return rider->lapKph;
             else
                 return QString();
         case AT_BESTLAPSPEED:
-            if (rider->bestLapSec > 0.)
-                return rider->bestLapM / rider->bestLapSec * 3600. / 1000.;
+            if (rider->bestLapKph > 0.)
+                return rider->bestLapKph;
             else
                 return QString();
         case AT_AVERAGESPEED:
-            if (rider->totalSec > 0.)
-                return rider->totalM / rider->totalSec * 3600. / 1000.;
+            if (rider->averageKph > 0.)
+                return rider->averageKph;
             else
                 return QString();
         case AT_KMTHISMONTH:
@@ -695,8 +695,8 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_AVERAGESPEEDTHISMONTH:
-            if (rider->thisMonth.totalSec > 0.)
-                return rider->thisMonth.totalM / rider->thisMonth.totalSec * 3600. / 1000.;
+            if (rider->thisMonth.averageKph > 0.)
+                return rider->thisMonth.averageKph;
             else
                 return QString();
         case AT_KMLASTMONTH:
@@ -705,8 +705,8 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
             else
                 return QString();
         case AT_AVERAGESPEEDLASTMONTH:
-            if (rider->lastMonth.totalSec > 0.)
-                return rider->lastMonth.totalM / rider->lastMonth.totalSec * 3600. / 1000.;
+            if (rider->lastMonth.averageKph > 0.)
+                return rider->lastMonth.averageKph;
             else
                 return QString();
         case AT_LAPCOUNTALLTIME:
@@ -911,17 +911,19 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
             rider->lapCount = 0;
             rider->lapSec = 0.;
             rider->lapM = 0.;
+            rider->lapKph = 0.;
             rider->bestLapSec = 0.;
             rider->bestLapM = 0.;
+            rider->bestLapKph = 0.;
             rider->totalSec = 0.;
             rider->totalM = 0.;
+            rider->averageKph = 0.;
             rider->tagId = tagInfo.tagId;
 
             // If rider is in dBase, get past stats
 
-            if (rider->inDbase) {
+            if (rider->inDbase)
                 mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
-            }
 
             // Check to see if there are any laps in dBase from current workout (will happen if application is
             // stopped and restarted)
@@ -932,25 +934,23 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
 
                 // Loop through laps and update current rider info
 
-                float bestSpeed = 0.;
-                if (rider->bestLapSec > 0.) {
-                    bestSpeed = rider->bestLapM / 1000. / rider->bestLapSec * 3600.;
-                }
+                float bestLapSpeed = 0.;
                 for (int i=0; i<lapsInWorkout.size(); i++) {
                     rider->lapCount++;
                     rider->totalM += lapsInWorkout[i].lapM;
                     rider->totalSec += lapsInWorkout[i].lapSec;
-                    float speed = 0.;
+                    float lapSpeed = 0.;
                     if (lapsInWorkout[i].lapSec > 0.) {
-                        speed = lapsInWorkout[i].lapM / 1000. / lapsInWorkout[i].lapSec * 3600.;
+                        lapSpeed = lapsInWorkout[i].lapM / 1000. / lapsInWorkout[i].lapSec * 3600.;
                     }
-                    if (speed > bestSpeed) {
+                    if (lapSpeed > bestLapSpeed) {
                         rider->bestLapM = lapsInWorkout[i].lapM;
                         rider->bestLapSec = lapsInWorkout[i].lapSec;
+                        bestLapSpeed = lapSpeed;
                     }
                 }
-            }
 
+            }
             rider->nextLapType = CRider::regularCrossing;
             break;
 
@@ -970,15 +970,25 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
                 rider->nextLapType = CRider::regularCrossing;
             }
             else {
+                rider->lapCount++;
                 rider->lapSec = lapSec;
                 rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
-                if ((rider->bestLapSec == 0.) || (rider->lapSec < rider->bestLapSec)) {
-                    rider->bestLapSec = rider->lapSec;
-                    rider->bestLapM = rider->lapM;
-                }
-                rider->lapCount++;
                 rider->totalSec += rider->lapSec;
                 rider->totalM += rider->lapM;
+
+                // Compare lapSpeed with bestLapSpeed
+
+                float lapSpeed = 0.;
+                if (rider->lapSec > 0.) {
+                    lapSpeed = rider->lapM / 1000. / rider->lapSec * 3600.;
+                    float bestLapSpeed = 0.;
+                    if (rider->bestLapSec > 0.)
+                        bestLapSpeed = rider->bestLapM / 1000. / rider->bestLapSec * 3600.;
+                    if (lapSpeed > bestLapSpeed) {
+                        rider->bestLapSec = rider->lapSec;
+                        rider->bestLapM = rider->lapM;
+                    }
+                }
 
                 // Update monthly and all-time stats only if rider name is in dbase
 
