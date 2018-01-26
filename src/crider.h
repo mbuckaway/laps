@@ -3,6 +3,7 @@
 
 
 #include <QString>
+#include <QList>
 
 // CRider is a structure used to keep all information available for each rider
 
@@ -20,6 +21,7 @@ public:
     float bestLapSec;
     float bestLapM;
     float bestLapKph;
+    float bestKKph;
 };
 
 
@@ -52,6 +54,12 @@ public:
     bool inDbase;
     int readerId;
     int antennaId;
+
+    QList<float> lapMList;
+    QList<float> lapSecList;
+    float lapMSum;
+    float lapSecSum;
+    float bestKKmph;
 };
 
 

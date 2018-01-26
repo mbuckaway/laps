@@ -144,8 +144,6 @@ public:
     QSortFilterProxyModel *lapsProxyModel;
     QFile *logFile;
     QTextStream *logTextStream;
-    int bestLapCountInSession;
-    float bestLapSpeedInSession;
     float kph(float m, float sec);
 private:
     CSmtp *smtp;
@@ -176,22 +174,14 @@ private:
     QDateTime dateTimeOfReportEnd;
     QString getSession(const QDateTime &);
     QList<cplot *> plotList;
-    float trackAllTimeBestLapS;
     float trackAllTimeBestLapKmph;
-    float trackAllTimeBestKS;
-    float trackMonthBestLapS;
-    float trackMonthBestLapKmph;
-    float trackMonthBestKS;
+    float trackAllTimeBestKKmph;
     float trackSessionBestLapKmph;
-    float trackSessionBestLapS;
-    QString trackAllTimeBestLapSName;
+    float trackSessionBestKKmph;
     QString trackAllTimeBestLapKmphName;
     QString trackAllTimeBestKSName;
-    QString trackMonthBestLapSName;
-    QString trackMonthBestLapKmphName;
-    QString trackMonthBestSName;
     QString trackSessionBestLapKmphName;
-    QString trackSessionSestLapSName;
+    QString trackSessionBestKKmphName;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:

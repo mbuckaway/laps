@@ -23,6 +23,7 @@ void CStats::clear(void) {
     bestLapSec = 0.;
     bestLapM = 0.;
     bestLapKph = 0.;
+    bestKKph = 0.;
 }
 
 
@@ -56,6 +57,11 @@ void CRider::clear(void) {
     inDbase = false;
     lapType = unknown;
     nextLapType = unknown;
+    lapMList.clear();
+    lapSecList.clear();
+    lapMSum = 0.;
+    lapSecSum = 0.;
+    bestKKmph = 0.;
 }
 
 

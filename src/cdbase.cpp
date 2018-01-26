@@ -1197,6 +1197,9 @@ int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDa
                 stats->bestLapSec = yearStats.bestLapSec;
                 stats->bestLapKph = yearStats.bestLapKph;
             }
+
+            if (yearStats.bestKKph > stats->bestKKph)
+                stats->bestKKph = yearStats.bestKKph;
         }
         year--;
     }
@@ -1277,6 +1280,11 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     float bestLapSec = 0.;
     float bestLapM = 0.;
     float bestLapKph = 0.;
+    float bestKKph = 0.;
+    QList<float> lapSecList;
+    QList<float> lapMList;
+    float lapMSum = 0.;
+    float lapSecSum = 0.;
     QDateTime previousLapDateTime = QDateTime::currentDateTime().addYears(-100);
     while (query.next()) {
         QDateTime lapDateTime = CDateTime(query.value(dateTimeIndex).toUInt()).toQDateTime();
@@ -1298,6 +1306,28 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
         if (previousLapDateTime.secsTo(lapDateTime) > (3 * 3600)) {
             workoutCount++;
         }
+
+        // Find best k kph
+
+        lapMList.append(lapM);
+        lapSecList.append(lapSec);
+        lapMSum += lapM;
+        lapSecSum += lapSec;
+        if (lapMSum >= 1000.) {
+            float sec = lapSecSum;
+            float m = lapMSum;
+            float kph;
+            do {
+                lapSecSum -= lapSecList[0];
+                lapMSum -= lapMList[0];
+                lapSecList.removeFirst();
+                lapMList.removeFirst();
+            } while (lapMSum >= 1000.);
+            kph = m / 1000. / sec * 3600.;
+            if (kph > bestKKph)
+                bestKKph = kph;
+        }
+
         previousLapDateTime = lapDateTime;
     }
 
@@ -1308,6 +1338,7 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     stats->bestLapSec = bestLapSec;
     stats->bestLapM = bestLapM;
     stats->bestLapKph = bestLapKph;
+    stats->bestKKph = bestKKph;
 
     return 0;
 }
