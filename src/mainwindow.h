@@ -145,6 +145,7 @@ public:
     QFile *logFile;
     QTextStream *logTextStream;
     float kph(float m, float sec);
+    float getBestKKmph(CRider *, const QList<CLapInfo> &lapList);
 private:
     CSmtp *smtp;
     QList<CRider> purgedRiders;

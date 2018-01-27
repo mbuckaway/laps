@@ -17,15 +17,13 @@ public:
     int lapCount;
     float totalSec;
     float totalM;
-    float averageKph;
-    float bestLapSec;
-    float bestLapM;
-    float bestLapKph;
-    float bestKKph;
+    float averageKmph;
+    float bestLapKmph;
+    float bestKKmph;
 };
 
 
-class CRider {
+class CRider {//: public CStats {
 public:
     enum lap_t {unknown=0, firstCrossing=1, regularCrossing=2, onBreak=3, firstCrossingAfterBreak=4};
     CRider(void);
@@ -36,14 +34,13 @@ public:
     unsigned long long previousTimeStampUSec;   // timestamp from reader, updated with each lap
     float lapSec;
     float lapM;
-    float lapKph;
+    float lapKmph;
     int lapCount;
     float totalSec;    // used to calculate average time
     float totalM;
-    float averageKph;
-    float bestLapSec;
-    float bestLapM;
-    float bestLapKph;
+    float averageKmph;
+    float bestLapKmph;
+    float bestKKmph;
     CStats thisMonth;
     CStats lastMonth;
     CStats allTime;
@@ -59,7 +56,6 @@ public:
     QList<float> lapSecList;
     float lapMSum;
     float lapSecSum;
-    float bestKKmph;
 };
 
 

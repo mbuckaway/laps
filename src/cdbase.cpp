@@ -763,8 +763,6 @@ int CLapsDbase::open(const QString &rootName, const QString &username, const QSt
     errorTextVal.clear();
     errorVal = 0;
     QString s;
-
-    bool showContents = false;
     QDate currentDate(QDate::currentDate());
 
     // Close dbase if already open
@@ -1133,6 +1131,51 @@ int CLapsDbase::getLap(int id, QString *tagId, CLapInfo *lapInfo) {
 
 
 
+// Get stats for specified tagId and time period from current year dbase
+//
+int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDateTime &end, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {
+    errorTextVal.clear();
+    errorVal = 0;
+
+    if (!isOpen()) {
+        errorTextVal = "CLapsDbase closed";
+        errorVal = 2;
+        return errorVal;
+    }
+
+    if (start > end) {
+        errorTextVal = "dateTimeStart > dateTimeEnd in getLapsInPeriod";
+        errorVal = 3;
+        return errorVal;
+    }
+
+    QSqlQuery query(dBase[0]);
+    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
+    query.bindValue(":tagId", tagId);
+    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
+    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
+    query.bindValue(":reportStatus", reportStatus);
+    if (!query.exec()) {
+        errorTextVal = query.lastError().text();
+        errorVal = 4;
+        return errorVal;
+    }
+
+    int idIndex = query.record().indexOf("id");
+    if (idIndex < 0) {
+        errorTextVal = "Could not find id index in getLapsInPeriod";
+        errorVal = 5;
+        return errorVal;
+    }
+
+    while (query.next())
+        lapsList->append(query.value(idIndex).toInt());
+
+    return 0;
+}
+
+
+
 // Calculate allTime stats for specified tagId
 //
 int CLapsDbase::getStats(const QString &tagId, CRider *rider) {
@@ -1192,20 +1235,17 @@ int CLapsDbase::getStats(const QString &tagId, const QDateTime &start, const QDa
             stats->totalM += yearStats.totalM;
             stats->totalSec += yearStats.totalSec;
 
-            if (yearStats.bestLapKph > stats->bestLapKph) {
-                stats->bestLapM = yearStats.bestLapM;
-                stats->bestLapSec = yearStats.bestLapSec;
-                stats->bestLapKph = yearStats.bestLapKph;
-            }
+            if (yearStats.bestLapKmph > stats->bestLapKmph)
+                stats->bestLapKmph = yearStats.bestLapKmph;
 
-            if (yearStats.bestKKph > stats->bestKKph)
-                stats->bestKKph = yearStats.bestKKph;
+            if (yearStats.bestKKmph > stats->bestKKmph)
+                stats->bestKKmph = yearStats.bestKKmph;
         }
         year--;
     }
 
     if (stats->totalSec > 0.)
-        stats->averageKph = stats->totalM / 1000. / stats->totalSec * 3600.;
+        stats->averageKmph = stats->totalM / 1000. / stats->totalSec * 3600.;
 
     return 0;
 }
@@ -1277,10 +1317,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     int lapCount = 0;
     float totalSec = 0.;
     float totalM = 0.;
-    float bestLapSec = 0.;
-    float bestLapM = 0.;
-    float bestLapKph = 0.;
-    float bestKKph = 0.;
+    float bestLapKmph = 0.;
+    float bestKKmph = 0.;
     QList<float> lapSecList;
     QList<float> lapMList;
     float lapMSum = 0.;
@@ -1290,22 +1328,18 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
         QDateTime lapDateTime = CDateTime(query.value(dateTimeIndex).toUInt()).toQDateTime();
         float lapSec = query.value(lapsecIndex).toFloat();
         float lapM = query.value(lapmIndex).toFloat();
-        float lapKph = 0.;
+        float lapKmph = 0.;
         if (lapSec > 0.)
-            lapKph = lapM / 1000. / lapSec * 3600.;
+            lapKmph = lapM / 1000. / lapSec * 3600.;
 
-        if (lapKph > bestLapKph) {
-            bestLapSec = lapSec;
-            bestLapM = lapM;
-            bestLapKph = lapKph;
-        }
+        if (lapKmph > bestLapKmph)
+            bestLapKmph = lapKmph;
 
         lapCount++;
         totalM += lapM;
         totalSec += lapSec;
-        if (previousLapDateTime.secsTo(lapDateTime) > (3 * 3600)) {
+        if (previousLapDateTime.secsTo(lapDateTime) > (3 * 3600))
             workoutCount++;
-        }
 
         // Find best k kph
 
@@ -1324,8 +1358,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
                 lapMList.removeFirst();
             } while (lapMSum >= 1000.);
             kph = m / 1000. / sec * 3600.;
-            if (kph > bestKKph)
-                bestKKph = kph;
+            if (kph > bestKKmph)
+                bestKKmph = kph;
         }
 
         previousLapDateTime = lapDateTime;
@@ -1335,10 +1369,8 @@ int CLapsDbase::getStats(const QSqlDatabase &dBase, const QString &tagId, const 
     stats->workoutCount = workoutCount;
     stats->totalM = totalM;
     stats->totalSec = totalSec;
-    stats->bestLapSec = bestLapSec;
-    stats->bestLapM = bestLapM;
-    stats->bestLapKph = bestLapKph;
-    stats->bestKKph = bestKKph;
+    stats->bestLapKmph = bestLapKmph;
+    stats->bestKKmph = bestKKmph;
 
     return 0;
 }
@@ -1429,51 +1461,6 @@ int CLapsDbase::setReportStatus(reportStatus_t reportStatus, const QString &tagI
         errorTextVal = "Could not update database.";
         return 4;
     }
-
-    return 0;
-}
-
-
-
-// Get stats for specified tagId and time period from dbase
-//
-int CLapsDbase::getLaps(const QString &tagId, const QDateTime &start, const QDateTime &end, CLapsDbase::reportStatus_t reportStatus, QList<int> *lapsList) {
-    errorTextVal.clear();
-    errorVal = 0;
-
-    if (!isOpen()) {
-        errorTextVal = "CLapsDbase closed";
-        errorVal = 2;
-        return errorVal;
-    }
-
-    if (start > end) {
-        errorTextVal = "dateTimeStart > dateTimeEnd in getLapsInPeriod";
-        errorVal = 3;
-        return errorVal;
-    }
-
-    QSqlQuery query(dBase[0]);
-    query.prepare("SELECT id FROM lapsTable WHERE tagId = :tagId AND reportStatus = :reportStatus AND dateTime BETWEEN :dateTimeStart AND :dateTimeEnd");
-    query.bindValue(":tagId", tagId);
-    query.bindValue(":dateTimeStart", CDateTime(start).toUInt());
-    query.bindValue(":dateTimeEnd", CDateTime(end).toUInt());
-    query.bindValue(":reportStatus", reportStatus);
-    if (!query.exec()) {
-        errorTextVal = query.lastError().text();
-        errorVal = 4;
-        return errorVal;
-    }
-
-    int idIndex = query.record().indexOf("id");
-    if (idIndex < 0) {
-        errorTextVal = "Could not find id index in getLapsInPeriod";
-        errorVal = 5;
-        return errorVal;
-    }
-
-    while (query.next())
-        lapsList->append(query.value(idIndex).toInt());
 
     return 0;
 }
