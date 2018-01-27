@@ -179,10 +179,14 @@ private:
     float trackAllTimeBestKKmph;
     float trackSessionBestLapKmph;
     float trackSessionBestKKmph;
+    float trackThisMonthBestLapKmph;
+    float trackThisMonthBestKKmph;
     QString trackAllTimeBestLapKmphName;
-    QString trackAllTimeBestKSName;
+    QString trackAllTimeBestKKmphName;
     QString trackSessionBestLapKmphName;
     QString trackSessionBestKKmphName;
+    QString trackThisMonthBestLapKmphName;
+    QString trackThisMonthBestKKmphName;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:

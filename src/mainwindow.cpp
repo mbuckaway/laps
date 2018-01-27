@@ -1201,9 +1201,12 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersTableModel = NULL;
     activeRidersProxyModel = NULL;
     logFile = NULL;
+    trackSessionBestLapKmph = 0.;
+    trackSessionBestKKmph = 0.;
+    trackThisMonthBestLapKmph = 0.;
+    trackThisMonthBestKKmph = 0.;
     trackAllTimeBestLapKmph = 0.;
     trackAllTimeBestKKmph = 0.;
-    trackSessionBestLapKmph = 0.;
     QCoreApplication::setApplicationName("LLRPLaps");
     QCoreApplication::setApplicationVersion("0.7");
 
@@ -1469,6 +1472,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableSortEnableCheckBox->setChecked(true);
     ui->activeRidersTableView->setEnabled(false);   // will be enabled when connected to reader
 
+    ui->bestsLabel->clear();
+
 //    ui->activeRidersTableSortEnableCheckBox->hide();
     connect(ui->activeRidersTableSortEnableCheckBox, SIGNAL(clicked(bool)), this, SLOT(onActiveRidersTableSortEnableCheckBoxClicked(bool)));
 
@@ -1528,98 +1533,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 
-
-
     // Get a list of laps already in dBase that could be from current session (will happen if application stopped and restarted).
 
     QList<int> lapsInSession;
     lapsDbase.getLaps(NULL, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), CLapsDbase::reportAny, &lapsInSession);
-    qDebug() << lapsInSession.size();
-//    for (int i=0; i<lapsInSession.size(); i++) {
-//        qDebug() << lapsInSession[i].
-//    }
-
-
-//    // If rider is in dBase, get past stats
-
-//    if (rider->inDbase)
-//        mainWindow->lapsDbase.getStats(tagInfo.tagId, rider);
-
-
-//    // Any laps already in dBase from current session (will happen if application is stopped and restarted)
-//    // will be included in the above calculation of past stats but must now be added to current session stats
-
-//    {
-//        QList<CLapInfo> lapsInSession;
-//        mainWindow->lapsDbase.getLapInfo(rider->tagId, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), &lapsInSession);
-
-//        // Loop through laps for current session
-
-//        for (int i=0; i<lapsInSession.size(); i++) {
-//            float lapKmph = mainWindow->kph(lapsInSession[i].lapM, lapsInSession[i].lapSec);
-
-//            rider->lapCount++;
-//            rider->totalM += lapsInSession[i].lapM;
-//            rider->totalSec += lapsInSession[i].lapSec;
-//            rider->lapKmph = lapKmph;
-
-//            // Find best lap kph
-
-//            if (rider->lapKmph > rider->bestLapKmph)
-//                rider->bestLapKmph = lapKmph;
-
-//            // Find best k kph
-
-//            rider->lapMList.append(lapsInSession[i].lapM);
-//            rider->lapSecList.append(lapsInSession[i].lapSec);
-//            rider->lapMSum += lapsInSession[i].lapM;
-//            rider->lapSecSum += lapsInSession[i].lapSec;
-//            float kKmph = 0.;
-//            if (rider->lapMSum >= 1000.) {
-//                float sec = rider->lapSecSum;
-//                float m = rider->lapMSum;
-//                do {
-//                    rider->lapSecSum -= rider->lapSecList[0];
-//                    rider->lapMSum -= rider->lapMList[0];
-//                    rider->lapSecList.removeFirst();
-//                    rider->lapMList.removeFirst();
-//                } while (rider->lapMSum >= 1000.);
-//                kKmph = mainWindow->kph(m, sec);
-//                if (kKmph > rider->bestKKmph)
-//                    rider->bestKKmph = kKmph;
-//            }
-
-//        }
-
-//        rider->averageKmph = mainWindow->kph(rider->totalM, rider->totalSec);
-
-////                if (rider->bestLapKmph > mainWindow->trackSessionBestLapKmph) {
-////                    mainWindow->trackSessionBestLapKmph = rider->bestLapKmph;
-////                    mainWindow->trackSessionBestLapKmphName = rider->name;
-////                }
-
-////                if (rider->bestKKmph > mainWindow->trackSessionBestKKmph) {
-////                    mainWindow->trackSessionBestKKmph = rider->bestKKmph;
-////                    mainWindow->trackSessionBestKKmphName = rider->name;
-////                }
-
-//    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    //qDebug() << lapsInSession.size();
 
 
 
@@ -2190,10 +2108,14 @@ void MainWindow::prepareNextReport(void) {
         float speed = 0.;
         float bestSpeed = 0.;
         float bestLapSec = 0.;
-        if (statsForDay.lapCount > 0.) averageLapSec = statsForDay.totalSec / (float)statsForDay.lapCount;
-        if (statsForDay.totalSec > 0.) speed = statsForDay.totalM / statsForDay.totalSec / 1000. * 3600.;
-//        if (statsForDay.bestLapSec > 0.) bestSpeed = statsForDay.bestLapM / statsForDay.bestLapSec / 1000. * 3600.;
-//        if (statsForDay.bestLapSec > 0.) bestLapSec = statsForDay.bestLapSec;
+        if (statsForDay.lapCount > 0.)
+            averageLapSec = statsForDay.totalSec / (float)statsForDay.lapCount;
+        if (statsForDay.totalSec > 0.)
+            speed = statsForDay.totalM / statsForDay.totalSec / 1000. * 3600.;
+//        if (statsForDay.bestLapSec > 0.)
+//            bestSpeed = statsForDay.bestLapM / statsForDay.bestLapSec / 1000. * 3600.;
+//        if (statsForDay.bestLapSec > 0.)
+//            bestLapSec = statsForDay.bestLapSec;
         body.append(s.sprintf("\n%-26s %4d  %7.3f %7.2f      %6.2f      %6.2f      %6.2f\n", reportDate.toString().toLatin1().data(), statsForDay.lapCount, statsForDay.totalM/1000., averageLapSec, speed, bestLapSec, bestSpeed));
 
         // Report sessions
@@ -2431,36 +2353,62 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     CRider *rider = activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
     if (rider && !rider->name.isEmpty()) {
-
-        bool updateBestsLabel = false;
+        float lapKph = kph(rider->lapM, rider->lapSec);
 
         // Best session lap kph
 
-        float lapKph = kph(rider->lapM, rider->lapSec);
+        bool updateBestLap = false;
         if (lapKph > trackSessionBestLapKmph) {
             trackSessionBestLapKmph = lapKph;
             trackSessionBestLapKmphName = rider->name;
-            updateBestsLabel = true;
+            updateBestLap = true;
         }
 
         // Best session km
 
+        bool updateBestKm = false;
         if (rider->bestKKmph > trackSessionBestKKmph) {
             trackSessionBestKKmph = rider->bestKKmph;
             trackSessionBestKKmphName = rider->name;
-            updateBestsLabel = true;
+            updateBestKm = true;
         }
 
-        if (updateBestsLabel)
-            ui->bestsLabel->setText(s.sprintf("Fastest Lap: %s (%.2f km/h)\nFastest km: %s (%.2f km/h)", trackSessionBestLapKmphName.toLatin1().data(), trackSessionBestLapKmph, trackSessionBestKKmphName.toLatin1().data(), trackSessionBestKKmph));
+        // Best thisMonth lap
+
+        if (rider->thisMonth.bestLapKmph > trackThisMonthBestLapKmph) {
+            trackThisMonthBestLapKmph = rider->thisMonth.bestLapKmph;
+            trackThisMonthBestLapKmphName = rider->name;
+            updateBestKm = true;
+        }
+
+        // Best thisMonth km
+
+        if (rider->thisMonth.bestKKmph > trackThisMonthBestKKmph) {
+            trackThisMonthBestKKmph = rider->thisMonth.bestKKmph;
+            trackThisMonthBestKKmphName = rider->name;
+            updateBestKm = true;
+        }
+
+        if ((trackSessionBestLapKmph > 0.)  && (updateBestLap || updateBestKm))
+            ui->bestsLabel->setText(s.sprintf("Session Fastest Lap: %s (%.2f km/h)\nSession Fastest km: %s (%.2f km/h)\nMonth Fastest Lap: %s (%.2f km/h)\nMonth Fastest km: %s (%.2f km/h)", trackSessionBestLapKmphName.toLatin1().data(), trackSessionBestLapKmph, trackSessionBestKKmphName.toLatin1().data(), trackSessionBestKKmph, trackThisMonthBestLapKmphName.toLatin1().data(), trackThisMonthBestLapKmph, trackThisMonthBestKKmphName.toLatin1().data(), trackThisMonthBestKKmph));
 
 
-        // Best all time lap kph
+        // Best allTime lap kph
 
-        if (lapKph > trackAllTimeBestLapKmph) {
-            trackAllTimeBestLapKmph = lapKph;
+        if (rider->allTime.bestLapKmph > trackAllTimeBestLapKmph) {
+            trackAllTimeBestLapKmph = rider->allTime.bestLapKmph;
             trackAllTimeBestLapKmphName = rider->name;
+            updateBestKm = true;
         }
+
+        // Best allTime km
+
+        if (rider->allTime.bestKKmph > trackAllTimeBestKKmph) {
+            trackAllTimeBestKKmph = rider->allTime.bestKKmph;
+            trackAllTimeBestKKmphName = rider->name;
+            updateBestKm = true;
+        }
+
     }
 }
 
