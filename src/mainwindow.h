@@ -187,6 +187,7 @@ private:
     QString trackSessionBestKKmphName;
     QString trackThisMonthBestLapKmphName;
     QString trackThisMonthBestKKmphName;
+    void closeEvent(QCloseEvent *event);
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
@@ -232,8 +233,9 @@ private slots:
     void onNamesTableClicked(const QModelIndex &);
     void onNamesTableDoubleClicked(const QModelIndex &);
     void onHelpAbout(bool);
+    void onActionExit(bool);
+//    void onMessages(bool);
     void cleanExit(bool flag=false);
     void onActiveRidersTableClearPushButtonClicked(bool);
 };
-
 #endif // MAINWINDOW_H

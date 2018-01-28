@@ -90,6 +90,12 @@ CReader::~CReader(void) {
 
 
 
+void CReader::blockReaderSignals(bool state) {
+    blockSignals(state);
+}
+
+
+
 void CReader::onStarted(void) {
     QString s;
     CTagInfo tag;

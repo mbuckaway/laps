@@ -21,6 +21,7 @@
 #include <QSettings>
 #include <QStandardItemModel>
 #include <QClipboard>
+#include <QCloseEvent>
 
 
 #include <cplot.h>
@@ -1304,8 +1305,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Configure messages console
 
-    QPlainTextEdit *m = ui->messagesPlainTextEdit;
-    m->setReadOnly(true);
+//    QPlainTextEdit *m = ui->messagesPlainTextEdit;
+//    m->setReadOnly(true);
 
 
     // Default to showing messages during connection to reader
@@ -1580,7 +1581,7 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
     connect(ui->actionHelpAbout, SIGNAL(triggered(bool)), this, SLOT(onHelpAbout(bool)));
-    connect(ui->actionExit, SIGNAL(triggered(bool)), this, SLOT(cleanExit(bool)));
+    connect(ui->actionExit, SIGNAL(triggered(bool)), this, SLOT(onActionExit(bool)));
 }
 
 
@@ -1588,7 +1589,25 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow() {
     cleanExit();
-    delete ui;
+}
+
+
+
+// Override close event to minimize only
+//
+void MainWindow::closeEvent (QCloseEvent *event) {
+    event->ignore();
+    showMinimized();
+}
+
+
+
+// Get confirmation from user before exiting
+//
+void MainWindow::onActionExit(bool) {
+    int rc = guiQuestion("Leaving this application will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
+    if (rc == QMessageBox::Yes)
+        cleanExit();
 }
 
 
@@ -1621,6 +1640,7 @@ void MainWindow::cleanExit(bool /*flag*/) {
     for (int i=0; i<plotList.size(); i++) {
         plotList[i]->close();
     }
+    delete ui;
     exit(0);
 }
 
@@ -2848,18 +2868,18 @@ void MainWindow::onNamesTableClicked(const QModelIndex &index) {
 
 void MainWindow::guiCritical(QString s) {
     onNewLogMessage("Critical: " + s);
-    QMessageBox::critical(NULL, "llrplaps Critical Error", s, QMessageBox::Ok);
+    QMessageBox::critical(this, "llrplaps Critical Error", s, QMessageBox::Ok);
 }
 
 
 void MainWindow::guiInformation(QString s) {
     onNewLogMessage("Information: " + s);
-    QMessageBox::information(NULL, QCoreApplication::applicationName() + "\n\n", s, QMessageBox::Ok);
+    QMessageBox::information(this, QCoreApplication::applicationName() + "\n\n", s, QMessageBox::Ok);
 }
 
 
 QMessageBox::StandardButtons MainWindow::guiQuestion(QString s, QMessageBox::StandardButtons b) {
-    return QMessageBox::question(NULL, "llrplaps Question", s, b);
+    return QMessageBox::question(this, "llrplaps Question", s, b);
 }
 
 

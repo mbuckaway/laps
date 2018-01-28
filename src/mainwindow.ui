@@ -553,26 +553,6 @@
         <string>Messages</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout">
-        <item row="0" column="0">
-         <widget class="QCheckBox" name="detailedMessagesCheckBox">
-          <property name="text">
-           <string>Detailed</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <spacer name="horizontalSpacer_3">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>609</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
         <item row="1" column="0" colspan="2">
          <widget class="QPlainTextEdit" name="messagesPlainTextEdit">
           <property name="sizePolicy">
@@ -589,6 +569,26 @@
           </property>
           <property name="readOnly">
            <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <spacer name="horizontalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>609</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item row="0" column="0">
+         <widget class="QCheckBox" name="detailedMessagesCheckBox">
+          <property name="text">
+           <string>Detailed</string>
           </property>
          </widget>
         </item>
@@ -1639,15 +1639,33 @@ Leave blank for simulator.</string>
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionPreferences"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionHelp"/>
     <addaction name="actionHelpAbout"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionMessages"/>
+    <addaction name="actionRecords"/>
+    <addaction name="actionHistory"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionMembership"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
@@ -1659,6 +1677,46 @@ Leave blank for simulator.</string>
   <action name="actionHelpAbout">
    <property name="text">
     <string>About</string>
+   </property>
+  </action>
+  <action name="actionMessages">
+   <property name="text">
+    <string>Messages</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionSessions">
+   <property name="text">
+    <string>Sessions</string>
+   </property>
+  </action>
+  <action name="actionMembership">
+   <property name="text">
+    <string>Users</string>
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences</string>
+   </property>
+  </action>
+  <action name="actionRecords">
+   <property name="text">
+    <string>Records</string>
+   </property>
+  </action>
+  <action name="actionHistory">
+   <property name="text">
+    <string>History</string>
+   </property>
+  </action>
+  <action name="actionHelp">
+   <property name="text">
+    <string>Help</string>
    </property>
   </action>
  </widget>

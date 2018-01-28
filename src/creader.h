@@ -101,6 +101,8 @@ signals:
     void newTag(CTagInfo);
     void newLogMessage(QString);
     void error(QString);
+public slots:
+    void blockReaderSignals(bool);
 private slots:
     void onStarted(void);
 };

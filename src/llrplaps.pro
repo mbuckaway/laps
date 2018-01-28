@@ -63,13 +63,17 @@ INCLUDEPATH += $$QWTDIR/src
 
 
 
-SOURCES += main.cpp\
-        mainwindow.cpp \
+SOURCES += main.cpp \
+    mainwindow.cpp \
     creader.cpp \
     cdbase.cpp \
     crider.cpp \
     csmtp.cpp \
-    cplot.cpp
+    cplot.cpp \
+    cmessages.cpp \
+    cmembers.cpp \
+    csessions.cpp \
+    csettings.cpp
 #    cplotform.cpp
 
 HEADERS  += mainwindow.h \
@@ -78,8 +82,16 @@ HEADERS  += mainwindow.h \
     cdbase.h \
     crider.h \
     csmtp.h \
-    cplot.h
+    cplot.h \
+    cmessages.h \
+    cmembers.h \
+    csessions.h \
+    csettings.h
 #    cplotform.h
 
-FORMS    += mainwindow.ui
+FORMS    += mainwindow.ui \
+    cmessages.ui \
+    cmembers.ui \
+    csessions.ui \
+    csettings.ui
 #    cplotform.ui
