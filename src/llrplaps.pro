@@ -69,11 +69,11 @@ SOURCES += main.cpp \
     cdbase.cpp \
     crider.cpp \
     csmtp.cpp \
-    cplot.cpp \
-    cmessages.cpp \
-    cmembers.cpp \
-    csessions.cpp \
-    csettings.cpp
+    cplot.cpp
+#    cmessages.cpp \
+#    cmembers.cpp \
+#    csessions.cpp \
+#    csettings.cpp
 #    cplotform.cpp
 
 HEADERS  += mainwindow.h \
@@ -82,16 +82,16 @@ HEADERS  += mainwindow.h \
     cdbase.h \
     crider.h \
     csmtp.h \
-    cplot.h \
-    cmessages.h \
-    cmembers.h \
-    csessions.h \
-    csettings.h
+    cplot.h
+#    cmessages.h \
+#    cmembers.h \
+#    csessions.h \
+#    csettings.h
 #    cplotform.h
 
-FORMS    += mainwindow.ui \
-    cmessages.ui \
-    cmembers.ui \
-    csessions.ui \
-    csettings.ui
+FORMS    += mainwindow.ui
+#    cmessages.ui \
+#    cmembers.ui \
+#    csessions.ui \
+#    csettings.ui
 #    cplotform.ui
