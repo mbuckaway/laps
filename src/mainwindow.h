@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include <QTableWidgetItem>
 #include <QMessageBox>
+#include <QSystemTrayIcon>
 
 
 #include "creader.h"
@@ -188,6 +189,9 @@ private:
     QString trackThisMonthBestLapKmphName;
     QString trackThisMonthBestKKmphName;
     void closeEvent(QCloseEvent *event);
+    void createTrayIcon(void);
+    QSystemTrayIcon *trayIcon;
+    QPixmap *logoImage;
 signals:
     void newTrackTag(CTagInfo tagInfo);
 public slots:
@@ -233,9 +237,10 @@ private slots:
     void onNamesTableClicked(const QModelIndex &);
     void onNamesTableDoubleClicked(const QModelIndex &);
     void onHelpAbout(bool);
-    void onActionExit(bool);
+    void onActionExit(void);
 //    void onMessages(bool);
     void cleanExit(bool flag=false);
     void onActiveRidersTableClearPushButtonClicked(bool);
+    void onShowHide(QSystemTrayIcon::ActivationReason reason=QSystemTrayIcon::DoubleClick);
 };
 #endif // MAINWINDOW_H

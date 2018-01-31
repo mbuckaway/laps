@@ -24,6 +24,7 @@
 #include <QCloseEvent>
 
 
+
 #include <cplot.h>
 //#include <cplotform.h>
 #include <stdio.h>
@@ -1202,14 +1203,15 @@ MainWindow::MainWindow(QWidget *parent) :
     activeRidersTableModel = NULL;
     activeRidersProxyModel = NULL;
     logFile = NULL;
+    trayIcon = NULL;
     trackSessionBestLapKmph = 0.;
     trackSessionBestKKmph = 0.;
     trackThisMonthBestLapKmph = 0.;
     trackThisMonthBestKKmph = 0.;
     trackAllTimeBestLapKmph = 0.;
     trackAllTimeBestKKmph = 0.;
-    QCoreApplication::setApplicationName("LLRPLaps");
-    QCoreApplication::setApplicationVersion("0.7");
+
+    QCoreApplication::setApplicationVersion("0.8");
 
     initializeSettingsPanel();
     bool initialized = true;
@@ -1221,6 +1223,101 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
     ui->rightTitleLabel->setText(QString());
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
+    //logoImage = new QPixmap(":/images/cycle2.png");
+
+    //ui->logoImageLabel->setPixmap(*logoImage);
+    //ui->logoImageLabel->setScaledContents(false);
+    //ui->logoImageLabel->setFrameStyle(QFrame::NoFrame);
+    //ui->logoImageLabel->show();
+
+
+    setWindowIcon(QIcon(":/images/cycle2.png"));
+
+
+    // Is there another instance of program running?
+
+    QStringList listOfPids;
+
+#if defined(Q_OS_WIN)
+    // Get the list of process identifiers.
+    DWORD aProcesses[1024], cbNeeded, cProcesses;
+    unsigned int i;
+
+    if (!EnumProcesses(aProcesses, sizeof(aProcesses), &cbNeeded))
+    {
+        return 0;
+    }
+
+    // Calculate how many process identifiers were returned.
+    cProcesses = cbNeeded / sizeof(DWORD);
+
+    // Search for a matching name for each process
+    for (i = 0; i < cProcesses; i++)
+    {
+        if (aProcesses[i] != 0)
+        {
+            char szProcessName[MAX_PATH] = {0};
+
+            DWORD processID = aProcesses[i];
+
+            // Get a handle to the process.
+            HANDLE hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+                                           PROCESS_VM_READ,
+                                           FALSE, processID);
+
+            // Get the process name
+            if (NULL != hProcess)
+            {
+                HMODULE hMod;
+                DWORD cbNeeded;
+
+                if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded))
+                {
+                    GetModuleBaseNameA(hProcess, hMod, szProcessName, sizeof(szProcessName)/sizeof(char));
+                }
+
+                // Release the handle to the process.
+                CloseHandle(hProcess);
+
+                if (*szProcessName != 0 && strcmp(processName, szProcessName) == 0)
+                {
+                    listOfPids.append(QString::number(processID));
+                }
+            }
+        }
+    }
+
+#else
+
+    // Run pgrep, which looks through the currently running processses and lists the process IDs
+    // which match the selection criteria to stdout.
+    QProcess process;
+    QString processName(QCoreApplication::applicationName());
+    process.start("pgrep",  QStringList() << processName);
+    process.waitForReadyRead();
+
+    QByteArray bytes = process.readAllStandardOutput();
+
+    process.terminate();
+    process.waitForFinished();
+    process.kill();
+
+    // Output is something like "2472\n2323" for multiple instances
+    //        if (bytes.isEmpty())
+    //            return 0;
+
+    // Remove trailing CR
+    if (bytes.endsWith("\n"))
+        bytes.resize(bytes.size() - 1);
+
+    listOfPids = QString(bytes).split("\n");
+#endif
+
+    if (listOfPids.size() > 1) {
+        guiCritical("It appears there is another instance of " + QCoreApplication::applicationName() + " running.  Only one instance at a time is allowed.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
+        exit(0);
+    }
+
 
 
     // The default directory must be set to the bin directory containing the executable and start-up script.
@@ -1237,14 +1334,15 @@ MainWindow::MainWindow(QWidget *parent) :
         guiCritical("Could not create directory " + logDir.absolutePath());
         exit(1);
     }
-    QStringList filter{"llrplaps*.log"};
+    QStringList filter{QCoreApplication::applicationName() + "*.log"};
     logDir.setNameFilters(filter);
-    QFile::rename(logDir.absolutePath() + "/llrplaps.log", logDir.absolutePath() + s.sprintf("/llrplaps%03d.log", logDir.entryInfoList().size() - 1));
+    QString s2;
+    QFile::rename(logDir.absolutePath() + s.sprintf("/%s.log", QApplication::applicationName().toLatin1().data()), logDir.absolutePath() + s2.sprintf("/%s%03d.log",  QCoreApplication::applicationName().toLatin1().data(), logDir.entryInfoList().size() - 1));
 
     logFile = new QFile;
     if (!logFile)
         qDebug() << "Error creating log QFile";
-    logFile->setFileName(logDir.absolutePath() + "/llrplaps.log");
+    logFile->setFileName(logDir.absolutePath() + s.sprintf("/%s.log", QCoreApplication::applicationName().toLatin1().data()));
     int rc = logFile->open(QIODevice::Append | QIODevice::Text);
     if (!rc) {
         qDebug() << "log file not opened";
@@ -1581,7 +1679,32 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
     connect(ui->actionHelpAbout, SIGNAL(triggered(bool)), this, SLOT(onHelpAbout(bool)));
-    connect(ui->actionExit, SIGNAL(triggered(bool)), this, SLOT(onActionExit(bool)));
+    connect(ui->actionExit, SIGNAL(triggered()), this, SLOT(onActionExit()));
+
+
+    // Create tray icon
+
+//    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+    trayIcon = new QSystemTrayIcon(QIcon(":/images/cycle2.png"), this);
+
+    connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this, SLOT(onShowHide(QSystemTrayIcon::ActivationReason)));
+
+    QAction *quitAction = new QAction("Exit", trayIcon);
+    connect(quitAction, SIGNAL(triggered()), this, SLOT(onActionExit()));
+
+    QAction *showHideAction = new QAction("Show/Hide", trayIcon);
+    connect(showHideAction, SIGNAL(triggered()), this, SLOT(onShowHide()));
+
+    QMenu *trayIconMenu = new QMenu;
+    trayIconMenu->addAction(showHideAction);
+    trayIconMenu->addAction(quitAction);
+
+    trayIcon->setContextMenu(trayIconMenu);
+    trayIcon->setToolTip("Click to show/hide the LLRPLaps application window");
+    trayIcon->show();
+    //trayIcon->showMessage("LLRPLaps", "Hi");
+    //    }
+
 }
 
 
@@ -1596,16 +1719,17 @@ MainWindow::~MainWindow() {
 // Override close event to minimize only
 //
 void MainWindow::closeEvent (QCloseEvent *event) {
+    hide();
+//    showMinimized();
     event->ignore();
-    showMinimized();
 }
 
 
 
 // Get confirmation from user before exiting
 //
-void MainWindow::onActionExit(bool) {
-    int rc = guiQuestion("Leaving this application will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
+void MainWindow::onActionExit(void) {
+    int rc = guiQuestion("Leaving " + QCoreApplication::applicationName() + " will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
     if (rc == QMessageBox::Yes)
         cleanExit();
 }
@@ -1640,6 +1764,11 @@ void MainWindow::cleanExit(bool /*flag*/) {
     for (int i=0; i<plotList.size(); i++) {
         plotList[i]->close();
     }
+
+    // Wait for event queue to clear
+
+    QTimer::singleShot(0, this, SLOT(hide()));
+
     delete ui;
     exit(0);
 }
@@ -1648,6 +1777,28 @@ void MainWindow::cleanExit(bool /*flag*/) {
 
 void MainWindow::onHelpAbout(bool /*state*/) {
     QMessageBox::about(this, "llrplaps", "Text");
+}
+
+
+
+
+void MainWindow::onShowHide(QSystemTrayIcon::ActivationReason reason) {
+    switch (reason) {
+    case QSystemTrayIcon::Unknown:
+    case QSystemTrayIcon::Context:
+    case QSystemTrayIcon::MiddleClick:
+        break;
+    case QSystemTrayIcon::Trigger:
+    case QSystemTrayIcon::DoubleClick:
+        if (isVisible()) {
+            hide();
+        }
+        else {
+            show();
+            raise();
+            setFocus();
+        }
+    }
 }
 
 

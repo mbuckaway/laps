@@ -7,9 +7,9 @@
 QT += core widgets gui sql network svg
 TARGET = llrplaps
 TEMPLATE = app
-#RESOURCES = ../qrc/llrplaps.qrc
+RESOURCES = resources/resources.qrc
 #RC_FILE += ../qrc/llrplaps.rc
-#ICON = ../qrc/icons/llrplaps.icns
+ICON = resources/cycle1.png#.icns
 
 LTKLIBDIR = ../LTK/LTKCPP/Library
 
@@ -95,3 +95,6 @@ FORMS    += mainwindow.ui
 #    csessions.ui \
 #    csettings.ui
 #    cplotform.ui
+
+DISTFILES += \
+    resources/cycle1.png
