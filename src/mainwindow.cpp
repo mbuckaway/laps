@@ -1223,7 +1223,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
     ui->rightTitleLabel->setText(QString());
     setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
-    //logoImage = new QPixmap(":/images/cycle2.png");
+    //logoImage = new QPixmap(":/images/cycle4.png");
 
     //ui->logoImageLabel->setPixmap(*logoImage);
     //ui->logoImageLabel->setScaledContents(false);
@@ -1231,7 +1231,7 @@ MainWindow::MainWindow(QWidget *parent) :
     //ui->logoImageLabel->show();
 
 
-    setWindowIcon(QIcon(":/images/cycle2.png"));
+    setWindowIcon(QIcon(":/images/cycle3.png"));
 
 
     // Is there another instance of program running?
@@ -1314,7 +1314,7 @@ MainWindow::MainWindow(QWidget *parent) :
 #endif
 
     if (listOfPids.size() > 1) {
-        guiCritical("It appears there is another instance of " + QCoreApplication::applicationName() + " running.  Only one instance at a time is allowed.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
+        guiCritical("The " + QCoreApplication::applicationName() + " application is already running.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
         exit(0);
     }
 
@@ -1684,7 +1684,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Create tray icon
 
-    trayIcon = new QSystemTrayIcon(QIcon(":/images/cycle2.png"), this);
+    trayIcon = new QSystemTrayIcon(QIcon(":/images/cycle3.png"), this);
 
     connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this, SLOT(onShowHide(QSystemTrayIcon::ActivationReason)));
 
@@ -1726,7 +1726,7 @@ void MainWindow::closeEvent (QCloseEvent *event) {
 // Get confirmation from user before exiting
 //
 void MainWindow::onActionExit(void) {
-    int rc = guiQuestion("Leaving " + QCoreApplication::applicationName() + " will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
+    int rc = guiQuestion("Closing " + QCoreApplication::applicationName() + " will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
     if (rc == QMessageBox::Yes)
         cleanExit();
 }
