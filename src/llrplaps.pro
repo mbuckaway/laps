@@ -69,8 +69,8 @@ SOURCES += main.cpp \
     cdbase.cpp \
     crider.cpp \
     csmtp.cpp \
-    cplot.cpp
-#    cmessages.cpp \
+    cplot.cpp \
+    cmessages.cpp
 #    cmembers.cpp \
 #    csessions.cpp \
 #    csettings.cpp
@@ -82,19 +82,19 @@ HEADERS  += mainwindow.h \
     cdbase.h \
     crider.h \
     csmtp.h \
-    cplot.h
-#    cmessages.h \
+    cplot.h \
+    cmessages.h
 #    cmembers.h \
 #    csessions.h \
 #    csettings.h
 #    cplotform.h
 
-FORMS    += mainwindow.ui
-#    cmessages.ui \
+FORMS    += mainwindow.ui \
+    cmessages.ui
 #    cmembers.ui \
 #    csessions.ui \
 #    csettings.ui
 #    cplotform.ui
 
 DISTFILES += \
-    resources/cycle1.png
+#    resources/cycle1.png

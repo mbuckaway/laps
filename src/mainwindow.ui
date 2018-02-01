@@ -1646,7 +1646,6 @@ Leave blank for simulator.</string>
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionHelp"/>
     <addaction name="actionHelpAbout"/>
    </widget>
    <widget class="QMenu" name="menuView">

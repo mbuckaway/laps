@@ -1213,25 +1213,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QCoreApplication::setApplicationVersion("0.8");
 
-    initializeSettingsPanel();
-    bool initialized = true;
-
-    tagInDbase = false;
-    entryEdited = false;
-
-    ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
-    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
-    ui->rightTitleLabel->setText(QString());
-    setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
-    //logoImage = new QPixmap(":/images/cycle2.png");
-
-    //ui->logoImageLabel->setPixmap(*logoImage);
-    //ui->logoImageLabel->setScaledContents(false);
-    //ui->logoImageLabel->setFrameStyle(QFrame::NoFrame);
-    //ui->logoImageLabel->show();
-
-
-    setWindowIcon(QIcon(":/images/cycle2.png"));
 
 
     // Is there another instance of program running?
@@ -1302,17 +1283,12 @@ MainWindow::MainWindow(QWidget *parent) :
     process.waitForFinished();
     process.kill();
 
-    // Output is something like "2472\n2323" for multiple instances
-    //        if (bytes.isEmpty())
-    //            return 0;
+    // Output is something like "2472\n2323\n" for multiple instances
 
-    // Remove trailing CR
-    if (bytes.endsWith("\n"))
-        bytes.resize(bytes.size() - 1);
-
-    listOfPids = QString(bytes).split("\n");
+    listOfPids = QString(bytes).split("\n", QString::SkipEmptyParts);
 #endif
 
+    //qDebug() << listOfPids;
     if (listOfPids.size() > 1) {
         guiCritical("It appears there is another instance of " + QCoreApplication::applicationName() + " running.  Only one instance at a time is allowed.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
         exit(0);
@@ -1320,6 +1296,25 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 
+    initializeSettingsPanel();
+    bool initialized = true;
+
+    tagInDbase = false;
+    entryEdited = false;
+
+    ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
+    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
+    ui->rightTitleLabel->setText(QString());
+    setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
+    //logoImage = new QPixmap(":/images/cycle2.png");
+
+    //ui->logoImageLabel->setPixmap(*logoImage);
+    //ui->logoImageLabel->setScaledContents(false);
+    //ui->logoImageLabel->setFrameStyle(QFrame::NoFrame);
+    //ui->logoImageLabel->show();
+
+
+    setWindowIcon(QIcon(":/images/cycle2.png"));
     // The default directory must be set to the bin directory containing the executable and start-up script.
     // Ensure the log and data directories exist
 
