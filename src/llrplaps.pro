@@ -70,10 +70,10 @@ SOURCES += main.cpp \
     crider.cpp \
     csmtp.cpp \
     cplot.cpp \
-    cmessages.cpp
-#    cmembers.cpp \
+    cmessages.cpp \
+    cusers.cpp \
 #    csessions.cpp \
-#    csettings.cpp
+    cpreferences.cpp
 #    cplotform.cpp
 
 HEADERS  += mainwindow.h \
@@ -83,17 +83,18 @@ HEADERS  += mainwindow.h \
     crider.h \
     csmtp.h \
     cplot.h \
-    cmessages.h
-#    cmembers.h \
+    cmessages.h \
+    cusers.h \
 #    csessions.h \
-#    csettings.h
+    cpreferences.h
 #    cplotform.h
 
 FORMS    += mainwindow.ui \
-    cmessages.ui
-#    cmembers.ui \
+    cmessages.ui \
+    cusers.ui \
+    cusereditor.ui \
 #    csessions.ui \
-#    csettings.ui
+    cpreferences.ui
 #    cplotform.ui
 
 DISTFILES += \

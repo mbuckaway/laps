@@ -97,6 +97,7 @@ private:
     LLRP::CMessage *recvMessage(int nMaxMS);
     LLRP::CMessage *transact (LLRP::CMessage *sendMsg);
 signals:
+    void status(QString);
     void connected(void);
     void newTag(CTagInfo);
     void newLogMessage(QString);

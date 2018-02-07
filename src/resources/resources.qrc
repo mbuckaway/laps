@@ -4,6 +4,7 @@
         <file>splashscreen.png</file>
         <file>cycle1.png</file>
         <file>cycle2.png</file>
+				<file>cycle3.png</file>
     </qresource>
     <qresource prefix="/icons">
         <file>App.icns</file>

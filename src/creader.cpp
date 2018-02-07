@@ -105,6 +105,7 @@ void CReader::onStarted(void) {
     if (simulateReaderMode) {
         emit newLogMessage("Simulation mode to simulate reader signals without being connected to reader");
         emit connected();
+        emit status("Simulator mode");
         tag.readerId = readerId;
         int averageIntervalMSec = 0; // average interval between tags seen
         int count = 0;
@@ -141,22 +142,16 @@ void CReader::onStarted(void) {
                     return;
                 }
             }
-
-//            // emit null tag to update tables
-
-//            CTagInfo tagInfo;
-//            tagInfo.readerId = readerId;
-//            tagInfo.antennaId = 0;
-//            tagInfo.timeStampUSec = QDateTime::currentMSecsSinceEpoch() * 1000;
-//            emit newTag(tagInfo);
         }
     }
 
     // Otherwise open connection to reader and enter endless loop in which we process tag reports as they arrive
 
     forever {
+        emit status("Connecting");
         int rc = connectToReader();
         if (rc == 0) {
+            emit status("Connected");
             emit connected();
             forever {
                 processReports();

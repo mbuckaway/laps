@@ -4,6 +4,10 @@
 //
 // llrplaps
 //
+// The working directory must be set to the bin directory containing the executable and start-up script.
+// Ensure the log and data directories exist
+//
+//
 // ***************************************************************************************************
 
 #include <QTimer>
@@ -26,7 +30,6 @@
 
 
 #include <cplot.h>
-//#include <cplotform.h>
 #include <stdio.h>
 #include <unistd.h>
 #include "mainwindow.h"
@@ -36,6 +39,7 @@
 #include "cdbase.h"
 #include "main.h"
 #include "csmtp.h"
+#include "cusers.h"
 
 
 // Columns in active riders table
@@ -51,9 +55,7 @@
 #define AT_AVERAGESPEEDTHISMONTH 8
 #define AT_KMLASTMONTH          9
 #define AT_AVERAGESPEEDLASTMONTH 10
-#define AT_LAPCOUNTALLTIME      11
-#define AT_KMALLTIME            12
-#define AT_COMMENT              13
+#define AT_COMMENT              11
 
 
 // Columns in lap table (listing of all laps)
@@ -109,249 +111,12 @@
 
 
 
+MainWindow *mainWindow = NULL;
+CMessages *messagesWindow = NULL;
+CPreferences *preferencesWindow = NULL;
+CUsers *usersWindow = NULL;
 
 
-
-
-// *****************************************************************************
-// CMembershipTableModel
-//
-CMembershipTableModel::CMembershipTableModel(QObject *parent) : QAbstractTableModel(parent) {
-    mainWindow = (MainWindow *)parent;
-    membershipInfoList.clear();
-
-    QSqlQuery query(mainWindow->membershipDbase.dBase);
-    query.prepare("select * from membershipTable");
-    if (!query.exec())
-        return;
-
-    int idTagId = query.record().indexOf("tagId");
-    int idFirst = query.record().indexOf("firstName");
-    int idLast = query.record().indexOf("lastName");
-    int idMembership = query.record().indexOf("membershipNumber");
-    int idCaRegistration = query.record().indexOf("caRegistration");
-    int idEmail = query.record().indexOf("eMail");
-    int idSendReports = query.record().indexOf("sendReports");
-    while (query.next()) {
-        CMembershipInfo info;
-        info.tagId = query.value(idTagId).toString();
-        info.firstName = query.value(idFirst).toString();
-        info.lastName = query.value(idLast).toString();
-        info.membershipNumber = query.value(idMembership).toString();
-        info.caRegistration = query.value(idCaRegistration).toString();
-        info.eMail = query.value(idEmail).toString();
-        info.sendReports = query.value(idSendReports).toInt();
-        membershipInfoList.append(info);
-    }
-    QModelIndex topLeft = index(0, 0);
-    QModelIndex bottomRight = index(membershipInfoList.size() - 1, 0);
-    emit dataChanged(topLeft, bottomRight);
-}
-
-
-
-bool CMembershipTableModel::add(const CMembershipInfo &info) {
-    int row = rowCount();
-    insertRows(row, 1);
-    setData(index(row, 0), info.tagId, Qt::EditRole);
-    setData(index(row, 1), info.firstName, Qt::EditRole);
-    setData(index(row, 2), info.lastName, Qt::EditRole);
-    setData(index(row, 3), info.membershipNumber, Qt::EditRole);
-    setData(index(row, 4), info.caRegistration.toUpper(), Qt::EditRole);
-    setData(index(row, 5), info.eMail, Qt::EditRole);
-    setData(index(row, 6), info.sendReports, Qt::EditRole);
-    QModelIndex topLeft = index(row, 0);
-    QModelIndex bottomRight = index(row, 5);
-    emit dataChanged(topLeft, bottomRight);
-    return true;
-}
-
-
-
-bool CMembershipTableModel::update(const CMembershipInfo &info) {
-    int row = -1;
-    for (int i=0; i<membershipInfoList.size(); i++) {
-        if (membershipInfoList[i].tagId == info.tagId) {
-            row = i;
-            break;
-        }
-    }
-    if (row < 0) {
-        mainWindow->guiCritical("Could not find tagId in CMembershipInfoList in CMembershipTableModel::update");
-        return false;
-    }
-    setData(index(row, 0), info.tagId, Qt::EditRole);
-    setData(index(row, 1), info.firstName, Qt::EditRole);
-    setData(index(row, 2), info.lastName, Qt::EditRole);
-    setData(index(row, 3), info.membershipNumber, Qt::EditRole);
-    setData(index(row, 4), info.caRegistration.toUpper(), Qt::EditRole);
-    setData(index(row, 5), info.eMail, Qt::EditRole);
-    setData(index(row, 6), info.sendReports, Qt::EditRole);
-    QModelIndex topLeft = index(row, 0);
-    QModelIndex bottomRight = index(row, 5);
-    emit dataChanged(topLeft, bottomRight);
-    return true;
-}
-
-
-
-bool CMembershipTableModel::remove(const QString &tagId) {
-    int row = -1;
-    for (int i=0; i<membershipInfoList.size(); i++) {
-        if (membershipInfoList[i].tagId == tagId) {
-            row = i;
-            break;
-        }
-    }
-    if (row < 0) {
-        mainWindow->guiCritical("Could not find tagId in CMembershipInfoList in CMembershipTableModel::remove");
-        return false;
-    }
-    if (!removeRows(row, 1))
-        return false;
-    QModelIndex topLeft = index(row, 0);
-    QModelIndex bottomRight = index(rowCount() - 1, 2);
-    emit dataChanged(topLeft, bottomRight);
-    return true;
-}
-
-
-
-bool CMembershipTableModel::insertRows(int position, int count, const QModelIndex &/*parent*/) {
-    beginInsertRows(QModelIndex(), position, position + count - 1);
-    for (int row=0; row<count; row++)
-        membershipInfoList.insert(position, CMembershipInfo());
-    endInsertRows();
-    QModelIndex topLeft = index(position, 0);
-    QModelIndex bottomRight = index(position, 0);
-    emit dataChanged(topLeft, bottomRight);
-    return true;
-}
-
-
-
-bool CMembershipTableModel::removeRows(int position, int count, const QModelIndex &/*parent*/) {
-    beginRemoveRows(QModelIndex(), position, position + count - 1);
-    for (int row = 0; row < count; row++) {
-        membershipInfoList.removeAt(position);
-    }
-    endRemoveRows();
-    return true;
-}
-
-
-
-int CMembershipTableModel::rowCount(const QModelIndex &/*parent*/) const {
-    return membershipInfoList.size();
-}
-
-
-
-int CMembershipTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 7;
-}
-
-
-
-QVariant CMembershipTableModel::data(const QModelIndex &index, int role) const {
-    int row = index.row();
-    int col = index.column();
-
-    switch (role) {
-    case Qt::DisplayRole:
-        switch (col) {
-        case 0:
-            return membershipInfoList[row].tagId;
-        case 1:
-            return membershipInfoList[row].firstName;
-        case 2:
-            return membershipInfoList[row].lastName;
-        case 3:
-            return membershipInfoList[row].membershipNumber;
-        case 4:
-            return membershipInfoList[row].caRegistration;
-        case 5:
-            return membershipInfoList[row].eMail;
-        case 6:
-            return membershipInfoList[row].sendReports;
-        }
-        break;
-    case Qt::FontRole:
-        break;
-    case Qt::BackgroundRole:
-        break;
-    case Qt::TextAlignmentRole:
-        return Qt::AlignLeft + Qt::AlignVCenter;
-    }
-
-    return QVariant();
-}
-
-
-
-QVariant CMembershipTableModel::headerData(int section, Qt::Orientation orientation, int role) const {
-    switch (role) {
-    case Qt::DisplayRole:
-        if (orientation == Qt::Horizontal) {
-            switch (section) {
-            case 0:
-                return QString("Tag Id");
-            case 1:
-                return QString("First Name");
-            case 2:
-                return QString("Last Name");
-            case 3:
-                return QString("Track Membership N");
-            case 4:
-                return QString("CA Registration");
-            case 5:
-                return QString("eMail");
-            case 6:
-                return QString("EmailReports");
-            }
-        }
-    }
-    return QVariant();
-}
-
-
-
-bool CMembershipTableModel::setData(const QModelIndex &index, const QVariant &value, int role) {
-    int row = index.row();
-    int col = index.column();
-    if (role == Qt::EditRole) {
-        switch (col) {
-        case 0:
-            membershipInfoList[row].tagId = value.toString();
-            return true;
-        case 1:
-            membershipInfoList[row].firstName = value.toString();
-            return true;
-        case 2:
-            membershipInfoList[row].lastName = value.toString();
-            return true;
-        case 3:
-            membershipInfoList[row].membershipNumber = value.toString();
-            return true;
-        case 4:
-            membershipInfoList[row].caRegistration = value.toString();
-            return true;
-        case 5:
-            membershipInfoList[row].eMail = value.toString();
-            return true;
-        case 6:
-            membershipInfoList[row].sendReports = value.toBool();
-            return true;
-        }
-    }
-    return false;
-}
-
-
-
-Qt::ItemFlags CMembershipTableModel::flags(const QModelIndex &index) const {
-    return QAbstractTableModel::flags(index);
-}
 
 
 
@@ -586,9 +351,9 @@ void CLapsTableModel::purgeTable(void) {
 
     for (int i=timeStampList.size()-1; i>=0; i--) {
         float inactiveHours = (float)(currentTimeUSec - timeStampList[i]) / 1000000. / 3600.;
-        if (inactiveHours >= mainWindow->ui->tablePurgeIntervalDoubleSpinBox->value()) {
+        float purgeInterval = preferencesWindow->tablePurgeIntervalHours;
+        if (preferencesWindow && (inactiveHours >= purgeInterval))
             removeRows(i, 1);
-        }
     }
 
     if (scrollToBottomRequired)
@@ -614,7 +379,7 @@ int CActiveRidersTableModel::rowCount(const QModelIndex &/*parent*/) const {
 
 
 int CActiveRidersTableModel::columnCount(const QModelIndex &/*parent*/) const {
-    return 14;
+    return 12;
 }
 
 
@@ -706,16 +471,16 @@ QVariant CActiveRidersTableModel::data(const QModelIndex &index, int role) const
                 return rider->lastMonth.averageKmph;
             else
                 return QString();
-        case AT_LAPCOUNTALLTIME:
-            if (rider->allTime.lapCount > 0)
-                return rider->allTime.lapCount;
-            else
-                return QString();
-        case AT_KMALLTIME:
-            if (rider->allTime.totalM > 0.)
-                return rider->allTime.totalM / 1000.;
-            else
-                return QString();
+//        case AT_LAPCOUNTALLTIME:
+//            if (rider->allTime.lapCount > 0)
+//                return rider->allTime.lapCount;
+//            else
+//                return QString();
+//        case AT_KMALLTIME:
+//            if (rider->allTime.totalM > 0.)
+//                return rider->allTime.totalM / 1000.;
+//            else
+//                return QString();
         case AT_COMMENT:
             switch (rider->lapType) {
             case CRider::firstCrossing:
@@ -782,10 +547,10 @@ QVariant CActiveRidersTableModel::headerData(int section, Qt::Orientation orient
                 return QString("Last M km");
             case AT_AVERAGESPEEDLASTMONTH:
                 return QString("Last M km/h");
-            case AT_LAPCOUNTALLTIME:
-                return QString("Total Laps");
-            case AT_KMALLTIME:
-                return QString("Total km");
+//            case AT_LAPCOUNTALLTIME:
+//                return QString("Total Laps");
+//            case AT_KMALLTIME:
+//                return QString("Total km");
             case AT_COMMENT:
                 return QString("Comment");
             }
@@ -1006,7 +771,8 @@ CRider *CActiveRidersTableModel::newTag(const CTagInfo &tagInfo) {
             else {
                 rider->lapCount++;
                 rider->lapSec = lapSec;
-                rider->lapM = mainWindow->trackLengthM[tagInfo.antennaId - 1];
+                if (preferencesWindow)
+                    rider->lapM = preferencesWindow->trackLengthM[tagInfo.antennaId - 1];
                 rider->lapKmph = mainWindow->kph(rider->lapM, rider->lapSec);
 
                 rider->totalSec += rider->lapSec;
@@ -1147,9 +913,9 @@ QList<CRider> CActiveRidersTableModel::purgeTable(void) {
     QList<CRider> purgedRiders;
     for (int i=activeRidersList.size()-1; i>=0; i--) {
         float inactiveHours = (float)(currentTimeUSec - activeRidersList[i].previousTimeStampUSec) / 1000000. / 3600.;
-        if (inactiveHours >= mainWindow->ui->tablePurgeIntervalDoubleSpinBox->value()) {
+        float purgeInterval = preferencesWindow->tablePurgeIntervalHours;
+        if (preferencesWindow && (inactiveHours >= purgeInterval))
             removeRows(i, 1);
-        }
     }
 
     if (scrollToBottomRequired)
@@ -1196,14 +962,16 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
     trackReader = NULL;
     deskReader = NULL;
-    membershipTableModel = NULL;
-    membershipProxyModel = NULL;
+    trackReaderThread = NULL;
+    deskReaderThread = NULL;
+    //membershipTableModel = NULL;
+    //membershipProxyModel = NULL;
     lapsTableModel = NULL;
     lapsProxyModel = NULL;
     activeRidersTableModel = NULL;
     activeRidersProxyModel = NULL;
-    logFile = NULL;
     trayIcon = NULL;
+
     trackSessionBestLapKmph = 0.;
     trackSessionBestKKmph = 0.;
     trackThisMonthBestLapKmph = 0.;
@@ -1212,13 +980,12 @@ MainWindow::MainWindow(QWidget *parent) :
     trackAllTimeBestKKmph = 0.;
 
     QCoreApplication::setApplicationVersion("0.8");
-
+    setWindowIcon(QIcon(":/images/cycle3.png"));
 
 
     // Is there another instance of program running?
 
     QStringList listOfPids;
-
 #if defined(Q_OS_WIN)
     // Get the list of process identifiers.
     DWORD aProcesses[1024], cbNeeded, cProcesses;
@@ -1288,35 +1055,24 @@ MainWindow::MainWindow(QWidget *parent) :
     listOfPids = QString(bytes).split("\n", QString::SkipEmptyParts);
 #endif
 
-    //qDebug() << listOfPids;
+    qDebug() << listOfPids.size();
     if (listOfPids.size() > 1) {
-        guiCritical("It appears there is another instance of " + QCoreApplication::applicationName() + " running.  Only one instance at a time is allowed.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
+        guiCritical("The " + QCoreApplication::applicationName() + " application is already running.\n\nClick on the " + QCoreApplication::applicationName() + " icon in the system tray below to view lap data.");
         exit(0);
     }
 
-
-
-    initializeSettingsPanel();
-    bool initialized = true;
 
     tagInDbase = false;
     entryEdited = false;
 
     ui->mainTitleLabel->setText(QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
-    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
     ui->rightTitleLabel->setText(QString());
-    setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
     //logoImage = new QPixmap(":/images/cycle2.png");
 
     //ui->logoImageLabel->setPixmap(*logoImage);
     //ui->logoImageLabel->setScaledContents(false);
     //ui->logoImageLabel->setFrameStyle(QFrame::NoFrame);
     //ui->logoImageLabel->show();
-
-
-    setWindowIcon(QIcon(":/images/cycle2.png"));
-    // The default directory must be set to the bin directory containing the executable and start-up script.
-    // Ensure the log and data directories exist
 
 
 
@@ -1334,18 +1090,27 @@ MainWindow::MainWindow(QWidget *parent) :
     QString s2;
     QFile::rename(logDir.absolutePath() + s.sprintf("/%s.log", QApplication::applicationName().toLatin1().data()), logDir.absolutePath() + s2.sprintf("/%s%03d.log",  QCoreApplication::applicationName().toLatin1().data(), logDir.entryInfoList().size() - 1));
 
-    logFile = new QFile;
-    if (!logFile)
-        qDebug() << "Error creating log QFile";
-    logFile->setFileName(logDir.absolutePath() + s.sprintf("/%s.log", QCoreApplication::applicationName().toLatin1().data()));
-    int rc = logFile->open(QIODevice::Append | QIODevice::Text);
-    if (!rc) {
-        qDebug() << "log file not opened";
+
+    // Configure messages console
+
+    messagesWindow = new CMessages();
+    if (!messagesWindow) {
+        guiCritical("Fatal internal error: could not create messagesWindow");
+        exit(1);
     }
-    logTextStream = new QTextStream(logFile);
-    if (!logTextStream)
-        qDebug() << "Error creating log QTextStream";
-    logTextStream->setCodec("UTF-8");
+    messagesWindow->show();
+    messagesWindow->startLogFile(logDir.absolutePath() + s.sprintf("/%s.log", QCoreApplication::applicationName().toLatin1().data()));
+
+
+    // Configure preferences window
+
+    preferencesWindow = new CPreferences();
+    if (!preferencesWindow) {
+        guiCritical("Fatal internal error: could not create preferencesWindow");
+        exit(1);
+    }
+    setWindowTitle(QCoreApplication::applicationName() + ": " + preferencesWindow->trackName);
+    ui->leftTitleLabel->setText(preferencesWindow->trackName);
 
 
     // Make backup of membership.db
@@ -1373,15 +1138,6 @@ MainWindow::MainWindow(QWidget *parent) :
         QFile::copy(dataDir.absolutePath() + "/laps" + year + ".db", dataDir.absolutePath() + "/laps" + year + s.sprintf("-%03d.db", dataDir.entryList().size() - 1));
 
 
-
-    // tablePurgeInterval is the interval (hours) on which tables are purged of inactive riders.
-    // emailReportLatency is the interval (hours) after a rider being purged before an email report is sent.
-
-    ui->tablePurgeIntervalDoubleSpinBox->setMinimum(0.01);
-    ui->tablePurgeIntervalDoubleSpinBox->setValue(settings.value("tablePurgeIntervalHours").toFloat());
-    ui->emailReportLatencySpinBox->setMinimum(2);
-
-
     // Initialize member variables
 
     activeRidersTableSortingEnabled = true;
@@ -1396,58 +1152,6 @@ MainWindow::MainWindow(QWidget *parent) :
     clockTimer.start();
 
 
-    // Configure messages console
-
-//    QPlainTextEdit *m = ui->messagesPlainTextEdit;
-//    m->setReadOnly(true);
-
-
-    // Default to showing messages during connection to reader
-
-    ui->tabWidget->setCurrentIndex(2);
-
-
-
-    // Populate antenna power comboBoxes (enabled when reader connects)
-
-    ui->trackAntenna1PowerComboBox->setEnabled(false);
-    ui->trackAntenna2PowerComboBox->setEnabled(false);
-    ui->trackAntenna3PowerComboBox->setEnabled(false);
-    ui->trackAntenna4PowerComboBox->setEnabled(false);
-
-    ui->deskAntenna1PowerComboBox->setEnabled(false);
-    ui->deskAntenna2PowerComboBox->setEnabled(false);
-    ui->deskAntenna3PowerComboBox->setEnabled(false);
-    ui->deskAntenna4PowerComboBox->setEnabled(false);
-
-    connect(ui->trackAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna1TransmitPowerComboBoxActivated(int)));
-    connect(ui->trackAntenna2PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna2TransmitPowerComboBoxActivated(int)));
-    connect(ui->trackAntenna3PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna3TransmitPowerComboBoxActivated(int)));
-    connect(ui->trackAntenna4PowerComboBox, SIGNAL(activated(int)), this, SLOT(onTrackAntenna4TransmitPowerComboBoxActivated(int)));
-    connect(ui->deskAntenna1PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna1TransmitPowerComboBoxActivated(int)));
-    connect(ui->deskAntenna2PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna2TransmitPowerComboBoxActivated(int)));
-    connect(ui->deskAntenna3PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna3TransmitPowerComboBoxActivated(int)));
-    connect(ui->deskAntenna4PowerComboBox, SIGNAL(activated(int)), this, SLOT(onDeskAntenna4TransmitPowerComboBoxActivated(int)));
-
-
-    // Configure Dbase page
-
-    connect(ui->deskClearPushButton, SIGNAL(clicked()), this, SLOT(onDbaseClearPushButtonClicked()));
-    connect(ui->deskSearchPushButton, SIGNAL(clicked()), this, SLOT(onDbaseSearchPushButtonClicked()));
-    connect(ui->deskAddPushButton, SIGNAL(clicked()), this, SLOT(onDbaseAddPushButtonClicked()));
-    connect(ui->deskRemovePushButton, SIGNAL(clicked()), this, SLOT(onDbaseRemovePushButtonClicked()));
-    connect(ui->deskUpdatePushButton, SIGNAL(clicked()), this, SLOT(onDbaseUpdatePushButtonClicked()));
-    connect(ui->deskReadPushButton, SIGNAL(clicked(bool)), this, SLOT(onDbaseReadPushButtonClicked(bool)));
-    connect(ui->deskTagIdLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseTagIdTextEdited(QString)));
-    connect(ui->deskFirstNameLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseFirstNameTextEdited(QString)));
-    connect(ui->deskLastNameLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseLastNameTextEdited(QString)));
-    connect(ui->deskMembershipNumberLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseMembershipNumberTextEdited(QString)));
-    connect(ui->deskCaRegistrationLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseCaRegistrationTextEdited(QString)));
-    connect(ui->deskEMailLineEdit, SIGNAL(textEdited(QString)), this, SLOT(onDbaseEMailTextEdited(QString)));
-
-    updateDbaseButtons();
-
-
     // Two databases are used.
     // membershipDbase contains track membership info for each rider.
     // This should be opened before lapsdbase because the membershipdbase is used when a new lapsdbase is created
@@ -1456,11 +1160,11 @@ MainWindow::MainWindow(QWidget *parent) :
     QString membershipDbaseRootName(dataDir.absolutePath() + "/membership");
     QString membershipDbaseUserName("fcv");
     QString membershipDbasePassword("fcv");
-    rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
+    int rc = membershipDbase.open(membershipDbaseRootName, membershipDbaseUserName, membershipDbasePassword);
     if ((rc != 0) || !membershipDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening membership database file \"%s\": %s.\n\nRider names will not be displayed and new tags cannot be added.", rc, membershipDbase.absoluteFilePath().toLatin1().data(), membershipDbase.errorText().toLatin1().data()));
     else
-        onNewLogMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbase.absoluteFilePath().toLatin1().data()));
+        messagesWindow->addMessage(s.sprintf("Opened membership database file \"%s\"", membershipDbase.absoluteFilePath().toLatin1().data()));
 
 
     // lapsDbase contains a record of all laps for all riders.
@@ -1475,34 +1179,24 @@ MainWindow::MainWindow(QWidget *parent) :
     if ((rc != 0) || !lapsDbase.isOpen())
         guiCritical(s.sprintf("Error %d opening laps database file \"%s\": %s.\n\nWe will continue but lap times and statistics are not being recorded.", rc, lapsDbase.absoluteFilePath().toLatin1().data(), lapsDbase.errorText().toLatin1().data()));
     else
-        onNewLogMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbase.absoluteFilePath().toLatin1().data()));
+        messagesWindow->addMessage(s.sprintf("Opened laps database file \"%s\"", lapsDbase.absoluteFilePath().toLatin1().data()));
 
 
-    // Initialize membership table
+    // Set value of mainWindow pointer so we can refer to dbase from usersWindow
 
-    membershipTableModel = new CMembershipTableModel(this);
-    membershipProxyModel = new QSortFilterProxyModel;
-    membershipProxyModel->setSourceModel(membershipTableModel);
-    membershipProxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+    mainWindow = this;
 
-    ui->namesTableView->setModel(membershipProxyModel);
-    ui->namesTableView->setColumnWidth(0, 150);
-    ui->namesTableView->setColumnWidth(1, 150);
-    ui->namesTableView->setColumnWidth(2, 200);
-    ui->namesTableView->setColumnWidth(3, 200);
-    ui->namesTableView->setColumnWidth(4, 200);
-    ui->namesTableView->setColumnWidth(5, 200);
 
-    ui->namesTableView->setAlternatingRowColors(true);
-    ui->namesTableView->horizontalHeader()->setStretchLastSection(true);
-    ui->namesTableView->horizontalHeader()->setStyleSheet("QHeaderView{font: bold;}");
-    ui->namesTableView->sortByColumn(2, Qt::AscendingOrder);     // must come before call to setSortingEnabled()
-    ui->namesTableView->setSortingEnabled(true);
+    // Configure users window - must come after membershipDbase is initialized
 
-    // Disable membershipDbase tab if database not open
+    usersWindow = new CUsers();
+    if (!usersWindow) {
+        guiCritical("Fatal internal error: could not create usersWindow");
+        exit(1);
+    }
 
-    if (!membershipDbase.isOpen())
-        ui->tabWidget->setTabEnabled(3, false);
+
+
 
 
     // Initialize laps table
@@ -1555,8 +1249,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDTHISMONTH, CW_SPEED);
     ui->activeRidersTableView->setColumnWidth(AT_KMLASTMONTH, CW_KM);
     ui->activeRidersTableView->setColumnWidth(AT_AVERAGESPEEDLASTMONTH, CW_SPEED);
-    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNTALLTIME, CW_LAPCOUNT);
-    ui->activeRidersTableView->setColumnWidth(AT_KMALLTIME, CW_KM);
+//    ui->activeRidersTableView->setColumnWidth(AT_LAPCOUNTALLTIME, CW_LAPCOUNT);
+//    ui->activeRidersTableView->setColumnWidth(AT_KMALLTIME, CW_KM);
 
     ui->activeRidersTableView->setAlternatingRowColors(true);
     ui->activeRidersTableView->horizontalHeader()->setStretchLastSection(true);
@@ -1579,107 +1273,51 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->lapsTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onLapsTableClicked(const QModelIndex &)));
     connect(ui->lapsTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onLapsTableDoubleClicked(const QModelIndex &)));
 
-    connect(ui->namesTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onNamesTableClicked(const QModelIndex &)));
-    connect(ui->namesTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onNamesTableDoubleClicked(const QModelIndex &)));
+//    connect(ui->namesTableView, SIGNAL(clicked(const QModelIndex &)), this, SLOT(onNamesTableClicked(const QModelIndex &)));
+//    connect(ui->namesTableView, SIGNAL(doubleClicked(const QModelIndex &)), this, SLOT(onNamesTableDoubleClicked(const QModelIndex &)));
 
 
-    // Start timer that will purge old riders from activeRidersTable
 
-    connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
-    purgeActiveRidersListTimer.setInterval((int)(ui->tablePurgeIntervalDoubleSpinBox->value() * 3600. * 1000. / 4.));
-    purgeActiveRidersListTimer.start();
+    // Set track length corresponding to position of each antenna.  Lap speed is estimated from
+    // these values assuming rider maintains same position on track for entire lap (black / blue line).
+    // If this value is not set correctly, cycling speed and distance will be in error.
 
-    connect(ui->saveSettingsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSettingsPushButtonClicked()));
-    connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
-    connect(ui->saveSessionsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSessionsPushButtonClicked()));
-
-
-    // Set track length at position of each track antenna.  Lap speed is estimated from
-    // these values assuming rider maintains same position on track for entire lap.
-    // If this value is not set correctly, speed and distance cycled will be in error.
-    // Set track length to -1 if antenna is not used (zero length will be tested on each new tag event and
-    // used to check for missing track length settings).
-
-    trackLengthM = QList<float>{settings.value("trackLength1M").toFloat(), settings.value("trackLength2M").toFloat(), settings.value("trackLength3M").toFloat(), settings.value("trackLength4M").toFloat()};
-
-    emit onNewLogMessage(s.sprintf("Track lengths for each antenna (m): %f %f %f %f", trackLengthM[0], trackLengthM[1], trackLengthM[2], trackLengthM[3]));
+    messagesWindow->addMessage(s.sprintf("Track lengths for each antenna (m): %f %f %f %f", preferencesWindow->trackLengthM[0], preferencesWindow->trackLengthM[1], preferencesWindow->trackLengthM[2], preferencesWindow->trackLengthM[3]));
 
 
     // Check that track length values are reasonable and warn user that application will not start functioning
     // until configured
 
+    bool initialized = true;
     float maxTrackLength = 0.;
-    for (int i=0; i<trackLengthM.size(); i++) {
-        if (trackLengthM[i] == 0.)
+    for (int i=0; i<preferencesWindow->trackLengthM.size(); i++) {
+        if (preferencesWindow->trackReaderAntennaEnable[i] && preferencesWindow->trackLengthM[i] <= 0.)
             initialized = false;
 
-        if (trackLengthM[i] > maxTrackLength)
-            maxTrackLength = trackLengthM[i];
+        if (preferencesWindow->trackLengthM[i] > maxTrackLength)
+            maxTrackLength = preferencesWindow->trackLengthM[i];
     }
     if (maxTrackLength <= 0.)
         initialized = false;
 
-    float nominalLapSec = maxTrackLength / 1000. / nominalSpeedkmph * 3600.;
-    maxAcceptableLapSec = nominalLapSec * 2.;   // max acceptable time for lap.  If greater, rider must have left and returned to track
-
     if (!initialized)
-        guiCritical("One or more track-length values are not configured properly in Settings tab.  Set track length correctly or set to -1 if antenna is not used.  The application will not operate until properly configured.");
+        guiCritical("One or more track-length values are not configured properly in Preferences.  Enable at least one antenna, disable unused antennas, and set track length correctly for each enabled antenna. The application will not operate until properly configured.");
+
+    float nominalLapSec = maxTrackLength / 1000. / nominalSpeedkmph * 3600.;
+    maxAcceptableLapSec = nominalLapSec * 4.;   // max acceptable time for lap.  If greater, rider must have left and returned to track
+    minAcceptableLapSec = nominalLapSec / 4.;   // min acceptable time for lap.  If less, rider must be passing tag over antenna manually to cheat
 
 
-
-    // Get a list of laps already in dBase that could be from current session (will happen if application stopped and restarted).
-
-    QList<int> lapsInSession;
-    lapsDbase.getLaps(NULL, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), CLapsDbase::reportAny, &lapsInSession);
-    //qDebug() << lapsInSession.size();
-
-
-
-    // Create CReader objects for each physical reader device.  At this point the code accepts only 1 track reader
-    // and 1 desk reader.
-
-    int readerCounter = 0;
-    trackReader = new CReader(ui->trackReaderIpLineEdit->text(), ++readerCounter, CReader::track);
-
-    deskReader = new CReader(ui->deskReaderIpLineEdit->text(), ++readerCounter, CReader::desk);
-
-
-    // Move CReader objects to separate threads and start
-
-    if (trackReader) {
-        QThread *trackReaderThread = new QThread(this);
-        trackReader->moveToThread(trackReaderThread);
-        trackReader->thread = trackReaderThread;
-        readerThreadList.append(trackReaderThread);
-        connect(trackReaderThread, SIGNAL(started(void)), trackReader, SLOT(onStarted(void)));
-        connect(trackReaderThread, SIGNAL(finished(void)), trackReaderThread, SLOT(deleteLater(void)));
-        connect(trackReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-        connect(trackReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
-        connect(trackReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewTrackTag(CTagInfo)));
-        if (initialized)
-            trackReaderThread->start();
-    }
-
-    if (deskReader) {
-        QThread *deskReaderThread = new QThread(this);
-        deskReader->moveToThread(deskReaderThread);
-        deskReader->thread = deskReaderThread;
-        readerThreadList.append(deskReaderThread);
-        connect(deskReaderThread, SIGNAL(started(void)), deskReader, SLOT(onStarted(void)));
-        connect(deskReaderThread, SIGNAL(finished(void)), deskReaderThread, SLOT(deleteLater(void)));
-        connect(deskReader, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-        connect(deskReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
-        connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
-        deskReaderThread->start();
-    }
-
-    connect(ui->actionHelpAbout, SIGNAL(triggered(bool)), this, SLOT(onHelpAbout(bool)));
+    connect(ui->actionPreferences, SIGNAL(triggered()), this, SLOT(onActionPreferences()));
+    connect(ui->actionMessages, SIGNAL(triggered()), this, SLOT(onActionMessages()));
+    connect(ui->actionUsers, SIGNAL(triggered()), this, SLOT(onActionUsers()));
+    connect(ui->actionHelpAbout, SIGNAL(triggered()), this, SLOT(onActionHelpAbout()));
     connect(ui->actionExit, SIGNAL(triggered()), this, SLOT(onActionExit()));
 
 
     // Create tray icon
 
-    trayIcon = new QSystemTrayIcon(QIcon(":/images/cycle2.png"), this);
+    trayIcon = new QSystemTrayIcon(QIcon(":/images/cycle3.png"), this);
 
     connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this, SLOT(onShowHide(QSystemTrayIcon::ActivationReason)));
 
@@ -1697,6 +1335,67 @@ MainWindow::MainWindow(QWidget *parent) :
     trayIcon->setToolTip("Click to show/hide the " + QCoreApplication::applicationName() + " application window");
     trayIcon->show();
 
+
+//    connect(ui->eMailTestPushButton, SIGNAL(clicked()), this, SLOT(onEMailTestPushButtonClicked()));
+//    connect(ui->saveSessionsPushButton, SIGNAL(clicked()), this, SLOT(onSaveSessionsPushButtonClicked()));
+
+    // Get a list of laps already in dBase that could be from current session (will happen if application stopped and restarted).
+
+    QList<int> lapsInSession;
+    lapsDbase.getLaps(NULL, QDateTime::currentDateTime().addSecs(-3 * 3600), QDateTime::currentDateTime(), CLapsDbase::reportAny, &lapsInSession);
+
+
+    // Create CReader objects for each physical reader device.  At this point the code accepts only 1 track reader
+    // and 1 desk reader.
+
+    int readerCounter = 0;
+    trackReader = new CReader(preferencesWindow->trackReaderIp, ++readerCounter, CReader::track);
+
+    deskReader = new CReader(preferencesWindow->deskReaderIp, ++readerCounter, CReader::desk);
+
+
+    // Move CReader objects to separate threads and start
+
+    if (trackReader) {
+        trackReaderThread = new QThread(this);
+        trackReader->moveToThread(trackReaderThread);
+        trackReader->thread = trackReaderThread;
+        //readerThreadList.append(trackReaderThread);
+        connect(trackReaderThread, SIGNAL(started(void)), trackReader, SLOT(onStarted(void)));
+        connect(trackReaderThread, SIGNAL(finished(void)), trackReaderThread, SLOT(deleteLater(void)));
+        connect(trackReader, SIGNAL(newLogMessage(QString)), messagesWindow, SLOT(addMessage(QString)));
+        connect(trackReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
+        connect(trackReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewTrackTag(CTagInfo)));
+        connect(trackReader, SIGNAL(status(QString)), preferencesWindow, SLOT(onTrackReaderStatus(QString)));
+//        if (initialized)
+            trackReaderThread->start();
+    }
+
+    if (deskReader) {
+        deskReaderThread = new QThread(this);
+        deskReader->moveToThread(deskReaderThread);
+        deskReader->thread = deskReaderThread;
+        //readerThreadList.append(deskReaderThread);
+        connect(deskReaderThread, SIGNAL(started(void)), deskReader, SLOT(onStarted(void)));
+        connect(deskReaderThread, SIGNAL(finished(void)), deskReaderThread, SLOT(deleteLater(void)));
+        connect(deskReader, SIGNAL(newLogMessage(QString)), messagesWindow, SLOT(addMessage(QString)));
+        connect(deskReader, SIGNAL(connected(void)), this, SLOT(onReaderConnected(void)));
+        connect(deskReader, SIGNAL(newTag(CTagInfo)), this, SLOT(onNewDeskTag(CTagInfo)));
+        connect(deskReader, SIGNAL(status(QString)), preferencesWindow, SLOT(onDeskReaderStatus(QString)));
+        deskReaderThread->start();
+    }
+
+
+    // Start timer that will purge old riders from activeRidersTable
+
+    connect(&purgeActiveRidersListTimer, SIGNAL(timeout(void)), this, SLOT(onPurgeActiveRidersList(void)));
+    int intervalMSec = (int)(preferencesWindow->tablePurgeIntervalHours * 3600. * 1000. / 4.);
+    if (intervalMSec < 1000)
+        intervalMSec = 1000;
+    purgeActiveRidersListTimer.setInterval(intervalMSec);
+    purgeActiveRidersListTimer.start();
+
+//    mainWindow = this;
 }
 
 
@@ -1711,6 +1410,10 @@ MainWindow::~MainWindow() {
 // Override close event to minimize only
 //
 void MainWindow::closeEvent (QCloseEvent *event) {
+    if (messagesWindow)
+        messagesWindow->hide();
+    if (preferencesWindow)
+        preferencesWindow->hide();
     hide();
 //    showMinimized();
     event->ignore();
@@ -1721,7 +1424,7 @@ void MainWindow::closeEvent (QCloseEvent *event) {
 // Get confirmation from user before exiting
 //
 void MainWindow::onActionExit(void) {
-    int rc = guiQuestion("Leaving " + QCoreApplication::applicationName() + " will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
+    int rc = guiQuestion("Closing " + QCoreApplication::applicationName() + " will stop recording of lap events.  Are you sure you want to exit?", QMessageBox::Yes | QMessageBox::No);
     if (rc == QMessageBox::Yes)
         cleanExit();
 }
@@ -1740,26 +1443,43 @@ void MainWindow::onActiveRidersTableClearPushButtonClicked(bool) {
 
 
 void MainWindow::cleanExit(bool /*flag*/) {
-    onNewLogMessage("Clean exit requested");
+    if (messagesWindow)
+        messagesWindow->addMessage("Clean exit requested");
+
+    // Wait for event queue to clear
+
+//    QTimer::singleShot(0, this, SLOT(hide()));
 
     membershipDbase.close();
     lapsDbase.close();
-    for (int i=0; i<readerThreadList.size(); i++) {
-//        deskReader->disconnect();
-        readerThreadList[i]->requestInterruption();
-        readerThreadList[i]->wait();
-        delete readerThreadList[i];
+
+    if (trackReaderThread) {
+        trackReaderThread->requestInterruption();
+        trackReaderThread->wait();
+        delete trackReaderThread;
     }
-    readerThreadList.clear();
-    logFile->close();
+
+    if (deskReaderThread) {
+        deskReaderThread->requestInterruption();
+        deskReaderThread->wait();
+        delete deskReaderThread;
+    }
 
     for (int i=0; i<plotList.size(); i++) {
         plotList[i]->close();
     }
 
-    // Wait for event queue to clear
+    if (preferencesWindow) {
+        preferencesWindow->close();
+        delete preferencesWindow;
+        preferencesWindow = NULL;
+    }
 
-    QTimer::singleShot(0, this, SLOT(hide()));
+    if (messagesWindow) {
+        messagesWindow->close();
+        delete messagesWindow;
+        messagesWindow = NULL;
+    }
 
     delete ui;
     exit(0);
@@ -1767,10 +1487,28 @@ void MainWindow::cleanExit(bool /*flag*/) {
 
 
 
-void MainWindow::onHelpAbout(bool /*state*/) {
+void MainWindow::onActionHelpAbout(void) {
     QMessageBox::about(this, QCoreApplication::applicationName(), "Text");
 }
 
+
+
+void MainWindow::onActionPreferences(void) {
+    if (preferencesWindow)
+        preferencesWindow->show();
+}
+
+
+void MainWindow::onActionMessages(void) {
+    if (messagesWindow)
+        messagesWindow->show();
+}
+
+
+void MainWindow::onActionUsers(void) {
+    if (usersWindow)
+        usersWindow->show();
+}
 
 
 
@@ -1886,24 +1624,24 @@ void MainWindow::onLapsTableDoubleClicked(const QModelIndex &index) {
 
 
 
-void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
-    QString tagId = index.data().toString();
-    int id = membershipDbase.getIdFromTagId(tagId);
-    if (id < 0)
-        return;
+//void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
+//    QString tagId = index.data().toString();
+//    int id = membershipDbase.getIdFromTagId(tagId);
+//    if (id < 0)
+//        return;
 
-    CMembershipInfo info;
-    membershipDbase.getAllFromId(id, &info);
+//    CMembershipInfo info;
+//    membershipDbase.getAllFromId(id, &info);
 
-    QList<CLapInfo> laps;
-    lapsDbase.getLapInfo(tagId, QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
-    cplot *plot = new cplot(info.firstName + " " + info.lastName);
-    plot->addPoints(laps);
-    plot->addHiddenPoint(QDateTime::currentDateTime(), 0.);
-    plot->addHiddenPoint(QDateTime::currentDateTime(), 30.);
-    plot->show();
-    plotList.append(plot);
-}
+//    QList<CLapInfo> laps;
+//    lapsDbase.getLapInfo(tagId, QDateTime::currentDateTime().addYears(-100), QDateTime::currentDateTime(), &laps);
+//    cplot *plot = new cplot(info.firstName + " " + info.lastName);
+//    plot->addPoints(laps);
+//    plot->addHiddenPoint(QDateTime::currentDateTime(), 0.);
+//    plot->addHiddenPoint(QDateTime::currentDateTime(), 30.);
+//    plot->show();
+//    plotList.append(plot);
+//}
 
 
 
@@ -1913,157 +1651,39 @@ void MainWindow::onNamesTableDoubleClicked(const QModelIndex &index) {
 //
 // Member functions related to settings panel
 
-void MainWindow::initializeSettingsPanel(void) {
-    ui->trackNameLineEdit->setText(settings.value("trackName").toString());
-    ui->trackReaderIpLineEdit->setText(settings.value("trackReaderIp").toString());
-    ui->deskReaderIpLineEdit->setText(settings.value("deskReaderIp").toString());
-
-    ui->trackLength1LineEdit->setText(settings.value("trackLength1M").toString());
-    ui->trackLength2LineEdit->setText(settings.value("trackLength2M").toString());
-    ui->trackLength3LineEdit->setText(settings.value("trackLength3M").toString());
-    ui->trackLength4LineEdit->setText(settings.value("trackLength4M").toString());
-
-    ui->smtpUsernameLineEdit->setText(settings.value("smtpUsername").toString());
-    ui->smtpPasswordLineEdit->setText(settings.value("smtpPassword").toString());
-    ui->smtpServerLineEdit->setText(settings.value("smtpServer").toString());
-    ui->smtpPortLineEdit->setText(settings.value("smtpPort").toString());
-    ui->emailSendReportsCheckBox->setChecked(settings.value("emailSendReports").toBool());
-    ui->emailFromLineEdit->setText(settings.value("emailFrom").toString());
-    ui->emailSubjectLineEdit->setText(settings.value("emailSubject").toString());
-    ui->emailReportLatencySpinBox->setValue(settings.value("emailReportLatency").toInt());
-
-    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
-        for (int col=0; col<ui->sessionsTableWidget->columnCount(); col++) {
-            ui->sessionsTableWidget->setItem(row, col, new QTableWidgetItem());
-        }
-        QString s;
-        ui->sessionsTableWidget->item(row, 0)->setText(settings.value(s.sprintf("scheduleItem%dDay", row)).toString());
-        ui->sessionsTableWidget->item(row, 1)->setText(settings.value(s.sprintf("scheduleItem%dSession", row)).toString());
-        ui->sessionsTableWidget->item(row, 2)->setText(settings.value(s.sprintf("scheduleItem%dStartTime", row)).toString());
-        ui->sessionsTableWidget->item(row, 3)->setText(settings.value(s.sprintf("scheduleItem%dEndTime", row)).toString());
-    }
-
-}
 
 
 
-void MainWindow::onTrackAntenna1TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onTrackAntenna2TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onTrackAntenna3TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onTrackAntenna4TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onDeskAntenna1TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onDeskAntenna2TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onDeskAntenna3TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
-
-
-
-void MainWindow::onDeskAntenna4TransmitPowerComboBoxActivated(int /*antennaIndex*/) {
-    guiCritical("This feature not yet implemented");
-}
+//void MainWindow::onSaveSessionsPushButtonClicked(void) {
+//    QString s;
+//    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
+//        settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->sessionsTableWidget->item(row, 0)->text());
+//        settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->sessionsTableWidget->item(row, 1)->text());
+//        settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->sessionsTableWidget->item(row, 2)->text());
+//        settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->sessionsTableWidget->item(row, 3)->text());
+//    }
+//}
 
 
 
 
-// Save settings using QSettings and apply changes where possible
+//void MainWindow::onEMailTestPushButtonClicked(void) {
+//    CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+//    connect(smtp, SIGNAL(completed(int)), this, SLOT(onTestMailSent(int)));
+//    connect(smtp, SIGNAL(newLogMessage(QString)), messagesWindow, SLOT(addMessage(QString)));
 
-void MainWindow::onSaveSettingsPushButtonClicked(void) {
-    settings.setValue("trackName", ui->trackNameLineEdit->text());
-    ui->leftTitleLabel->setText(ui->trackNameLineEdit->text());
-    setWindowTitle(QCoreApplication::applicationName() + ": " + ui->trackNameLineEdit->text());
+//    QString body("This is test email message.");
 
-    settings.setValue("trackLength1M", ui->trackLength1LineEdit->text());
-    settings.setValue("trackLength2M", ui->trackLength2LineEdit->text());
-    settings.setValue("trackLength3M", ui->trackLength3LineEdit->text());
-    settings.setValue("trackLength4M", ui->trackLength4LineEdit->text());
-    trackLengthM = QList<float> {ui->trackLength1LineEdit->text().toFloat(), ui->trackLength2LineEdit->text().toFloat(), ui->trackLength3LineEdit->text().toFloat(), ui->trackLength4LineEdit->text().toFloat()};
+//    body.append("\n\nReport generated by " + QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
 
-    settings.setValue("tablePurgeIntervalHours", ui->tablePurgeIntervalDoubleSpinBox->value());
-    settings.setValue("trackReaderIp", ui->trackReaderIpLineEdit->text());
-    settings.setValue("trackTransmitPower1", ui->trackAntenna1PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower2", ui->trackAntenna2PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower3", ui->trackAntenna3PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower4", ui->trackAntenna4PowerComboBox->currentText());
-
-    settings.setValue("deskReaderIp", ui->deskReaderIpLineEdit->text());
-    settings.setValue("trackTransmitPower1", ui->deskAntenna1PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower2", ui->deskAntenna2PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower3", ui->deskAntenna3PowerComboBox->currentText());
-    settings.setValue("trackTransmitPower4", ui->deskAntenna4PowerComboBox->currentText());
-
-    settings.setValue("smtpUsername", ui->smtpUsernameLineEdit->text());
-    settings.setValue("smtpPassword", ui->smtpPasswordLineEdit->text());
-    settings.setValue("smtpServer", ui->smtpServerLineEdit->text());
-    settings.setValue("smtpPort", ui->smtpPortLineEdit->text().toInt());
-    settings.setValue("emailSendReports", ui->emailSendReportsCheckBox->isChecked());
-    settings.setValue("emailFrom", ui->emailFromLineEdit->text());
-    settings.setValue("emailSubject", ui->emailSubjectLineEdit->text());
-    settings.setValue("emailReportLatency", ui->emailReportLatencySpinBox->value());
-}
+//    smtp->sendMail(ui->emailFromLineEdit->text(), ui->emailTestToLineEdit->text(), ui->emailTestSubjectLineEdit->text(), body.toLatin1().data());
+//}
 
 
 
-void MainWindow::onSaveSessionsPushButtonClicked(void) {
-    QString s;
-    for (int row=0; row<ui->sessionsTableWidget->rowCount(); row++) {
-        settings.setValue(s.sprintf("scheduleItem%dDay", row), ui->sessionsTableWidget->item(row, 0)->text());
-        settings.setValue(s.sprintf("scheduleItem%dSession", row), ui->sessionsTableWidget->item(row, 1)->text());
-        settings.setValue(s.sprintf("scheduleItem%dStartTime", row), ui->sessionsTableWidget->item(row, 2)->text());
-        settings.setValue(s.sprintf("scheduleItem%dEndTime", row), ui->sessionsTableWidget->item(row, 3)->text());
-    }
-}
-
-
-
-
-void MainWindow::onEMailTestPushButtonClicked(void) {
-    CSmtp *smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-    connect(smtp, SIGNAL(completed(int)), this, SLOT(onTestMailSent(int)));
-    connect(smtp, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-
-    QString body("This is test email message.");
-
-    body.append("\n\nReport generated by " + QCoreApplication::applicationName() + " " + QCoreApplication::applicationVersion());
-
-    smtp->sendMail(ui->emailFromLineEdit->text(), ui->emailTestToLineEdit->text(), ui->emailTestSubjectLineEdit->text(), body.toLatin1().data());
-}
-
-
-
-void MainWindow::onTestMailSent(void) {
-    QMessageBox::information(this, "EMail Test", "Email message sent");
-}
+//void MainWindow::onTestMailSent(void) {
+//    QMessageBox::information(this, "EMail Test", "Email message sent");
+//}
 
 
 
@@ -2084,16 +1704,16 @@ void MainWindow::onClockTimerTimeout(void) {
 
     // Check to see if this is the first timeout after a specified time (midnight) and send email reports
 
-    static bool sentInThisInterval = false;
-    if ((currentDateTime.time().hour() % ui->emailReportLatencySpinBox->value()) == 0) {
-        if (!sentInThisInterval) {
-            sendInactiveRiderReports();
-            sentInThisInterval = true;
-        }
-    }
-    else {
-        sentInThisInterval = false;
-    }
+//    static bool sentInThisInterval = false;
+//    if ((currentDateTime.time().hour() % preferencesWindow->emailReportLatencyHours) == 0) {
+//        if (!sentInThisInterval) {
+//            sendInactiveRiderReports();
+//            sentInThisInterval = true;
+//        }
+//    }
+//    else {
+//        sentInThisInterval = false;
+//    }
 
 
     // Update session.  If changed, clear session bests
@@ -2111,16 +1731,17 @@ void MainWindow::onClockTimerTimeout(void) {
 
 QString MainWindow::getSession(const QDateTime &dateTime) {
     QString session;
-    QString day = QDate::longDayName(dateTime.date().dayOfWeek());
-    for (int i=0; i<ui->sessionsTableWidget->rowCount(); i++) {
-        QString sessionDay = ui->sessionsTableWidget->item(i, 0)->text();
-        QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
-        QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
-        if ((day == sessionDay) && (dateTime.time() >= sessionStartTime) && (dateTime.time() < sessionEndTime)) {
-            session = ui->sessionsTableWidget->item(i, 1)->text();
-            break;
-        }
-    }
+//    QString day = QDate::longDayName(dateTime.date().dayOfWeek());
+//    for (int i=0; i<ui->sessionsTableWidget->rowCount(); i++) {
+//        qDebug() << ui->sessionsTableWidget->item(i, 0)->text();
+//        QString sessionDay = ui->sessionsTableWidget->item(i, 0)->text();
+//        QTime sessionStartTime(QTime::fromString(ui->sessionsTableWidget->item(i, 2)->text(), "hh:mm"));
+//        QTime sessionEndTime(QTime::fromString(ui->sessionsTableWidget->item(i, 3)->text(), "hh:mm"));
+//        if ((day == sessionDay) && (dateTime.time() >= sessionStartTime) && (dateTime.time() < sessionEndTime)) {
+//            session = ui->sessionsTableWidget->item(i, 1)->text();
+//            break;
+//        }
+//    }
     return session;
 }
 
@@ -2134,8 +1755,8 @@ QString MainWindow::getSession(const QDateTime &dateTime) {
 // Look through lapsDbase for laps within the last week with pending reports
 
 void MainWindow::sendInactiveRiderReports(void) {
-    if (!ui->emailSendReportsCheckBox->isChecked())
-        return;
+//    if (!preferencesWindow->emailSendReportsCheckBox->isChecked())
+//        return;
 
     if (!lapsDbase.isOpen())
         return;
@@ -2212,7 +1833,7 @@ void MainWindow::prepareNextReport(void) {
 
     CMembershipInfo *memberToReport = &membershipInfoNotReported[0];
 
-    QString body("This is an automatic email report describing recent cycling activity at the " + ui->trackNameLineEdit->text() + ".  Do not reply to this message.\n\n");
+    QString body("This is an automatic email report describing recent cycling activity at the " + preferencesWindow->trackName + ".  Do not reply to this message.\n\n");
     body.append("Name: " + memberToReport->firstName + " " + memberToReport->lastName + "\n");
     body.append("TagId: " + memberToReport->tagId + "\n");
     body.append("MembershipNumber: " + memberToReport->membershipNumber + "\n");
@@ -2307,49 +1928,49 @@ void MainWindow::prepareNextReport(void) {
 
 
 void MainWindow::sendReport(const CMembershipInfo &info, const QString &body) {
-    emit onNewLogMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
+    messagesWindow->addMessage("Sending email report to " + info.firstName + " " + info.lastName + " at " + info.eMail);
 
-    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body.toLatin1().data();
+//    qDebug() << ui->emailFromLineEdit->text() << info.eMail << ui->emailSubjectLineEdit->text() << body.toLatin1().data();
 
     // Create smtp client
 
-    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
-    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
-    connect(smtp, SIGNAL(newLogMessage(QString)), this, SLOT(onNewLogMessage(QString)));
-    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body.toLatin1().data());
+//    smtp = new CSmtp(ui->smtpUsernameLineEdit->text(), ui->smtpPasswordLineEdit->text(), ui->smtpServerLineEdit->text(), ui->smtpPortLineEdit->text().toInt());
+//    connect(smtp, SIGNAL(completed(int)), this, SLOT(onMailSent(int)));
+//    connect(smtp, SIGNAL(newLogMessage(QString)), messagesWindow, SLOT(addMessage(QString)));
+//    smtp->sendMail(ui->emailFromLineEdit->text(), info.eMail, ui->emailSubjectLineEdit->text(), body.toLatin1().data());
 }
 
 
 
-void MainWindow::onMailSent(int error) {
+//void MainWindow::onMailSent(int error) {
 
-    // If there was an error sending reports, do not clear list or update reportStatus in dbase
+//    // If there was an error sending reports, do not clear list or update reportStatus in dbase
 
-    if (error != 0) {
-        emit onNewLogMessage("  Email report not sent");
-        return;
-    }
+//    if (error != 0) {
+//        messagesWindow->addMessage("  Email report not sent");
+//        return;
+//    }
 
 
-    // Remove all entries from notReported lists for first rider on list
+//    // Remove all entries from notReported lists for first rider on list
 
-    QString tagIdBeingRemoved = membershipInfoNotReported[0].tagId;
-    for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
-        if (membershipInfoNotReported[i].tagId == tagIdBeingRemoved) {
-            membershipInfoNotReported.removeAt(i);
+//    QString tagIdBeingRemoved = membershipInfoNotReported[0].tagId;
+//    for (int i=membershipInfoNotReported.size()-1; i>=0; i--) {
+//        if (membershipInfoNotReported[i].tagId == tagIdBeingRemoved) {
+//            membershipInfoNotReported.removeAt(i);
 
-            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeOfReportStart, dateTimeOfReportEnd);
-            emit onNewLogMessage("  Email report sent");
-            if (rc != 0) {
-                qDebug() << "Error from lapsDbase.setReported";
-                return;
-            }
+//            int rc = lapsDbase.setReportStatus(CLapsDbase::reportCompleted, tagIdBeingRemoved, dateTimeOfReportStart, dateTimeOfReportEnd);
+//            messagesWindow->addMessage("  Email report sent");
+//            if (rc != 0) {
+//                qDebug() << "Error from lapsDbase.setReported";
+//                return;
+//            }
 
-        }
-    }
+//        }
+//    }
 
-    emit prepareNextReport();
-}
+//    emit prepareNextReport();
+//}
 
 
 // *********************************************************************************************
@@ -2390,57 +2011,7 @@ void MainWindow::onReaderConnected(void) {
 
     QString s;
     ui->tabWidget->setCurrentIndex(0);
-    onNewLogMessage(s.sprintf("Connected to reader %d", sendingReader->readerId));
-
-
-    // Populate comboBox with available power settings for each reader (WIP).
-    // Reader has been configured to select lowest power setting when connected.
-
-    QList<int> *transmitPowerList = sendingReader->getTransmitPowerList();
-    if (sendingReader == trackReader) {
-        ui->trackAntenna1PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->trackAntenna1PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->trackAntenna1PowerComboBox->setEnabled(true);
-        ui->trackAntenna2PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->trackAntenna2PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->trackAntenna2PowerComboBox->setEnabled(true);
-        ui->trackAntenna3PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->trackAntenna3PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->trackAntenna3PowerComboBox->setEnabled(true);
-        ui->trackAntenna4PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->trackAntenna4PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->trackAntenna4PowerComboBox->setEnabled(true);
-    }
-    else if (sendingReader == deskReader) {
-        ui->deskAntenna1PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->deskAntenna1PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->deskAntenna1PowerComboBox->setEnabled(true);
-        ui->deskAntenna2PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->deskAntenna2PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->deskAntenna2PowerComboBox->setEnabled(true);
-        ui->deskAntenna3PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->deskAntenna3PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->deskAntenna3PowerComboBox->setEnabled(true);
-        ui->deskAntenna4PowerComboBox->clear();
-        for (int i=0; i<transmitPowerList->size(); i++) {
-            ui->deskAntenna4PowerComboBox->addItem(s.setNum(transmitPowerList->at(i)));
-        }
-        ui->deskAntenna4PowerComboBox->setEnabled(true);
-    }
+    messagesWindow->addMessage(s.sprintf("Connected to reader %d", sendingReader->readerId));
 
     ui->lapsTableView->setEnabled(true);
     ui->activeRidersTableView->setEnabled(true);
@@ -2483,14 +2054,19 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     QString s;
     static int tagCount = 0;
 
-    // Add string to messages window
+    // Add string to messages window if detailedMessages is checked
 
-    if (ui->detailedMessagesCheckBox->isChecked())
-        onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
+    if (messagesWindow && messagesWindow->detailedMessagesIsChecked())
+        messagesWindow->addMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
 
-    // Tags from antennas with track length < 0 are ignored
+    // Tags from antennas not enabled are ignored
 
-    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] < 0.))
+    if (!preferencesWindow || !preferencesWindow->trackReaderAntennaEnable[tagInfo.antennaId - 1])
+        return;
+
+    // Tags from antenna 0 are ignored
+
+    if (tagInfo.antennaId == 0)
         return;
 
     // lapCount is total laps all riders
@@ -2507,8 +2083,12 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
 
     // Confirm track length for the antenna triggering this read event is valid (> 0)
 
-    if (!tagInfo.tagId.isEmpty() && (trackLengthM[tagInfo.antennaId - 1] == 0.)) {
-        guiCritical(s.sprintf("The track length value for the antenna triggering this event (%d) is zero.  Please set track length in Settings panel.", tagInfo.antennaId));
+    if (!tagInfo.tagId.isEmpty() && (preferencesWindow->trackLengthM[tagInfo.antennaId - 1] == 0.)) {
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            guiCritical(s.sprintf("Track length value for the antenna triggering this event (%d) is zero.  Please set track length in Settings panel.", tagInfo.antennaId));
+        }
         return;
     }
 
@@ -2517,6 +2097,13 @@ void MainWindow::onNewTrackTag(CTagInfo tagInfo) {
     CRider *rider = activeRidersTableModel->newTag(tagInfo);        // this adds tag to lapsTable also
     if (rider && !rider->name.isEmpty()) {
         float lapKph = kph(rider->lapM, rider->lapSec);
+
+        // Ignore lap if speed is really high (manually waving tag over antenna)
+
+        if (lapKph > 100.) {
+            messagesWindow->addMessage(s.sprintf("TagId=%s name=%s lapSpeed=%f Speed too high, reading ignored", rider->tagId.toLatin1().data(), rider->name.toLatin1().data(), lapKph));
+            return;
+        }
 
         // Best session lap kph
 
@@ -2586,437 +2173,19 @@ float MainWindow::kph(float lapM, float lapSec) {
 
 
 
-void MainWindow::onNewLogMessage(QString s) {
-    QString text(QDateTime::currentDateTime().toString("yyyy-MM-dd_hh:mm:ss ") + s);
-    ui->messagesPlainTextEdit->appendPlainText(text);
-
-   if (logFile && logTextStream)
-        *logTextStream << text << "\n";
-
-}
-
-
-
-// **********************************************************************************************************
-
-void MainWindow::onDbaseSearchPushButtonClicked(void) {
-    QString tagId = ui->deskTagIdLineEdit->text();
-    QString firstName = ui->deskFirstNameLineEdit->text();
-    QString lastName = ui->deskLastNameLineEdit->text();
-    QString membershipNumber = ui->deskMembershipNumberLineEdit->text();
-
-
-    // If tagId contains entry, search based on only that.
-    // If found, update fields.  Otherwise clear fields.
-
-    CMembershipInfo info;
-
-    if (!tagId.isEmpty() && firstName.isEmpty() && lastName.isEmpty() && membershipNumber.isEmpty()) {
-        int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
-        if (id > 0) {
-            tagInDbase = true;
-            membershipDbase.getAllFromId(id, &info);
-            ui->deskFirstNameLineEdit->setText(info.firstName);
-            ui->deskLastNameLineEdit->setText(info.lastName);
-            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
-            ui->deskEMailLineEdit->setText(info.eMail);
-            ui->sendReportsCheckBox->setChecked(info.sendReports);
-        }
-        else {
-            tagInDbase = false;
-            ui->deskFirstNameLineEdit->clear();
-            ui->deskLastNameLineEdit->clear();
-            ui->deskMembershipNumberLineEdit->clear();
-            ui->deskCaRegistrationLineEdit->clear();
-            ui->deskEMailLineEdit->clear();
-            ui->sendReportsCheckBox->setChecked(false);
-        }
-    }
-
-    // Else if first or last name given, search on that.  Don't clear names on search fail.
-
-    else if ((!lastName.isEmpty() || !firstName.isEmpty()) && membershipNumber.isEmpty()) {
-        int id = membershipDbase.getIdFromName(firstName, lastName);
-        if (id > 0) {
-            tagInDbase = true;
-            membershipDbase.getAllFromId(id, &info);
-            ui->deskTagIdLineEdit->setText(info.tagId);
-            ui->deskFirstNameLineEdit->setText(info.firstName);
-            ui->deskLastNameLineEdit->setText(info.lastName);
-            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
-            ui->deskEMailLineEdit->setText(info.eMail);
-            ui->sendReportsCheckBox->setChecked(info.sendReports);
-        }
-        else {
-            tagInDbase = false;
-        }
-    }
-
-    // Else if membership number is given, search on that.  Don't clear names on search fail.
-
-    else if ((lastName.isEmpty() && firstName.isEmpty()) && !membershipNumber.isEmpty()) {
-        int id = membershipDbase.getIdFromMembershipNumber(membershipNumber);
-        if (id > 0) {
-            tagInDbase = true;
-            membershipDbase.getAllFromId(id, &info);
-            ui->deskTagIdLineEdit->setText(info.tagId);
-            ui->deskFirstNameLineEdit->setText(info.firstName);
-            ui->deskLastNameLineEdit->setText(info.lastName);
-            ui->deskMembershipNumberLineEdit->setText(info.membershipNumber);
-            ui->deskCaRegistrationLineEdit->setText(info.caRegistration);
-            ui->deskEMailLineEdit->setText(info.eMail);
-            ui->sendReportsCheckBox->setChecked(info.sendReports);
-        }
-        else {
-            tagInDbase = false;
-        }
-    }
-
-    entryEdited = false;
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onDbaseAddPushButtonClicked(void) {
-
-    // Check whether tagId is already in dbase
-
-    int id = membershipDbase.getIdFromTagId(ui->deskTagIdLineEdit->text().toLatin1());
-    if (id != 0) {
-        guiCritical("Tag \"" + ui->deskTagIdLineEdit->text().toLatin1() + "\" already in database");
-        return;
-    }
-
-    // Add entry to database
-
-    CMembershipInfo info;
-    info.tagId = ui->deskTagIdLineEdit->text();
-    info.firstName = ui->deskFirstNameLineEdit->text();
-    info.lastName = ui->deskLastNameLineEdit->text();
-    info.membershipNumber = ui->deskMembershipNumberLineEdit->text();
-    info.caRegistration = ui->deskCaRegistrationLineEdit->text();
-    info.eMail = ui->deskEMailLineEdit->text();
-    info.sendReports = ui->sendReportsCheckBox->isChecked();
-    int rc = membershipDbase.add(info);
-    if (rc != 0) {
-        guiCritical(membershipDbase.errorText());
-        return;
-    }
-
-    // Add to table
-
-    if (!membershipTableModel->add(info)) {
-        guiCritical("Could not add entry to membershipTable");
-        return;
-    }
-
-    // Update name in activeRidersList so it appears in activeRidersTable
-
-    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
-        if (activeRidersTableModel->activeRidersList[i].tagId == info.tagId) {
-            if (info.firstName.isEmpty())
-                activeRidersTableModel->activeRidersList[i].name = info.lastName;
-            else
-                activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
-            break;
-        }
-    }
-
-    onDbaseClearPushButtonClicked();
-}
-
-
-
-void MainWindow::onDbaseClearPushButtonClicked(void) {
-    tagInDbase = false;
-    entryEdited = false;
-
-    ui->deskTagIdLineEdit->clear();
-    ui->deskFirstNameLineEdit->clear();
-    ui->deskLastNameLineEdit->clear();
-    ui->deskMembershipNumberLineEdit->clear();
-    ui->deskCaRegistrationLineEdit->clear();
-    ui->deskEMailLineEdit->clear();
-    ui->sendReportsCheckBox->setChecked(false);
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onDbaseRemovePushButtonClicked(void) {
-    QMessageBox::StandardButtons b = guiQuestion("You are about to remove this tag entry from the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort);
-    if (b == QMessageBox::Ok) {
-        QString tagId(ui->deskTagIdLineEdit->text());
-        if (membershipDbase.removeTagId(tagId) != 0) {
-            guiCritical("Error removing name from database");
-            return;
-        }
-        if (!membershipTableModel->remove(tagId)) {
-            guiCritical("Error removing name from namesTable");
-            return;
-        }
-
-        // Update name in activeRidersList so it appears in activeRidersTable
-
-        for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
-            if (activeRidersTableModel->activeRidersList[i].tagId == tagId) {
-                activeRidersTableModel->activeRidersList[i].name.clear();
-                break;
-            }
-        }
-    }
-
-
-    entryEdited = false;
-    onDbaseClearPushButtonClicked();
-}
-
-
-
-void MainWindow::onDbaseUpdatePushButtonClicked(void) {
-
-    // Confirm we should be changing database
-
-    if (guiQuestion("You are about to modify an existing tag entry in the database.  Press Ok to continue.", QMessageBox::Ok | QMessageBox::Abort) != QMessageBox::Ok)
-        return;
-
-    CMembershipInfo info;
-    info.tagId = ui->deskTagIdLineEdit->text();
-    info.firstName = ui->deskFirstNameLineEdit->text();
-    info.lastName = ui->deskLastNameLineEdit->text();
-    info.membershipNumber = ui->deskMembershipNumberLineEdit->text();
-    info.caRegistration = ui->deskCaRegistrationLineEdit->text();
-    info.eMail = ui->deskEMailLineEdit->text();
-    info.sendReports = ui->sendReportsCheckBox->isChecked();
-
-    // Update entry in database
-
-    int rc = membershipDbase.update(info);
-    if (rc != 0) {
-        guiCritical("Could not update database: " + membershipDbase.errorText());
-        return;
-    }
-
-    // Add to table
-
-    if (!membershipTableModel->update(info)) {
-        guiCritical("Could not update membershipTable");
-        return;
-    }
-
-
-    // Update name in activeRidersList so it appears in activeRidersTable
-
-    for (int i=0; i<activeRidersTableModel->activeRidersList.size(); i++) {
-        if (activeRidersTableModel->activeRidersList[i].tagId == info.tagId) {
-            if (info.firstName.isEmpty())
-                activeRidersTableModel->activeRidersList[i].name = info.lastName;
-            else
-                activeRidersTableModel->activeRidersList[i].name = info.firstName + " " + info.lastName;
-            break;
-        }
-    }
-
-
-    entryEdited = false;
-    onDbaseClearPushButtonClicked();
-}
-
-
-
-void MainWindow::onDbaseReadPushButtonClicked(bool state) {
-    if (state) {
-        ui->deskReadPushButton->setChecked(true);
-        onDbaseClearPushButtonClicked();
-        if (deskReader)
-            deskReader->blockSignals(false);
-    }
-    else {
-        if (deskReader)
-            deskReader->blockSignals(true);
-        ui->deskReadPushButton->setChecked(false);
-    }
-
-    entryEdited = false;
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onNewDeskTag(CTagInfo tagInfo) {
-    QString s;
-
-    // Add string to messages window
-
-    if (ui->detailedMessagesCheckBox->isChecked())
-        onNewLogMessage(s.sprintf("readerId=%d antennaId=%d timeStampUSec=%llu tagData=%s", tagInfo.readerId, tagInfo.antennaId, tagInfo.timeStampUSec, tagInfo.tagId.toLatin1().data()));
-
-    if (tagInfo.antennaId <= 0)
-        return;
-
-    deskReader->blockSignals(true);
-    onDbaseClearPushButtonClicked();
-    ui->deskTagIdLineEdit->setText(tagInfo.tagId);
-    onDbaseSearchPushButtonClicked();
-    ui->deskReadPushButton->setChecked(false);
-
-    entryEdited = false;
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onDbaseTagIdTextEdited(QString) {
-    tagInDbase = false;
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onDbaseFirstNameTextEdited(QString) {
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-
-void MainWindow::onDbaseLastNameTextEdited(QString) {
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-void MainWindow::onDbaseMembershipNumberTextEdited(QString) {
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-void MainWindow::onDbaseCaRegistrationTextEdited(QString) {
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-void MainWindow::onDbaseEMailTextEdited(QString) {
-    entryEdited = true;
-    updateDbaseButtons();
-}
-
-
-void MainWindow::updateDbaseButtons(void) {
-
-    // If ReadTag pushed, all others should be disabled
-
-    if (ui->deskReadPushButton->isChecked()) {
-        ui->deskSearchPushButton->setEnabled(false);
-        ui->deskAddPushButton->setEnabled(false);
-        ui->deskClearPushButton->setEnabled(false);
-        ui->deskRemovePushButton->setEnabled(false);
-        ui->deskUpdatePushButton->setEnabled(false);
-        return;
-    }
-
-    // Search is enabled when one of TagId, FirstName and/or LastName, or membershipNumber is filled
-
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
-        ui->deskSearchPushButton->setEnabled(true);
-
-    else if (ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
-        ui->deskSearchPushButton->setEnabled(true);
-
-    else if (ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
-        ui->deskSearchPushButton->setEnabled(true);
-
-    else if (ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && ui->deskMembershipNumberLineEdit->text().isEmpty())
-        ui->deskSearchPushButton->setEnabled(true);
-
-    else if (ui->deskTagIdLineEdit->text().isEmpty() && ui->deskFirstNameLineEdit->text().isEmpty() && ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty())
-        ui->deskSearchPushButton->setEnabled(true);
-
-    else
-        ui->deskSearchPushButton->setEnabled(false);
-
-
-    // Add is enabled when all fields (except firstname) are filled, tagInDbase is false, and with email optional
-
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && !tagInDbase)
-        ui->deskAddPushButton->setEnabled(true);
-
-    else
-        ui->deskAddPushButton->setEnabled(false);
-
-
-    // Clear is enabled when any field is filled
-
-    if (!ui->deskTagIdLineEdit->text().isEmpty() || !ui->deskFirstNameLineEdit->text().isEmpty() || !ui->deskLastNameLineEdit->text().isEmpty() || !ui->deskMembershipNumberLineEdit->text().isEmpty() || !ui->deskCaRegistrationLineEdit->text().isEmpty() || !ui->deskEMailLineEdit->text().isEmpty())
-        ui->deskClearPushButton->setEnabled(true);
-
-    else
-        ui->deskClearPushButton->setEnabled(false);
-
-
-    // Remove is enabled when tadId and last name are filled, and tagInDbase is true
-
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && tagInDbase)
-        ui->deskRemovePushButton->setEnabled(true);
-
-    else
-        ui->deskRemovePushButton->setEnabled(false);
-
-
-    // Update is enabled when all fields (firstname and email optional) are filled, and tagInDbase is true and entryChanged is true
-
-    if (!ui->deskTagIdLineEdit->text().isEmpty() && !ui->deskLastNameLineEdit->text().isEmpty() && !ui->deskMembershipNumberLineEdit->text().isEmpty() && !ui->deskCaRegistrationLineEdit->text().isEmpty() && tagInDbase && entryEdited)
-        ui->deskUpdatePushButton->setEnabled(true);
-
-    else
-        ui->deskUpdatePushButton->setEnabled(false);
-
-}
-
-
-
-void MainWindow::onNamesTableClicked(const QModelIndex &index) {
-    onDbaseClearPushButtonClicked();
-    switch (index.column()) {
-    case 0:
-        ui->deskTagIdLineEdit->setText(index.data().toString());
-        break;
-    case 1:
-        ui->deskFirstNameLineEdit->setText(index.data().toString());
-        break;
-    case 2:
-        ui->deskLastNameLineEdit->setText(index.data().toString());
-        break;
-    case 3:
-        ui->deskMembershipNumberLineEdit->setText(index.data().toString());
-        break;
-    case 4:
-        ui->deskCaRegistrationLineEdit->setText(index.data().toString());
-        break;
-    case 5:
-        ui->deskEMailLineEdit->setText(index.data().toString());
-        break;
-    }
-    updateDbaseButtons();
-}
-
 
 
 
 void MainWindow::guiCritical(QString s) {
-    onNewLogMessage("Critical: " + s);
+    if (messagesWindow)
+        messagesWindow->addMessage("Critical: " + s);
     QMessageBox::critical(this, QCoreApplication::applicationName() + " Critical Error", s, QMessageBox::Ok);
 }
 
 
 void MainWindow::guiInformation(QString s) {
-    onNewLogMessage("Information: " + s);
+    if (messagesWindow)
+        messagesWindow->addMessage("Information: " + s);
     QMessageBox::information(this, QCoreApplication::applicationName() + "\n\n", s, QMessageBox::Ok);
 }
 
